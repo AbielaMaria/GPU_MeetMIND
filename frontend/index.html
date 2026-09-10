@@ -1,0 +1,2398 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>
+        MeetMind - AI Meeting Intelligence
+    </title>
+
+    <style>
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+
+            margin: 0;
+
+            font-family:
+                Arial,
+                Helvetica,
+                sans-serif;
+
+            background:
+                #f5f7fb;
+
+            color:
+                #172033;
+        }
+
+        .container {
+
+            max-width:
+                1180px;
+
+            margin:
+                0 auto;
+
+            padding:
+                30px 20px;
+        }
+
+        .card {
+
+            background:
+                white;
+
+            border:
+                1px solid #e4e8f0;
+
+            border-radius:
+                16px;
+
+            padding:
+                22px;
+
+            margin-bottom:
+                20px;
+
+            box-shadow:
+                0 5px 18px
+                rgba(0, 0, 0, 0.05);
+        }
+
+        header {
+
+            display:
+                flex;
+
+            justify-content:
+                space-between;
+
+            align-items:
+                center;
+
+            gap:
+                20px;
+        }
+
+        h1 {
+
+            margin:
+                0;
+
+            font-size:
+                30px;
+        }
+
+        h2 {
+
+            margin-top:
+                0;
+
+            font-size:
+                20px;
+        }
+
+        .subtitle {
+
+            margin:
+                7px 0 0;
+
+            color:
+                #6b7280;
+        }
+
+        .connection {
+
+            white-space:
+                nowrap;
+        }
+
+        .status-dot {
+
+            display:
+                inline-block;
+
+            width:
+                9px;
+
+            height:
+                9px;
+
+            border-radius:
+                50%;
+
+            background:
+                #22c55e;
+
+            margin-right:
+                7px;
+        }
+
+        .controls {
+
+            display:
+                flex;
+
+            align-items:
+                center;
+
+            gap:
+                14px;
+
+            margin-top:
+                22px;
+
+            flex-wrap:
+                wrap;
+        }
+
+        button {
+
+            border:
+                0;
+
+            border-radius:
+                10px;
+
+            padding:
+                13px 22px;
+
+            font-size:
+                15px;
+
+            font-weight:
+                700;
+
+            cursor:
+                pointer;
+        }
+
+        #recordBtn {
+
+            background:
+                #dc2626;
+
+            color:
+                white;
+        }
+
+        #recordBtn.recording {
+
+            background:
+                #111827;
+        }
+
+        #summaryBtn {
+
+            background:
+                #2563eb;
+
+            color:
+                white;
+
+            margin-top:
+                16px;
+        }
+
+        button:disabled {
+
+            opacity:
+                0.45;
+
+            cursor:
+                not-allowed;
+        }
+
+        #timer {
+
+            font-family:
+                monospace;
+
+            font-size:
+                22px;
+
+            font-weight:
+                700;
+        }
+
+        #status {
+
+            margin-top:
+                18px;
+
+            padding:
+                12px 15px;
+
+            border-radius:
+                9px;
+
+            background:
+                #f3f4f6;
+
+            color:
+                #374151;
+        }
+
+        .grid {
+
+            display:
+                grid;
+
+            grid-template-columns:
+                1.15fr 1fr;
+
+            gap:
+                20px;
+        }
+
+        @media (
+            max-width: 850px
+        ) {
+
+            .grid {
+
+                grid-template-columns:
+                    1fr;
+            }
+        }
+
+        .transcript {
+
+            min-height:
+                280px;
+
+            max-height:
+                600px;
+
+            overflow-y:
+                auto;
+
+            border:
+                1px solid #e5e7eb;
+
+            border-radius:
+                10px;
+
+            padding:
+                16px;
+
+            white-space:
+                pre-wrap;
+
+            line-height:
+                1.7;
+        }
+
+        .placeholder {
+
+            color:
+                #9ca3af;
+
+            text-align:
+                center;
+
+            padding:
+                70px 10px;
+        }
+
+        .result-section {
+
+            margin-bottom:
+                22px;
+        }
+
+        .result-section:last-child {
+
+            margin-bottom:
+                0;
+        }
+
+        .label {
+
+            font-size:
+                12px;
+
+            font-weight:
+                800;
+
+            letter-spacing:
+                0.08em;
+
+            color:
+                #6b7280;
+
+            margin-bottom:
+                7px;
+        }
+
+        .title-result {
+
+            font-size:
+                24px;
+
+            font-weight:
+                800;
+
+            line-height:
+                1.25;
+        }
+
+        .summary {
+
+            line-height:
+                1.7;
+
+            color:
+                #374151;
+        }
+
+
+
+        /* ========================================================
+           EDITABLE MEETING SUMMARY
+        ======================================================== */
+
+        .editable-summary {
+            width: 100%;
+            min-height: 150px;
+            padding: 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            box-sizing: border-box;
+            font-family: inherit;
+            font-size: 15px;
+            line-height: 1.7;
+            color: #374151;
+            background: #ffffff;
+            resize: vertical;
+        }
+
+        .editable-summary:focus {
+            outline: none;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
+        }
+
+        .edit-hint {
+            margin-top: 6px;
+            color: #9ca3af;
+            font-size: 12px;
+        }
+
+        .summary-actions {
+            display: none;
+            margin-top: 10px;
+        }
+
+        .summary-actions.visible {
+            display: block;
+        }
+
+        #saveSummaryBtn {
+            background: #059669;
+            color: white;
+            margin-top: 0;
+        }
+
+        #cancelSummaryBtn {
+            background: #6b7280;
+            color: white;
+            margin-top: 0;
+            margin-left: 8px;
+        }
+
+
+        .editable-field {
+            cursor: text;
+            border: 1px solid transparent;
+            border-radius: 7px;
+            padding: 5px 7px;
+            min-height: 22px;
+            outline: none;
+            white-space: pre-wrap;
+        }
+
+        .editable-field:hover {
+            border-color: #d1d5db;
+            background: #ffffff;
+        }
+
+        .editable-field:focus {
+            border-color: #2563eb;
+            background: #ffffff;
+            box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
+        }
+
+        .editable-title {
+            font-size: 18px;
+            font-weight: 700;
+            line-height: 1.4;
+        }
+
+        .item {
+
+            padding:
+                12px 14px;
+
+            border:
+                1px solid #e5e7eb;
+
+            border-radius:
+                10px;
+
+            margin-bottom:
+                9px;
+
+            background:
+                #fafafa;
+        }
+
+        .item strong {
+
+            display:
+                block;
+
+            margin-bottom:
+                5px;
+        }
+
+        .meta {
+
+            color:
+                #6b7280;
+
+            font-size:
+                13px;
+
+            margin-top:
+                4px;
+        }
+
+        .decision {
+
+            padding:
+                11px 13px;
+
+            border-left:
+                4px solid #7c3aed;
+
+            background:
+                #faf5ff;
+
+            margin-bottom:
+                9px;
+
+            border-radius:
+                5px;
+
+            line-height:
+                1.5;
+        }
+
+        .objection {
+
+            border-left:
+                4px solid #dc2626;
+
+            background:
+                #fef2f2;
+
+            line-height:
+                1.5;
+        }
+
+        .action {
+
+            border-left:
+                4px solid #059669;
+
+            background:
+                #ecfdf5;
+
+            line-height:
+                1.5;
+        }
+
+        #logs {
+
+            height:
+                180px;
+
+            overflow:
+                auto;
+
+            background:
+                #111827;
+
+            color:
+                #d1d5db;
+
+            border-radius:
+                10px;
+
+            padding:
+                12px;
+
+            font:
+                12px/1.6 monospace;
+
+            white-space:
+                pre-wrap;
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+
+<div class="container">
+
+
+    <!-- ======================================================
+         HEADER
+    ======================================================= -->
+
+    <div class="card">
+
+        <header>
+
+            <div>
+
+                <h1>
+                    MeetMind
+                </h1>
+
+                <p class="subtitle">
+                    AI meeting transcription and meeting intelligence
+                </p>
+
+            </div>
+
+            <div class="connection">
+
+                <span
+                    class="status-dot"
+                    id="statusDot"
+                ></span>
+
+                <span id="connection">
+                    Ready
+                </span>
+
+            </div>
+
+        </header>
+
+
+        <div class="controls">
+
+            <button
+                id="recordBtn"
+                type="button"
+            >
+                Start Recording
+            </button>
+
+            <span id="timer">
+                00:00
+            </span>
+
+        </div>
+
+
+        <div id="status">
+            Ready to record.
+        </div>
+
+    </div>
+
+
+    <!-- ======================================================
+         MAIN CONTENT
+    ======================================================= -->
+
+    <div class="grid">
+
+
+        <!-- ==================================================
+             TRANSCRIPT
+        =================================================== -->
+
+        <div class="card">
+
+            <h2>
+                Complete Transcript
+            </h2>
+
+            <div
+                id="transcript"
+                class="transcript"
+            >
+
+                <div class="placeholder">
+                    Your complete transcript will appear here
+                    after you stop recording.
+                </div>
+
+            </div>
+
+
+            <button
+                id="summaryBtn"
+                type="button"
+                disabled
+            >
+                Create Summary
+            </button>
+
+        </div>
+
+
+        <!-- ==================================================
+             MEETING INTELLIGENCE
+        =================================================== -->
+
+        <div class="card">
+
+            <h2>
+                Meeting Intelligence
+            </h2>
+
+            <div id="intelligence">
+
+                <div class="placeholder">
+                    After the transcript is ready,
+                    click Create Summary.
+                </div>
+
+            </div>
+
+        </div>
+
+
+    </div>
+
+
+    <!-- ======================================================
+         BACKEND LOG
+    ======================================================= -->
+
+    <div class="card">
+
+        <h2>
+            Backend Log
+        </h2>
+
+        <div id="logs"></div>
+
+    </div>
+
+
+</div>
+
+
+<script>
+
+
+/* ============================================================
+   STATE
+============================================================ */
+
+let websocket = null;
+
+let audioContext = null;
+
+let microphoneStream = null;
+
+let sourceNode = null;
+
+let processorNode = null;
+
+let isRecording = false;
+
+let startTime = 0;
+
+let timerInterval = null;
+
+let transcript = "";
+
+let currentSummary = "";
+
+let savedIntelligenceData = null;
+let currentIntelligenceData = null;
+
+
+/* ============================================================
+   DOM
+============================================================ */
+
+const recordBtn =
+    document.getElementById(
+        "recordBtn"
+    );
+
+const summaryBtn =
+    document.getElementById(
+        "summaryBtn"
+    );
+
+const timerEl =
+    document.getElementById(
+        "timer"
+    );
+
+const statusEl =
+    document.getElementById(
+        "status"
+    );
+
+const transcriptEl =
+    document.getElementById(
+        "transcript"
+    );
+
+const intelligenceEl =
+    document.getElementById(
+        "intelligence"
+    );
+
+const logsEl =
+    document.getElementById(
+        "logs"
+    );
+
+const connectionEl =
+    document.getElementById(
+        "connection"
+    );
+
+const statusDot =
+    document.getElementById(
+        "statusDot"
+    );
+
+
+/* ============================================================
+   LOG
+============================================================ */
+
+function log(message) {
+
+    const now =
+        new Date();
+
+    const time =
+        now.toLocaleTimeString();
+
+    logsEl.textContent +=
+        `[${time}] ${message}\n`;
+
+    logsEl.scrollTop =
+        logsEl.scrollHeight;
+}
+
+
+/* ============================================================
+   STATUS
+============================================================ */
+
+function setStatus(message) {
+
+    statusEl.textContent =
+        message;
+}
+
+
+/* ============================================================
+   TIMER
+============================================================ */
+
+function startTimer() {
+
+    startTime =
+        Date.now();
+
+    timerEl.textContent =
+        "00:00";
+
+    if (timerInterval) {
+
+        clearInterval(
+            timerInterval
+        );
+    }
+
+    timerInterval =
+        setInterval(
+            () => {
+
+                const elapsed =
+                    Math.floor(
+                        (
+                            Date.now()
+                            -
+                            startTime
+                        ) / 1000
+                    );
+
+                const minutes =
+                    Math.floor(
+                        elapsed / 60
+                    );
+
+                const seconds =
+                    elapsed % 60;
+
+                timerEl.textContent =
+                    `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+
+            },
+            250
+        );
+}
+
+
+function stopTimer() {
+
+    if (timerInterval) {
+
+        clearInterval(
+            timerInterval
+        );
+    }
+
+    timerInterval =
+        null;
+}
+
+
+/* ============================================================
+   AUDIO DOWNSAMPLING
+============================================================ */
+
+function downsampleBuffer(
+    input,
+    inputRate,
+    outputRate
+) {
+
+    if (
+        inputRate ===
+        outputRate
+    ) {
+
+        return input;
+    }
+
+    if (
+        outputRate >
+        inputRate
+    ) {
+
+        throw new Error(
+            "Output sample rate must be <= input sample rate."
+        );
+    }
+
+    const ratio =
+        inputRate /
+        outputRate;
+
+    const newLength =
+        Math.round(
+            input.length /
+            ratio
+        );
+
+    const result =
+        new Float32Array(
+            newLength
+        );
+
+    let offsetResult =
+        0;
+
+    let offsetBuffer =
+        0;
+
+    while (
+        offsetResult <
+        result.length
+    ) {
+
+        const nextOffsetBuffer =
+            Math.round(
+                (
+                    offsetResult + 1
+                ) * ratio
+            );
+
+        let accum =
+            0;
+
+        let count =
+            0;
+
+        for (
+            let i = offsetBuffer;
+            i < nextOffsetBuffer &&
+            i < input.length;
+            i++
+        ) {
+
+            accum +=
+                input[i];
+
+            count++;
+        }
+
+        result[offsetResult] =
+            count > 0
+                ? accum / count
+                : 0;
+
+        offsetResult++;
+
+        offsetBuffer =
+            nextOffsetBuffer;
+    }
+
+    return result;
+}
+
+
+/* ============================================================
+   FLOAT -> PCM16
+============================================================ */
+
+function floatToPCM16(
+    float32Array
+) {
+
+    const buffer =
+        new ArrayBuffer(
+            float32Array.length * 2
+        );
+
+    const view =
+        new DataView(
+            buffer
+        );
+
+    for (
+        let i = 0;
+        i < float32Array.length;
+        i++
+    ) {
+
+        const sample =
+            Math.max(
+                -1,
+                Math.min(
+                    1,
+                    float32Array[i]
+                )
+            );
+
+        const value =
+            sample < 0
+                ? sample * 0x8000
+                : sample * 0x7fff;
+
+        view.setInt16(
+            i * 2,
+            value,
+            true
+        );
+    }
+
+    return buffer;
+}
+
+
+/* ============================================================
+   WEBSOCKET
+============================================================ */
+
+async function openWebSocket() {
+
+    const protocol =
+        window.location.protocol ===
+        "https:"
+            ? "wss"
+            : "ws";
+
+    const host =
+        window.location.host;
+
+    websocket =
+        new WebSocket(
+            `${protocol}://${host}/ws/meeting`
+        );
+
+    websocket.binaryType =
+        "arraybuffer";
+
+    await new Promise(
+        (
+            resolve,
+            reject
+        ) => {
+
+            let settled =
+                false;
+
+            websocket.onopen =
+                () => {
+
+                    if (
+                        settled
+                    ) {
+
+                        return;
+                    }
+
+                    settled =
+                        true;
+
+                    connectionEl.textContent =
+                        "Connected";
+
+                    statusDot.style.background =
+                        "#22c55e";
+
+                    log(
+                        "WebSocket connected."
+                    );
+
+                    resolve();
+                };
+
+
+            websocket.onerror =
+                () => {
+
+                    if (
+                        settled
+                    ) {
+
+                        return;
+                    }
+
+                    settled =
+                        true;
+
+                    reject(
+                        new Error(
+                            "WebSocket connection failed."
+                        )
+                    );
+                };
+
+
+            websocket.onclose =
+                () => {
+
+                    connectionEl.textContent =
+                        "Disconnected";
+
+                    statusDot.style.background =
+                        "#dc2626";
+
+                    log(
+                        "WebSocket closed."
+                    );
+                };
+
+        }
+    );
+
+    websocket.onmessage =
+        handleServerMessage;
+}
+
+
+/* ============================================================
+   SERVER MESSAGE HANDLER
+============================================================ */
+
+function handleServerMessage(
+    event
+) {
+
+    let data;
+
+    try {
+
+        data =
+            JSON.parse(
+                event.data
+            );
+
+    } catch (error) {
+
+        log(
+            "Invalid server message received."
+        );
+
+        return;
+    }
+
+
+    switch (
+        data.type
+    ) {
+
+
+        /* ----------------------------------------------------
+           CONNECTED
+        ---------------------------------------------------- */
+
+        case "connected":
+
+            log(
+                `Meeting ID: ${data.meeting_id}`
+            );
+
+            break;
+
+
+        /* ----------------------------------------------------
+           RECORDING STARTED
+        ---------------------------------------------------- */
+
+        case "recording_started":
+
+            setStatus(
+                "Recording meeting..."
+            );
+
+            recordBtn.disabled =
+                false;
+
+            break;
+
+
+        /* ----------------------------------------------------
+           PROCESSING STARTED
+        ---------------------------------------------------- */
+
+        case "processing_started":
+
+            setStatus(
+                "Recording complete. Transcribing with Parrotlet..."
+            );
+
+            log(
+                data.message
+                ||
+                "Parrotlet transcription started."
+            );
+
+            break;
+
+
+        /* ----------------------------------------------------
+           FINAL TRANSCRIPT
+        ---------------------------------------------------- */
+
+        case "final_transcript":
+
+            transcript =
+                (
+                    data.transcript
+                    ||
+                    ""
+                ).trim();
+
+            renderTranscript(
+                transcript
+            );
+
+            summaryBtn.disabled =
+                !transcript;
+
+            if (transcript) {
+
+                setStatus(
+                    "Transcript ready. Click Create Summary."
+                );
+
+            } else {
+
+                setStatus(
+                    "No transcript was produced."
+                );
+            }
+
+            log(
+                "Complete transcript received."
+            );
+
+            break;
+
+
+        /* ----------------------------------------------------
+           TRANSCRIPT READY
+        ---------------------------------------------------- */
+
+        case "transcript_ready":
+
+            if (
+                data.message
+            ) {
+
+                setStatus(
+                    data.message
+                );
+            }
+
+            break;
+
+
+        /* ----------------------------------------------------
+           SUMMARY STARTED
+        ---------------------------------------------------- */
+
+        case "summary_started":
+
+            setStatus(
+                "Generating meeting intelligence with Llama 3.1 8B..."
+            );
+
+            log(
+                "Llama 3.1 8B analysis started."
+            );
+
+            break;
+
+
+        /* ----------------------------------------------------
+           MEETING RESULT
+        ---------------------------------------------------- */
+
+        case "meeting_result":
+
+            transcript =
+                (
+                    data.transcript
+                    ||
+                    transcript
+                    ||
+                    ""
+                ).trim();
+
+            renderTranscript(
+                transcript
+            );
+
+            renderIntelligence(
+                data
+            );
+
+            summaryBtn.disabled =
+                false;
+
+            setStatus(
+                "Meeting intelligence generated."
+            );
+
+            log(
+                "Meeting intelligence received."
+            );
+
+            break;
+
+
+        /* ----------------------------------------------------
+           ERROR
+        ---------------------------------------------------- */
+
+        case "error":
+
+            log(
+                `ERROR [${data.stage || "backend"}]: ${data.message}`
+            );
+
+            setStatus(
+                `Error: ${data.message}`
+            );
+
+            recordBtn.disabled =
+                false;
+
+            break;
+
+
+        default:
+
+            log(
+                `Server event: ${data.type}`
+            );
+
+            break;
+    }
+}
+
+
+/* ============================================================
+   TRANSCRIPT RENDERING
+============================================================ */
+
+function renderTranscript(
+    text
+) {
+
+    transcriptEl.innerHTML =
+        "";
+
+    if (!text) {
+
+        transcriptEl.innerHTML =
+            `
+            <div class="placeholder">
+                No transcript was produced.
+            </div>
+            `;
+
+        return;
+    }
+
+    const div =
+        document.createElement(
+            "div"
+        );
+
+    div.textContent =
+        text;
+
+    transcriptEl.appendChild(
+        div
+    );
+}
+
+
+/* ============================================================
+   MEETING INTELLIGENCE RENDERING
+============================================================ */
+
+function renderIntelligence(
+    data,
+    resetSaved = true
+) {
+
+    if (!data) {
+        return;
+    }
+
+    currentIntelligenceData =
+        JSON.parse(JSON.stringify(data));
+
+    if (resetSaved || !savedIntelligenceData) {
+        savedIntelligenceData =
+            JSON.parse(JSON.stringify(data));
+    }
+
+    const title =
+        data.title
+        ||
+        "Untitled Meeting";
+
+    const objective =
+        data.objective
+        ||
+        "Objective could not be generated.";
+
+    const summary =
+        data.meeting_summary
+        ||
+        "No summary available.";
+
+    const tasks =
+        Array.isArray(data.tasks_assigned)
+            ? data.tasks_assigned
+            : [];
+
+    const decisions =
+        Array.isArray(data.decision_points)
+            ? data.decision_points
+            : [];
+
+    const objections =
+        Array.isArray(data.objections)
+            ? data.objections
+            : [];
+
+    const actions =
+        Array.isArray(data.action_items)
+            ? data.action_items
+            : [];
+
+    let html = "";
+
+    /* ========================================================
+       TITLE
+    ======================================================== */
+
+    html += `
+        <div class="result-section">
+            <div class="label">TITLE</div>
+            <div
+                class="title-result editable-field editable-title"
+                contenteditable="true"
+                spellcheck="true"
+                data-edit-path="title"
+                role="textbox"
+                aria-label="Editable meeting title"
+            >${escapeHtml(title)}</div>
+        </div>
+    `;
+
+    /* ========================================================
+       MEETING SUMMARY
+    ======================================================== */
+
+    html += `
+        <div class="result-section">
+            <div class="label">MEETING SUMMARY</div>
+            <textarea
+                id="meetingSummaryEditor"
+                class="editable-summary"
+                spellcheck="true"
+                aria-label="Editable meeting summary"
+            >${escapeHtml(summary)}</textarea>
+        </div>
+    `;
+
+    /* ========================================================
+       OBJECTIVE
+    ======================================================== */
+
+    html += `
+        <div class="result-section">
+            <div class="label">OBJECTIVE</div>
+            <div
+                class="summary editable-field"
+                contenteditable="true"
+                spellcheck="true"
+                data-edit-path="objective"
+                role="textbox"
+                aria-label="Editable meeting objective"
+            >${escapeHtml(objective)}</div>
+        </div>
+    `;
+
+    /* ========================================================
+       TASKS
+    ======================================================== */
+
+    html += `
+        <div class="result-section">
+            <div class="label">TASKS</div>
+    `;
+
+    if (tasks.length === 0) {
+        html += `<div class="meta">No tasks identified.</div>`;
+    } else {
+        tasks.forEach((task, index) => {
+            if (!task || !task.task) {
+                return;
+            }
+
+            html += `
+                <div class="item">
+                    <strong
+                        class="editable-field"
+                        contenteditable="true"
+                        spellcheck="true"
+                        data-edit-path="tasks.${index}.task"
+                        role="textbox"
+                        aria-label="Editable task"
+                    >${escapeHtml(task.task)}</strong>
+            `;
+
+            if (task.assignee && String(task.assignee).trim()) {
+                html += `
+                    <div class="meta">
+                        Assignee:
+                        <span
+                            class="editable-field"
+                            contenteditable="true"
+                            spellcheck="true"
+                            data-edit-path="tasks.${index}.assignee"
+                            role="textbox"
+                            aria-label="Editable task assignee"
+                        >${escapeHtml(task.assignee)}</span>
+                    </div>
+                `;
+            }
+
+            if (task.deadline && String(task.deadline).trim()) {
+                html += `
+                    <div class="meta">
+                        Deadline:
+                        <span
+                            class="editable-field"
+                            contenteditable="true"
+                            spellcheck="true"
+                            data-edit-path="tasks.${index}.deadline"
+                            role="textbox"
+                            aria-label="Editable task deadline"
+                        >${escapeHtml(task.deadline)}</span>
+                    </div>
+                `;
+            }
+
+            html += `</div>`;
+        });
+    }
+
+    html += `</div>`;
+
+    /* ========================================================
+       DECISIONS
+    ======================================================== */
+
+    html += `
+        <div class="result-section">
+            <div class="label">DECISIONS</div>
+    `;
+
+    if (decisions.length === 0) {
+        html += `<div class="meta">No decisions identified.</div>`;
+    } else {
+        decisions.forEach((decision, index) => {
+            if (!decision || !String(decision).trim()) {
+                return;
+            }
+
+            html += `
+                <div
+                    class="decision editable-field"
+                    contenteditable="true"
+                    spellcheck="true"
+                    data-edit-path="decision_points.${index}"
+                    role="textbox"
+                    aria-label="Editable decision"
+                >${escapeHtml(decision)}</div>
+            `;
+        });
+    }
+
+    html += `</div>`;
+
+    /* ========================================================
+       OBJECTIONS
+    ======================================================== */
+
+    if (objections.length > 0) {
+        html += `
+            <div class="result-section">
+                <div class="label">OBJECTIONS</div>
+        `;
+
+        objections.forEach((objection, index) => {
+            if (!objection || !String(objection).trim()) {
+                return;
+            }
+
+            html += `
+                <div
+                    class="item objection editable-field"
+                    contenteditable="true"
+                    spellcheck="true"
+                    data-edit-path="objections.${index}"
+                    role="textbox"
+                    aria-label="Editable objection"
+                >${escapeHtml(objection)}</div>
+            `;
+        });
+
+        html += `</div>`;
+    }
+
+    /* ========================================================
+       ACTION ITEMS
+    ======================================================== */
+
+    if (actions.length > 0) {
+        html += `
+            <div class="result-section">
+                <div class="label">ACTION ITEMS</div>
+        `;
+
+        actions.forEach((action, index) => {
+            if (!action || !String(action).trim()) {
+                return;
+            }
+
+            html += `
+                <div
+                    class="item action editable-field"
+                    contenteditable="true"
+                    spellcheck="true"
+                    data-edit-path="action_items.${index}"
+                    role="textbox"
+                    aria-label="Editable action item"
+                >${escapeHtml(action)}</div>
+            `;
+        });
+
+        html += `</div>`;
+    }
+
+    html += `
+        <div id="summaryActions" class="summary-actions">
+            <button id="saveSummaryBtn" type="button">Save Changes</button>
+            <button id="cancelSummaryBtn" type="button">Cancel</button>
+        </div>
+    `;
+
+    intelligenceEl.innerHTML = html;
+
+    setupSummaryEditor();
+}
+
+
+/* ============================================================
+       SUMMARY EDITOR
+    ============================================================ */
+
+    function setupSummaryEditor() {
+
+    const editor =
+        document.getElementById("meetingSummaryEditor");
+
+    const actions =
+        document.getElementById("summaryActions");
+
+    const saveBtn =
+        document.getElementById("saveSummaryBtn");
+
+    const cancelBtn =
+        document.getElementById("cancelSummaryBtn");
+
+    if (!editor || !actions || !saveBtn || !cancelBtn) {
+        return;
+    }
+
+    currentSummary = editor.value;
+
+    const editableFields =
+        intelligenceEl.querySelectorAll("[data-edit-path]");
+
+    editableFields.forEach(field => {
+        field.addEventListener("input", () => {
+            actions.classList.add("visible");
+        });
+    });
+
+    editor.addEventListener("input", () => {
+        actions.classList.add("visible");
+    });
+
+    function setPath(object, path, value) {
+        const parts = path.split(".");
+        let target = object;
+
+        for (let i = 0; i < parts.length - 1; i++) {
+            const part = parts[i];
+            target = target[part];
+        }
+
+        const last = parts[parts.length - 1];
+        target[last] = value;
+    }
+
+    function collectEditedData() {
+        const edited =
+            JSON.parse(JSON.stringify(currentIntelligenceData || {}));
+
+        editableFields.forEach(field => {
+            const path = field.dataset.editPath;
+            const value = field.innerText.replace(/\u00a0/g, " ").trim();
+            setPath(edited, path, value);
+        });
+
+        edited.meeting_summary = editor.value;
+        return edited;
+    }
+
+    saveBtn.addEventListener("click", () => {
+        currentIntelligenceData = collectEditedData();
+        savedIntelligenceData =
+            JSON.parse(JSON.stringify(currentIntelligenceData));
+        currentSummary = editor.value;
+
+        actions.classList.remove("visible");
+
+        setStatus("Meeting intelligence changes saved.");
+        log("Meeting intelligence fields manually edited and saved.");
+    });
+
+    cancelBtn.addEventListener("click", () => {
+        if (savedIntelligenceData) {
+            renderIntelligence(savedIntelligenceData, false);
+        }
+
+        setStatus("Changes cancelled.");
+        log("Meeting intelligence edits cancelled.");
+    });
+}
+
+
+/* ============================================================
+   ESCAPE HTML
+============================================================ */
+
+function escapeHtml(
+    value
+) {
+
+    return String(value)
+        .replaceAll(
+            "&",
+            "&amp;"
+        )
+        .replaceAll(
+            "<",
+            "&lt;"
+        )
+        .replaceAll(
+            ">",
+            "&gt;"
+        )
+        .replaceAll(
+            '"',
+            "&quot;"
+        )
+        .replaceAll(
+            "'",
+            "&#039;"
+        );
+}
+
+
+/* ============================================================
+   START RECORDING
+============================================================ */
+
+async function startRecording() {
+
+    if (
+        isRecording
+    ) {
+
+        return;
+    }
+
+
+    recordBtn.disabled =
+        true;
+
+    summaryBtn.disabled =
+        true;
+
+    transcript =
+        "";
+
+
+    setStatus(
+        "Requesting microphone..."
+    );
+
+
+    transcriptEl.innerHTML =
+        `
+        <div class="placeholder">
+            Recording in progress...
+        </div>
+        `;
+
+
+    intelligenceEl.innerHTML =
+        `
+        <div class="placeholder">
+            Meeting intelligence will be generated
+            after transcription.
+        </div>
+        `;
+
+
+    try {
+
+        /* ----------------------------------------------------
+           WebSocket
+        ---------------------------------------------------- */
+
+        await openWebSocket();
+
+
+        /* ----------------------------------------------------
+           Microphone
+        ---------------------------------------------------- */
+
+        microphoneStream =
+            await navigator
+                .mediaDevices
+                .getUserMedia(
+                    {
+                        audio: {
+
+                            channelCount:
+                                1,
+
+                            echoCancellation:
+                                true,
+
+                            noiseSuppression:
+                                true,
+
+                            autoGainControl:
+                                true
+                        }
+                    }
+                );
+
+
+        /* ----------------------------------------------------
+           Audio Context
+        ---------------------------------------------------- */
+
+        audioContext =
+            new (
+                window.AudioContext
+                ||
+                window.webkitAudioContext
+            )();
+
+
+        if (
+            audioContext.state ===
+            "suspended"
+        ) {
+
+            await audioContext.resume();
+        }
+
+
+        /* ----------------------------------------------------
+           Source
+        ---------------------------------------------------- */
+
+        sourceNode =
+            audioContext
+                .createMediaStreamSource(
+                    microphoneStream
+                );
+
+
+        /* ----------------------------------------------------
+           Processor
+        ---------------------------------------------------- */
+
+        processorNode =
+            audioContext
+                .createScriptProcessor(
+                    4096,
+                    1,
+                    1
+                );
+
+
+        processorNode.onaudioprocess =
+            function(
+                event
+            ) {
+
+                if (
+                    !isRecording
+                    ||
+                    !websocket
+                    ||
+                    websocket.readyState !==
+                        WebSocket.OPEN
+                ) {
+
+                    return;
+                }
+
+
+                const input =
+                    event
+                        .inputBuffer
+                        .getChannelData(
+                            0
+                        );
+
+
+                const pcm16k =
+                    downsampleBuffer(
+                        input,
+
+                        audioContext
+                            .sampleRate,
+
+                        16000
+                    );
+
+
+                const pcmBuffer =
+                    floatToPCM16(
+                        pcm16k
+                    );
+
+
+                websocket.send(
+                    pcmBuffer
+                );
+            };
+
+
+        sourceNode.connect(
+            processorNode
+        );
+
+
+        /*
+         * Connect processor to destination so that
+         * onaudioprocess continues to run reliably.
+         *
+         * The microphone stream itself is not routed
+         * directly to the speakers.
+         */
+
+        processorNode.connect(
+            audioContext.destination
+        );
+
+
+        /* ----------------------------------------------------
+           RECORDING STATE
+        ---------------------------------------------------- */
+
+        isRecording =
+            true;
+
+        startTimer();
+
+
+        /*
+         * IMPORTANT:
+         *
+         * The button MUST remain enabled after recording
+         * starts so the user can click it to stop.
+         */
+
+        recordBtn.disabled =
+            false;
+
+        recordBtn.textContent =
+            "Stop Recording";
+
+        recordBtn.classList.add(
+            "recording"
+        );
+
+
+        setStatus(
+            "Recording meeting..."
+        );
+
+
+        websocket.send(
+            JSON.stringify(
+                {
+                    command:
+                        "start"
+                }
+            )
+        );
+
+
+        log(
+            "Meeting recording started."
+        );
+
+    } catch (
+        error
+    ) {
+
+        log(
+            `Start error: ${error.message}`
+        );
+
+        setStatus(
+            "Could not start recording."
+        );
+
+
+        cleanupAudio();
+
+
+        if (
+            websocket
+        ) {
+
+            websocket.close();
+
+            websocket =
+                null;
+        }
+
+
+        isRecording =
+            false;
+
+        recordBtn.disabled =
+            false;
+
+        recordBtn.textContent =
+            "Start Recording";
+
+        recordBtn.classList.remove(
+            "recording"
+        );
+    }
+}
+
+
+/* ============================================================
+   AUDIO CLEANUP
+============================================================ */
+
+function cleanupAudio() {
+
+    if (
+        processorNode
+    ) {
+
+        try {
+
+            processorNode.disconnect();
+
+        } catch (
+            error
+        ) {}
+
+        processorNode.onaudioprocess =
+            null;
+
+        processorNode =
+            null;
+    }
+
+
+    if (
+        sourceNode
+    ) {
+
+        try {
+
+            sourceNode.disconnect();
+
+        } catch (
+            error
+        ) {}
+
+        sourceNode =
+            null;
+    }
+
+
+    if (
+        audioContext
+    ) {
+
+        try {
+
+            audioContext.close();
+
+        } catch (
+            error
+        ) {}
+
+        audioContext =
+            null;
+    }
+
+
+    if (
+        microphoneStream
+    ) {
+
+        microphoneStream
+            .getTracks()
+            .forEach(
+                track => {
+
+                    try {
+
+                        track.stop();
+
+                    } catch (
+                        error
+                    ) {}
+
+                }
+            );
+
+        microphoneStream =
+            null;
+    }
+}
+
+
+/* ============================================================
+   STOP RECORDING
+============================================================ */
+
+function stopRecording() {
+
+    if (
+        !isRecording
+    ) {
+
+        return;
+    }
+
+
+    /*
+     * Immediately change state so no more audio
+     * packets are sent.
+     */
+
+    isRecording =
+        false;
+
+
+    stopTimer();
+
+
+    setStatus(
+        "Stopping recording and finalizing audio..."
+    );
+
+
+    recordBtn.disabled =
+        true;
+
+
+    recordBtn.textContent =
+        "Start Recording";
+
+    recordBtn.classList.remove(
+        "recording"
+    );
+
+
+    cleanupAudio();
+
+
+    /* --------------------------------------------------------
+       Send STOP command
+    -------------------------------------------------------- */
+
+    if (
+        websocket
+        &&
+        websocket.readyState ===
+            WebSocket.OPEN
+    ) {
+
+        websocket.send(
+            JSON.stringify(
+                {
+                    command:
+                        "stop"
+                }
+            )
+        );
+
+
+        log(
+            "Stop command sent. Waiting for Parrotlet..."
+        );
+
+    } else {
+
+        setStatus(
+            "WebSocket connection is not available."
+        );
+
+        recordBtn.disabled =
+            false;
+    }
+}
+
+
+/* ============================================================
+   CREATE SUMMARY
+============================================================ */
+
+async function createSummary() {
+
+    if (
+        !transcript
+        ||
+        !transcript.trim()
+    ) {
+
+        setStatus(
+            "No transcript available."
+        );
+
+        return;
+    }
+
+
+    summaryBtn.disabled =
+        true;
+
+
+    setStatus(
+        "Generating meeting intelligence with Llama 3.1 8B..."
+    );
+
+
+    intelligenceEl.innerHTML =
+        `
+        <div class="placeholder">
+            Llama 3.1 8B is analyzing the complete transcript...
+        </div>
+        `;
+
+
+    log(
+        "Sending complete transcript to Llama."
+    );
+
+
+    try {
+
+        const response =
+            await fetch(
+                "/api/meeting/summarize",
+                {
+
+                    method:
+                        "POST",
+
+                    headers: {
+
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    body:
+                        JSON.stringify(
+                            {
+                                transcript:
+                                    transcript
+                            }
+                        )
+                }
+            );
+
+
+        const data =
+            await response.json();
+
+
+        if (
+            !response.ok
+        ) {
+
+            throw new Error(
+                data.detail
+                ||
+                data.error
+                ||
+                "Summary generation failed."
+            );
+        }
+
+
+        renderIntelligence(
+            data
+        );
+
+
+        setStatus(
+            "Meeting intelligence generated."
+        );
+
+
+        log(
+            "Meeting intelligence received."
+        );
+
+    } catch (
+        error
+    ) {
+
+        log(
+            `Summary error: ${error.message}`
+        );
+
+        setStatus(
+            `Summary generation failed: ${error.message}`
+        );
+
+        summaryBtn.disabled =
+            false;
+    }
+}
+
+
+/* ============================================================
+   BUTTON EVENT
+============================================================ */
+
+recordBtn.addEventListener(
+    "click",
+    function() {
+
+        if (
+            isRecording
+        ) {
+
+            stopRecording();
+
+        } else {
+
+            startRecording();
+        }
+    }
+);
+
+
+summaryBtn.addEventListener(
+    "click",
+    function() {
+
+        createSummary();
+    }
+);
+
+
+</script>
+
+
+</body>
+
+</html>

@@ -1,0 +1,21 @@
+id,audio,category,reference
+tamil_01,audio/tamil_01.wav,tamil,நம்ம project எப்படி போயிட்டு இருக்கு? Backend work எல்லாம் முடிச்சாச்சா?
+tamil_02,audio/tamil_02.wav,tamil,"நாளைக்கு client meeting இருக்கு, அதுக்கு முன்னாடி presentation ரெடி பண்ணணும்."
+tamil_03,audio/tamil_03.wav,tamil,"இந்த issue நேற்று வந்தது, ஆனால் இப்போ fix பண்ணிட்டோம். இன்னும் ஒரு முறை test பண்ணலாம்."
+tamil_04,audio/tamil_04.wav,tamil,நம்ம team இந்த வாரத்துக்குள்ள இந்த feature-ஐ complete பண்ண முடியுமா?
+tamil_05,audio/tamil_05.wav,tamil,"Audio quality நல்லா இருக்கு, ஆனால் background noise கொஞ்சம் அதிகமா இருக்கு."
+english_01,audio/english_01.wav,english,"We have completed most of the backend work, and only testing is pending."
+english_02,audio/english_02.wav,english,"The client meeting is tomorrow, so we need to finish the presentation today."
+english_03,audio/english_03.wav,english,"This issue happened yesterday, but we have fixed it and tested the solution."
+english_04,audio/english_04.wav,english,Can our team complete this feature by the end of this week?
+english_05,audio/english_05.wav,english,"The audio quality is good, but there is some background noise in the recording."
+codemix_01,audio/codemix_01.wav,codemix,"நம்ம backend almost complete பண்ணிட்டோம், but authentication module இன்னும் testing பண்ணணும்."
+codemix_02,audio/codemix_02.wav,codemix,இந்த feature ready ஆச்சா? Because we need to show it in tomorrow's meeting.
+codemix_03,audio/codemix_03.wav,codemix,"நம்ம WebSocket connection stable-ஆ இருக்கு, but sometimes the transcription is delayed."
+codemix_04,audio/codemix_04.wav,codemix,"நாளைக்கு demo இருக்கு, so எல்லா test cases-யும் இன்று complete பண்ணிடலாம்."
+codemix_05,audio/codemix_05.wav,codemix,"இந்த audio-ல background noise அதிகமா இருக்கு, but the transcript is still understandable."
+codemix_06,audio/codemix_06.wav,codemix,"Client feedback வந்ததும், we can update the dashboard and deploy the new version."
+codemix_07,audio/codemix_07.wav,codemix,Speaker identification சரியா வேலை செய்கிறதா? We need accurate diarization for the meeting.
+codemix_08,audio/codemix_08.wav,codemix,"இந்த API response கொஞ்சம் slow-ஆ இருக்கு, so we should check the server logs."
+codemix_09,audio/codemix_09.wav,codemix,நம்ம final transcript-ல Tamil words Tamil script-லவும் English words English-லவும் இருக்கணும்.
+codemix_10,audio/codemix_10.wav,codemix,"If everything works properly, நம்ம இந்த version-ஐ next week production-க்கு deploy பண்ணலாம்."
