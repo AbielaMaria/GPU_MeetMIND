@@ -43,6 +43,7 @@ from fastapi.middleware.cors import (
 from fastapi.responses import (
     FileResponse,
 )
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from meeting_websocket import (
@@ -54,7 +55,7 @@ from meeting_intelligence import (
     LLAMA_MODEL,
 )
 
-from parrotlet_transcriber_gpu import (
+from parrotlet_transcriber import (
     MODEL_NAME,
     SAMPLE_RATE,
 )
@@ -67,6 +68,12 @@ from parrotlet_transcriber_gpu import (
 BASE_DIR = Path(__file__).resolve().parent
 FRONTEND_DIR = BASE_DIR.parent / "frontend"
 INDEX_FILE = FRONTEND_DIR / "index.html"
+
+# Product-flow pages that wrap the (untouched) app in index.html.
+LANDING_FILE = FRONTEND_DIR / "landing.html"
+AUTH_FILE = FRONTEND_DIR / "auth.html"      # one page, serves both /sign-in and /sign-up
+ADMIN_FILE = FRONTEND_DIR / "admin.html"
+ASSETS_DIR = FRONTEND_DIR / "assets"
 
 # ============================================================
 # APPLICATION
@@ -114,22 +121,78 @@ class SummaryRequest(BaseModel):
 
 
 # ============================================================
-# HOME
+# STATIC ASSETS  (shared CSS/JS for the new product-flow pages)
 # ============================================================
+
+if ASSETS_DIR.exists():
+    app.mount(
+        "/assets",
+        StaticFiles(directory=ASSETS_DIR),
+        name="assets",
+    )
+
+
+# ============================================================
+# PAGE ROUTES
+# ============================================================
+#
+# Routing / layout shell only. The app itself (index.html) is
+# unchanged — it just moved from "/" to "/app". Its WebSocket
+# uses window.location.host (not a path) and its API calls use
+# absolute paths, so the move is transparent to it.
+#
+# Auth is enforced client-side for now (see frontend/assets/
+# app-guard.js and auth-store.js). TODO(backend): add a real
+# server-side session/role check here before returning
+# INDEX_FILE / ADMIN_FILE.
+
+def _serve(page: Path) -> FileResponse:
+
+    if not page.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Frontend file not found: {page}"
+        )
+
+    # no-store: these pages are actively changing during development, and a
+    # browser that caches the HTML document itself (as opposed to the
+    # versioned CSS/JS it links to) will keep rendering a stale DOM on a
+    # given route no matter how thoroughly the user clears the cache for
+    # other routes/tabs.
+    return FileResponse(
+        page,
+        media_type="text/html",
+        headers={"Cache-Control": "no-store, must-revalidate"},
+    )
+
 
 @app.get("/")
 async def home():
+    # Landing page — first thing a visitor sees, pre-login.
+    return _serve(LANDING_FILE)
 
-    if not INDEX_FILE.exists():
-        raise HTTPException(
-            status_code=404,
-            detail=f"Frontend not found: {INDEX_FILE}"
-        )
 
-    return FileResponse(
-        INDEX_FILE,
-        media_type="text/html"
-    )
+@app.get("/app")
+async def app_view():
+    # Post-login app view (the original single-page recorder UI).
+    return _serve(INDEX_FILE)
+
+
+@app.get("/sign-in")
+async def sign_in_view():
+    # Single auth page; the sign-in panel is shown by default.
+    return _serve(AUTH_FILE)
+
+
+@app.get("/sign-up")
+async def sign_up_view():
+    # Same page; auth.html reads the path and opens the sign-up panel.
+    return _serve(AUTH_FILE)
+
+
+@app.get("/admin")
+async def admin_view():
+    return _serve(ADMIN_FILE)
 
 
 # ============================================================
