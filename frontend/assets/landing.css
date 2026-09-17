@@ -1,0 +1,356 @@
+/* ============================================================
+   MeetMind — landing page styles (scoped to landing.html)
+   Tokens come from theme.css. Nothing here is shared.
+============================================================ */
+
+/* ---------- Hero ---------- */
+
+.hero {
+    position: relative;
+    overflow: hidden;
+    padding: clamp(48px, 8vw, 104px) 0 clamp(40px, 6vw, 72px);
+    border-bottom: 1px solid var(--border);
+}
+
+.hero-grid {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: 1.05fr 0.95fr;
+    gap: clamp(32px, 6vw, 72px);
+    align-items: center;
+}
+
+.pulse-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 0 var(--accent-soft);
+    animation: pulse-dot 2s ease-out infinite;
+}
+
+@keyframes pulse-dot {
+    0%   { box-shadow: 0 0 0 0 var(--accent-soft); }
+    70%  { box-shadow: 0 0 0 10px transparent; }
+    100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+.hero-title {
+    margin-top: 18px;
+    font-size: clamp(2.2rem, 5.4vw, 3.65rem);
+    font-weight: 700;
+    line-height: 1.08;
+}
+
+.hero-title .grad {
+    background: var(--gradient-text);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+
+.hero-lead {
+    margin-top: 20px;
+    max-width: 520px;
+    font-size: 1.1rem;
+    color: var(--text-secondary);
+}
+
+.hero-cta {
+    margin-top: 28px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.hero-highlights {
+    margin-top: clamp(36px, 5vw, 56px);
+    padding: 28px 0 4px;
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px 32px;
+    border-top: 1px solid var(--border);
+}
+
+.hero-highlight {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 8px 24px 8px 0;
+    border-right: 1px solid var(--border);
+}
+
+.hero-highlight:last-child {
+    border-right: 0;
+    padding-right: 0;
+}
+
+.hero-highlight-ico {
+    flex: none;
+    width: 52px;
+    height: 52px;
+    display: grid;
+    place-items: center;
+    border-radius: var(--r-md);
+    background: var(--accent-soft);
+    color: var(--accent);
+}
+
+.hero-highlight-ico svg {
+    width: 24px;
+    height: 24px;
+}
+
+.hero-highlight-text {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.hero-highlight-text strong {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.hero-highlight-text span {
+    font-size: 14px;
+    color: var(--text-muted);
+}
+
+/* ---------- Hero visual : mock app window ---------- */
+
+.hero-visual {
+    position: relative;
+}
+
+.hero-visual-glow {
+    position: absolute;
+    inset: 8% 4% -12% 4%;
+    z-index: -1;
+    background: var(--gradient-brand);
+    filter: blur(60px);
+    opacity: .28;
+    border-radius: 50%;
+}
+
+/* The mock-window widget itself (chrome, waveform, transcript, insight)
+   lives in assets/mock-widget.css — shared with the auth page. */
+
+.hero-visual:hover .mock-window {
+    transform: perspective(1400px) rotateY(-4deg) rotateX(1deg);
+}
+
+/* ---------- Features ---------- */
+
+.feature-grid {
+    margin-top: 48px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+}
+
+.feature-card {
+    padding: 24px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    background: var(--bg-elevated);
+    box-shadow: var(--shadow-sm);
+    transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+
+.feature-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-lg);
+    border-color: var(--border-strong);
+}
+
+.feature-ico {
+    width: 42px;
+    height: 42px;
+    display: grid;
+    place-items: center;
+    border-radius: var(--r-md);
+    background: var(--accent-soft);
+    color: var(--accent);
+    margin-bottom: 14px;
+}
+
+.feature-ico svg {
+    width: 20px;
+    height: 20px;
+}
+
+.feature-card h3 {
+    font-size: 1.02rem;
+    margin-bottom: 6px;
+}
+
+.feature-card p {
+    font-size: 13.5px;
+    color: var(--text-secondary);
+}
+
+/* ---------- How it works ---------- */
+
+.how {
+    background: var(--bg-surface);
+    border-block: 1px solid var(--border);
+}
+
+.steps {
+    margin: 48px 0 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+    counter-reset: step;
+    position: relative;
+}
+
+/* connecting line */
+.steps::before {
+    content: "";
+    position: absolute;
+    top: 34px;
+    left: 16%;
+    right: 16%;
+    height: 2px;
+    background: repeating-linear-gradient(90deg, var(--border-strong) 0 8px, transparent 8px 16px);
+    z-index: 0;
+}
+
+.step {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    padding: 0 12px;
+}
+
+.step-num {
+    position: absolute;
+    top: -6px;
+    left: calc(50% + 22px);
+    width: 22px;
+    height: 22px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.step-ico {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 16px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    color: var(--accent);
+    box-shadow: var(--shadow-sm);
+}
+
+.step-ico svg {
+    width: 24px;
+    height: 24px;
+}
+
+.step h3 {
+    font-size: 1.05rem;
+    margin-bottom: 6px;
+}
+
+.step p {
+    font-size: 13.5px;
+    color: var(--text-secondary);
+    max-width: 280px;
+    margin: 0 auto;
+}
+
+/* ---------- Final CTA ---------- */
+
+.final-cta {
+    position: relative;
+    overflow: hidden;
+    padding: clamp(56px, 9vw, 110px) 0;
+    text-align: center;
+    border-top: 1px solid var(--border);
+}
+
+.final-cta .shell {
+    position: relative;
+    z-index: 1;
+}
+
+.final-cta h2 {
+    font-size: clamp(1.7rem, 4vw, 2.6rem);
+    font-weight: 700;
+}
+
+.final-cta p {
+    margin: 16px auto 28px;
+    max-width: 520px;
+    color: var(--text-secondary);
+    font-size: 1.05rem;
+}
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 960px) {
+    .hero-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .hero-visual {
+        order: -1;
+        max-width: 460px;
+        margin: 0 auto;
+    }
+
+    .mock-window {
+        transform: none;
+    }
+
+    .feature-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .hero-highlights {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+
+    .hero-highlight {
+        border-right: 0;
+        padding-right: 0;
+    }
+}
+
+@media (max-width: 720px) {
+    .steps {
+        grid-template-columns: 1fr;
+        gap: 32px;
+    }
+
+    .steps::before {
+        display: none;
+    }
+
+    .step-num {
+        left: calc(50% + 24px);
+    }
+}
+
+@media (max-width: 560px) {
+    .feature-grid {
+        grid-template-columns: 1fr;
+    }
+}

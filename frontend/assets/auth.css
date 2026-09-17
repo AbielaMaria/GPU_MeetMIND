@@ -1,0 +1,235 @@
+/* ============================================================
+   MeetMind — auth page (single auth.html)
+   Split-screen: brand panel + form card. Two panels (sign in /
+   sign up) toggled via body[data-auth-mode]. Tokens from theme.css.
+============================================================ */
+
+.auth-wrap {
+    min-height: 100vh;
+    display: grid;
+    grid-template-columns: 1.05fr 1fr;
+}
+
+/* ---------- Panel + aside-copy visibility (mode-driven) ---------- */
+
+[data-panel] { display: none; }
+
+body[data-auth-mode="signin"] [data-panel="signin"],
+body[data-auth-mode="signup"] [data-panel="signup"] {
+    display: block;
+    animation: auth-fade .25s ease both;
+}
+
+@keyframes auth-fade {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    body[data-auth-mode="signin"] [data-panel="signin"],
+    body[data-auth-mode="signup"] [data-panel="signup"] { animation: none; }
+}
+
+[data-copy] { display: none; }
+
+body[data-auth-mode="signin"] [data-copy="signin"],
+body[data-auth-mode="signup"] [data-copy="signup"] {
+    display: block;
+}
+
+/* ---------- Left : brand panel ---------- */
+
+.auth-aside {
+    position: relative;
+    overflow: hidden;
+    padding: 48px clamp(32px, 5vw, 64px);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 36px;
+    color: #fff;
+    background: linear-gradient(150deg, #4f46e5 0%, #6d5cf0 45%, #8b5cf6 100%);
+}
+
+.auth-aside .bg-mesh span {
+    opacity: .5;
+    filter: blur(80px);
+}
+
+.auth-aside .bg-mesh span:nth-child(1) { background: rgba(255, 255, 255, .35); }
+.auth-aside .bg-mesh span:nth-child(2) { background: rgba(45, 212, 191, .4); }
+.auth-aside .bg-mesh span:nth-child(3) { background: rgba(167, 139, 250, .5); }
+
+.auth-aside > * {
+    position: relative;
+    z-index: 1;
+}
+
+.auth-aside .brand {
+    color: #fff;
+    font-size: 1.15rem;
+}
+
+.auth-aside .brand-mark {
+    background: rgba(255, 255, 255, .16);
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+}
+
+/* ---------- Left : mock app window (shared widget, scaled down) ---------- */
+/* Flat, static card — no tilt, no hover interaction (unlike the hero version). */
+
+.auth-visual .mock-window {
+    transform: none;
+    transition: none;
+}
+
+.auth-visual .mock-body {
+    padding: 14px;
+}
+
+.auth-visual .mock-wave {
+    height: 32px;
+    margin-bottom: 12px;
+}
+
+.auth-visual .mock-transcript {
+    min-height: 66px;
+    font-size: 12px;
+}
+
+.auth-visual .mock-insight {
+    margin-top: 12px;
+    padding: 9px 11px;
+}
+
+.auth-pitch h2 {
+    color: #fff;
+    font-size: clamp(1.6rem, 3vw, 2.1rem);
+    font-weight: 700;
+    line-height: 1.2;
+    max-width: 15ch;
+}
+
+.auth-points {
+    margin: 24px 0 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 14px;
+}
+
+.auth-points li {
+    display: flex;
+    align-items: flex-start;
+    gap: 11px;
+    font-size: 14px;
+    color: rgba(255, 255, 255, .9);
+}
+
+.auth-points svg {
+    width: 18px;
+    height: 18px;
+    flex: none;
+    margin-top: 1px;
+    color: #fff;
+}
+
+/* ---------- Right : form side ---------- */
+
+.auth-main {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px clamp(20px, 4vw, 56px);
+    background: var(--bg-base);
+}
+
+.auth-card {
+    width: 100%;
+    max-width: 400px;
+    animation: auth-in .5s ease both;
+}
+
+@keyframes auth-in {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: none; }
+}
+
+.auth-topbar {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 28px;
+}
+
+.auth-card h1 {
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.auth-card .sub {
+    margin: 8px 0 26px;
+    color: var(--text-muted);
+    font-size: 14px;
+}
+
+.auth-form .row-between {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 18px;
+    font-size: 13px;
+}
+
+.auth-form .row-between .checkbox-row {
+    margin-bottom: 0;
+}
+
+.auth-alt {
+    margin-top: 22px;
+    text-align: center;
+    font-size: 13.5px;
+    color: var(--text-secondary);
+}
+
+.auth-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 22px 0;
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+}
+
+.auth-legal {
+    margin-top: 20px;
+    font-size: 11.5px;
+    color: var(--text-muted);
+    text-align: center;
+    line-height: 1.5;
+}
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 860px) {
+    .auth-wrap {
+        grid-template-columns: 1fr;
+    }
+
+    .auth-aside {
+        display: none;
+    }
+
+    .auth-main {
+        min-height: 100vh;
+    }
+}

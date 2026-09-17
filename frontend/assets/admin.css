@@ -1,0 +1,285 @@
+/* ============================================================
+   MeetMind — admin (admin.html). Simple: top bar + users table.
+   Tokens from theme.css.
+============================================================ */
+
+.admin-shell {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 clamp(16px, 4vw, 32px) 64px;
+}
+
+/* ---------- Top bar ---------- */
+
+.admin-top {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 18px 0;
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+}
+
+.admin-top .spacer,
+.table-tools .spacer {
+    flex: 1;
+}
+
+.admin-badge {
+    display: inline-block;
+    margin-left: 2px;
+    padding: 2px 8px;
+    border-radius: var(--r-full);
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    vertical-align: middle;
+}
+
+.admin-who {
+    font-size: 13px;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+/* ---------- Panel ---------- */
+
+.panel {
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    background: var(--bg-elevated);
+    box-shadow: var(--shadow-sm);
+}
+
+.panel-hd {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px 18px;
+    border-bottom: 1px solid var(--border);
+}
+
+.panel-hd h2 {
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.hint {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 400;
+}
+
+.panel-bd {
+    padding: 18px;
+}
+
+/* ---------- Toolbar ---------- */
+
+.table-tools {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+}
+
+.search-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    flex: 1;
+    min-width: 200px;
+}
+
+.search-wrap svg {
+    position: absolute;
+    left: 11px;
+    width: 15px;
+    height: 15px;
+    color: var(--text-muted);
+    pointer-events: none;
+}
+
+.search-wrap input {
+    width: 100%;
+    font-family: inherit;
+    font-size: 14px;
+    color: var(--text-primary);
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    padding: 10px 12px 10px 32px;
+    outline: none;
+}
+
+.table-tools select {
+    font-family: inherit;
+    font-size: 13px;
+    color: var(--text-primary);
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    padding: 10px 12px;
+    outline: none;
+}
+
+.search-wrap input:focus,
+.table-tools select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* ---------- Table ---------- */
+
+.table-scroll {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+}
+
+table.data {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    min-width: 720px;
+}
+
+table.data th,
+table.data td {
+    text-align: left;
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+}
+
+table.data thead th {
+    font-size: 11px;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    background: var(--bg-surface);
+}
+
+table.data tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+table.data tbody tr:hover {
+    background: var(--bg-surface);
+}
+
+.col-actions {
+    text-align: right;
+}
+
+td.cell-actions {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.row-btn {
+    font: 600 12px/1 var(--font-sans);
+    cursor: pointer;
+    padding: 6px 10px;
+    border-radius: var(--r-sm);
+    border: 1px solid var(--border);
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+}
+
+.row-btn + .row-btn {
+    margin-left: 6px;
+}
+
+.row-btn:hover {
+    color: var(--text-primary);
+    border-color: var(--border-strong);
+}
+
+.row-btn.danger:hover {
+    color: var(--danger);
+    border-color: var(--danger);
+}
+
+.pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 9px;
+    border-radius: var(--r-full);
+    font-size: 11px;
+    font-weight: 600;
+    border: 1px solid var(--border);
+}
+
+.pill::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.pill.role-admin { color: var(--accent); background: var(--accent-soft); border-color: transparent; }
+.pill.role-user { color: var(--text-secondary); }
+.pill.st-active { color: var(--success); background: var(--success-soft); border-color: transparent; }
+.pill.st-inactive { color: var(--text-muted); }
+
+.table-empty {
+    padding: 32px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 13px;
+}
+
+/* ---------- Dialog ---------- */
+
+.user-dialog {
+    width: min(440px, calc(100vw - 32px));
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    padding: 0;
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    box-shadow: var(--shadow-lg);
+}
+
+.user-dialog::backdrop {
+    background: var(--overlay);
+}
+
+.user-dialog form {
+    padding: 22px;
+}
+
+.user-dialog h3 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-bottom: 16px;
+}
+
+.dialog-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+}
+
+.dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 8px;
+}
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 560px) {
+    .admin-who { display: none; }
+    .dialog-row { grid-template-columns: 1fr; }
+}
