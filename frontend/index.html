@@ -34,7 +34,14 @@
             } catch (e) {}
         })();
     </script>
-<!-- PDF export (Download PDF button). Loaded from CDN; no app
+
+    <!-- Auth guard (wrapper only). PLACEHOLDER: redirects to /sign-in
+         when there is no mock session. Does not touch the recorder /
+         websocket / summary logic below. Remove this line to unbind
+         the app from the auth flow. See frontend/assets/app-guard.js -->
+    <script src="/assets/app-guard.js"></script>
+
+    <!-- PDF export (Download PDF button). Loaded from CDN; no app
          logic depends on it until the user clicks Download PDF. -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
@@ -114,35 +121,9 @@
 }
 
 /* ---------- Tokens : dark ---------- */
-
-@media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-        color-scheme: dark;
-        --bg-base: #0b0f18;
-        --bg-surface: #111725;
-        --bg-elevated: #161d2e;
-        --text-primary: #e7e9f0;
-        --text-secondary: #aab2c4;
-        --text-muted: #717a90;
-        --border: #232c40;
-        --border-strong: #313c56;
-        --accent: #7c8cff;
-        --accent-hover: #4338ca;
-        --accent-soft: rgba(124, 140, 255, .12);
-        --btn-accent-bg: #4f46e5;
-        --btn-accent-hover: #4338ca;
-        --success: #34d399;
-        --success-soft: rgba(52, 211, 153, .10);
-        --warning: #fbbf24;
-        --danger: #dc2626;
-        --danger-hover: #b91c1c;
-        --danger-soft: rgba(248, 113, 113, .12);
-        --danger-ring: rgba(248, 113, 113, .30);
-        --shadow-sm: 0 0 0 1px rgba(255, 255, 255, .02), 0 2px 8px rgba(0, 0, 0, .40);
-        --shadow-md: 0 0 0 1px rgba(255, 255, 255, .03), 0 10px 24px -8px rgba(0, 0, 0, .55);
-        --shadow-lg: 0 0 0 1px rgba(255, 255, 255, .03), 0 24px 48px -16px rgba(0, 0, 0, .60);
-    }
-}
+/* Dark only applies when explicitly chosen via the theme toggle
+   (data-theme="dark"); no longer follows OS/browser
+   prefers-color-scheme automatically, so light is the default. */
 
 :root[data-theme="dark"] {
     color-scheme: dark;
@@ -363,13 +344,6 @@ h1 {
 :root[data-theme="dark"] .theme-toggle::before {
     -webkit-mask-image: var(--icon-moon);
     mask-image: var(--icon-moon);
-}
-
-@media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) .theme-toggle::before {
-        -webkit-mask-image: var(--icon-moon);
-        mask-image: var(--icon-moon);
-    }
 }
 
 /* ---------- Controls / record button ---------- */
@@ -4405,19 +4379,6 @@ summaryBtn.addEventListener(
         );
 
 
-    function systemPref() {
-
-        return (
-            window.matchMedia &&
-            window.matchMedia(
-                "(prefers-color-scheme: dark)"
-            ).matches
-        )
-            ? "dark"
-            : "light";
-    }
-
-
     function stored() {
 
         try {
@@ -4448,7 +4409,7 @@ summaryBtn.addEventListener(
                 "data-theme"
             ) ||
             stored() ||
-            systemPref()
+            "light"
         );
     }
 
@@ -4498,33 +4459,9 @@ summaryBtn.addEventListener(
         );
     }
 
-
-    if (window.matchMedia) {
-
-        window.matchMedia(
-            "(prefers-color-scheme: dark)"
-        ).addEventListener(
-            "change",
-            function (event) {
-
-                if (!stored()) {
-
-                    apply(
-                        event.matches
-                            ? "dark"
-                            : "light"
-                    );
-                }
-            }
-        );
-    }
-
 })();
 
 
 </script>
-
-
 </body>
-
 </html>
