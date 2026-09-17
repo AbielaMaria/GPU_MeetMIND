@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<!-- ============================================================
+     PLACEHOLDER CONTENT — replace copy, stats, and testimonials
+     before launch. Every invented figure is marked with a
+     "PLACEHOLDER" comment nearby for easy grep.
+     ------------------------------------------------------------
+     MeetMind landing page — the marketing/info page shown to any
+     visitor before login. Links out to /sign-in, /sign-up and
+     (post-login) the app at /app.
+============================================================ -->
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>MeetMind — AI Meeting Transcription &amp; Intelligence</title>
+    <meta name="description" content="MeetMind records your meetings, transcribes them with Whisper-class speech AI, and turns the transcript into titles, summaries, decisions, and action items.">
+
+    <meta name="color-scheme" content="light dark">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+
+    <!-- pre-paint theme (mirrors index.html) -->
+    <script>
+        (function () {
+            try {
+                var s = localStorage.getItem("meetmind-theme");
+                if (s === "light" || s === "dark") {
+                    document.documentElement.setAttribute("data-theme", s);
+                }
+            } catch (e) {}
+        })();
+    </script>
+
+    <link rel="stylesheet" href="assets/theme.css">
+    <link rel="stylesheet" href="assets/landing.css">
+
+</head>
+
+<body>
+
+<!-- ============================================================
+     NAV
+============================================================ -->
+<nav class="site-nav">
+
+    <a class="brand" href="/">
+        <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/></svg>
+        </span>
+        MeetMind
+    </a>
+
+    <ul class="nav-links">
+        <li><a href="#features">Features</a></li>
+        <li><a href="#how">How it Works</a></li>
+        <li><a href="#tech">Tech</a></li>
+        <li class="only-mobile"><a href="/sign-in">Sign In</a></li>
+        <li class="only-mobile"><a href="/sign-up">Get Started</a></li>
+    </ul>
+
+    <div class="nav-actions">
+        <button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch color theme" title="Switch color theme">
+            <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+            <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+        </button>
+
+        <a class="btn btn-ghost" href="/sign-in">Sign In</a>
+        <a class="btn btn-accent" href="/sign-up">Get Started</a>
+    </div>
+
+    <button class="nav-toggle" type="button" aria-label="Toggle menu" aria-expanded="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+    </button>
+
+</nav>
+
+
+<!-- ============================================================
+     HERO
+============================================================ -->
+<header class="hero">
+
+    <div class="bg-mesh" aria-hidden="true"><span></span><span></span><span></span></div>
+
+    <div class="shell hero-grid">
+
+        <div class="hero-copy">
+
+            <span class="eyebrow reveal">
+                <span class="pulse-dot"></span> AI meeting intelligence
+            </span>
+
+            <!-- PLACEHOLDER headline -->
+            <h1 class="hero-title reveal" data-delay="1">
+                Every meeting, <span class="grad">written down and figured out</span>.
+            </h1>
+
+            <!-- PLACEHOLDER subheadline -->
+            <p class="hero-lead reveal" data-delay="2">
+                MeetMind captures your call, transcribes it with Whisper-class speech AI,
+                then hands back a clean title, a summary, the decisions that were made,
+                and who owns what next — before everyone has left the room.
+            </p>
+
+            <div class="hero-cta reveal" data-delay="3">
+                <a class="btn btn-accent btn-lg" href="/sign-up">
+                    Get Started Free
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                </a>
+                <a class="btn btn-outline btn-lg" href="#demo">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+                    See it in action
+                </a>
+            </div>
+
+            <!-- PLACEHOLDER trust row -->
+            <ul class="hero-trust reveal" data-delay="4">
+                <li><strong>10,000+</strong> meetings transcribed <!-- PLACEHOLDER stat --></li>
+                <li><strong>99.9%</strong> uptime <!-- PLACEHOLDER stat --></li>
+                <li><strong>&lt; 60s</strong> to insights <!-- PLACEHOLDER stat --></li>
+            </ul>
+
+        </div>
+
+        <!-- animated centerpiece: mock live-transcript widget + waveform -->
+        <div class="hero-visual reveal" data-delay="2" id="demo" aria-hidden="true">
+
+            <div class="mock-window">
+
+                <div class="mock-bar">
+                    <span class="mock-dot"></span><span class="mock-dot"></span><span class="mock-dot"></span>
+                    <span class="mock-title">MeetMind — live</span>
+                    <span class="mock-rec"><span class="mock-rec-dot"></span> REC</span>
+                </div>
+
+                <div class="mock-body">
+
+                    <div class="mock-wave">
+                        <span></span><span></span><span></span><span></span><span></span>
+                        <span></span><span></span><span></span><span></span><span></span>
+                        <span></span><span></span><span></span><span></span><span></span>
+                        <span></span><span></span><span></span><span></span><span></span>
+                    </div>
+
+                    <div class="mock-transcript" id="mockTranscript"></div>
+
+                    <div class="mock-insight">
+                        <div class="mock-insight-label">Action item detected</div>
+                        <div class="mock-insight-text" id="mockInsight">&nbsp;</div>
+                    </div>
+
+                </div>
+
+            </div>
+
+            <div class="hero-visual-glow" aria-hidden="true"></div>
+
+        </div>
+
+    </div>
+
+</header>
+
+
+<!-- ============================================================
+     FEATURES
+============================================================ -->
+<section class="section" id="features">
+    <div class="shell">
+
+        <div class="text-center">
+            <span class="eyebrow reveal">Features</span>
+            <h2 class="section-title reveal" data-delay="1">Built for the whole meeting lifecycle</h2>
+            <p class="section-lead reveal" data-delay="2">
+                <!-- PLACEHOLDER copy -->
+                From the first word spoken to the follow-up you send afterwards.
+            </p>
+        </div>
+
+        <div class="feature-grid">
+
+            <article class="feature-card reveal">
+                <span class="feature-ico">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+                </span>
+                <h3>Real-time transcription</h3>
+                <p>Stream your mic straight to the server and watch the transcript build as people talk — no upload, no waiting.</p>
+            </article>
+
+            <article class="feature-card reveal" data-delay="1">
+                <span class="feature-ico">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .962 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.962 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/></svg>
+                </span>
+                <h3>AI-generated summaries</h3>
+                <p>One click turns a wall of transcript into a titled brief with objective, key points, and outcomes.</p>
+            </article>
+
+            <article class="feature-card reveal" data-delay="2">
+                <span class="feature-ico">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 7a4 4 0 1 0-8 0"/><path d="M12 11v0"/><rect x="4" y="11" width="16" height="10" rx="2"/></svg>
+                </span>
+                <h3>Speaker detection</h3>
+                <p>Attribute lines to distinct voices so the record reads like a conversation, not a monologue. <!-- PLACEHOLDER: diarization is on the roadmap --></p>
+            </article>
+
+            <article class="feature-card reveal" data-delay="3">
+                <span class="feature-ico">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                </span>
+                <h3>Searchable history</h3>
+                <p>Every meeting is saved and full-text searchable, so "what did we decide about pricing?" takes seconds.</p>
+            </article>
+
+            <article class="feature-card reveal" data-delay="4">
+                <span class="feature-ico">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="m6 11 6 6 6-6"/><path d="M19 21H5"/></svg>
+                </span>
+                <h3>Exportable notes</h3>
+                <p>Send the summary and action items to Markdown, PDF, or your inbox without reformatting a thing.</p>
+            </article>
+
+            <article class="feature-card reveal" data-delay="5">
+                <span class="feature-ico">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                </span>
+                <h3>Integrations</h3>
+                <p>Push results into Slack, Notion, Jira, and calendar invites. <!-- PLACEHOLDER: integrations are planned --></p>
+            </article>
+
+        </div>
+
+    </div>
+</section>
+
+
+<!-- ============================================================
+     HOW IT WORKS
+============================================================ -->
+<section class="section how" id="how">
+    <div class="shell">
+
+        <div class="text-center">
+            <span class="eyebrow reveal">How it works</span>
+            <h2 class="section-title reveal" data-delay="1">Three steps, start to insight</h2>
+        </div>
+
+        <ol class="steps">
+
+            <li class="step reveal">
+                <span class="step-num">1</span>
+                <span class="step-ico">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+                </span>
+                <h3>Record</h3>
+                <p>Hit record when the meeting starts. MeetMind streams clean, mono audio to the server in real time.</p>
+            </li>
+
+            <li class="step reveal" data-delay="1">
+                <span class="step-num">2</span>
+                <span class="step-ico">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>
+                </span>
+                <h3>Transcribe</h3>
+                <p>When you stop, a Whisper-class model returns the full transcript in seconds, ready to read or edit.</p>
+            </li>
+
+            <li class="step reveal" data-delay="2">
+                <span class="step-num">3</span>
+                <span class="step-ico">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>
+                </span>
+                <h3>Get insights</h3>
+                <p>Click <em>Create Summary</em> and an LLM extracts the title, summary, decisions, tasks, and action items.</p>
+            </li>
+
+        </ol>
+
+    </div>
+</section>
+
+
+<!-- ============================================================
+     TECH / TRUST
+============================================================ -->
+<section class="section tech" id="tech">
+    <div class="shell">
+
+        <!-- PLACEHOLDER stats — replace with real numbers before launch -->
+        <div class="stat-strip reveal">
+            <div class="stat"><strong>10,000+</strong><span>meetings transcribed</span></div>
+            <div class="stat"><strong>1.2M</strong><span>minutes processed</span></div>
+            <div class="stat"><strong>99.9%</strong><span>uptime (rolling 90d)</span></div>
+            <div class="stat"><strong>4.8/5</strong><span>average user rating</span></div>
+        </div>
+
+        <div class="text-center tech-head">
+            <span class="eyebrow reveal">Under the hood</span>
+            <h2 class="section-title reveal" data-delay="1">Serious models, sensible defaults</h2>
+        </div>
+
+        <!-- PLACEHOLDER badges — swap for real logos/wordmarks -->
+        <div class="badge-row reveal" data-delay="2">
+            <span class="badge">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
+                Powered by Whisper-class ASR
+            </span>
+            <span class="badge">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .962 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437z"/></svg>
+                LLM summaries via Llama&nbsp;3.1
+            </span>
+            <span class="badge">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                Enterprise-grade security
+            </span>
+            <span class="badge">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+                Data stays in your region
+            </span>
+        </div>
+
+    </div>
+</section>
+
+
+<!-- ============================================================
+     TESTIMONIALS  (PLACEHOLDER — fictional people & companies)
+============================================================ -->
+<section class="section quotes">
+    <div class="shell">
+
+        <div class="text-center">
+            <span class="eyebrow reveal">Social proof</span>
+            <h2 class="section-title reveal" data-delay="1">Teams stopped taking notes</h2>
+        </div>
+
+        <div class="quote-grid">
+
+            <figure class="quote-card reveal">
+                <blockquote>"We used to lose half of every planning call to note-taking. Now the summary is in Slack before the next meeting starts."</blockquote>
+                <figcaption>
+                    <span class="avatar" style="--a:#4f46e5;--b:#8b5cf6">AR</span>
+                    <span><strong>Ava Ramirez</strong><em>Head of Product · Northwind <!-- PLACEHOLDER --></em></span>
+                </figcaption>
+            </figure>
+
+            <figure class="quote-card reveal" data-delay="1">
+                <blockquote>"The action-item extraction is scary good. It catches commitments people forgot they made."</blockquote>
+                <figcaption>
+                    <span class="avatar" style="--a:#0ea5e9;--b:#22d3ee">DK</span>
+                    <span><strong>Daniel Kwon</strong><em>Eng Manager · Loop Labs <!-- PLACEHOLDER --></em></span>
+                </figcaption>
+            </figure>
+
+            <figure class="quote-card reveal" data-delay="2">
+                <blockquote>"Onboarding new folks got easier — they just read the meeting history instead of asking around."</blockquote>
+                <figcaption>
+                    <span class="avatar" style="--a:#f59e0b;--b:#ef4444">MS</span>
+                    <span><strong>Maria Silva</strong><em>COO · Bright Harbor <!-- PLACEHOLDER --></em></span>
+                </figcaption>
+            </figure>
+
+        </div>
+
+    </div>
+</section>
+
+
+<!-- ============================================================
+     FINAL CTA
+============================================================ -->
+<section class="final-cta">
+    <div class="bg-mesh" aria-hidden="true"><span></span><span></span><span></span></div>
+    <div class="shell text-center reveal">
+        <h2>Stop writing meetings down by hand.</h2>
+        <p>Record your next call with MeetMind and get the transcript, summary, and action items automatically.</p>
+        <a class="btn btn-accent btn-lg" href="/sign-up">
+            Get Started Free
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+        </a>
+    </div>
+</section>
+
+
+<!-- ============================================================
+     FOOTER  (kept intentionally minimal for now)
+============================================================ -->
+<footer class="site-footer">
+    <div class="shell footer-line">
+        <span class="footer-name">MeetMind</span>
+        <span class="footer-support">
+            For support, contact
+            <a href="mailto:cdac@chennai.in">cdac@chennai.in</a>
+        </span>
+    </div>
+</footer>
+
+
+<script src="assets/theme.js"></script>
+<script src="assets/ui.js"></script>
+<script src="assets/landing.js"></script>
+
+</body>
+</html>

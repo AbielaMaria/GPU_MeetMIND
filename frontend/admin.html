@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<!-- ============================================================
+     MeetMind — Admin (role = "admin" only)
+     ------------------------------------------------------------
+     Deliberately simple: one screen to see / add / edit / remove
+     users. Users are the mock store in assets/auth-store.js
+     (localStorage key "meetmind:users"); changes here affect who
+     can sign in. TODO(backend): swap the MeetMindAuth.*User calls
+     for /api/admin/users endpoints.
+============================================================ -->
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin — MeetMind</title>
+    <meta name="color-scheme" content="light dark">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+
+    <script>
+        (function () {
+            try {
+                var s = localStorage.getItem("meetmind-theme");
+                if (s === "light" || s === "dark") {
+                    document.documentElement.setAttribute("data-theme", s);
+                }
+            } catch (e) {}
+        })();
+    </script>
+
+    <!-- guard: bounce non-admins before paint -->
+    <script src="assets/auth-store.js"></script>
+    <script>
+        if (window.MeetMindAuth && !window.MeetMindAuth.guard("admin")) {
+            document.documentElement.style.display = "none";
+        }
+    </script>
+
+    <link rel="stylesheet" href="assets/theme.css">
+    <link rel="stylesheet" href="assets/admin.css">
+
+</head>
+
+<body>
+
+<div class="admin-shell">
+
+    <!-- ---------- top bar ---------- -->
+    <header class="admin-top">
+        <a class="brand" href="/">
+            <span class="brand-mark" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/></svg>
+            </span>
+            MeetMind <span class="admin-badge">Admin</span>
+        </a>
+
+        <span class="spacer"></span>
+
+        <span class="admin-who" id="whoEmail">admin@example.com</span>
+
+        <a class="btn btn-ghost" href="/app">Recorder</a>
+
+        <button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch color theme" title="Switch color theme">
+            <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+            <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+        </button>
+
+        <button class="btn btn-ghost" id="logoutBtn" type="button">Log out</button>
+    </header>
+
+    <main class="admin-body">
+
+        <section class="panel">
+
+            <div class="panel-hd">
+                <h2>Users</h2>
+                <span class="hint" id="rowCount"></span>
+            </div>
+
+            <div class="panel-bd">
+
+                <div class="table-tools">
+                    <div class="search-wrap">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                        <input type="search" id="userSearch" placeholder="Search username or email…" autocomplete="off">
+                    </div>
+                    <select id="roleFilter" aria-label="Filter by role">
+                        <option value="">All roles</option>
+                        <option value="user">User</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                    <select id="statusFilter" aria-label="Filter by status">
+                        <option value="">All statuses</option>
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                    </select>
+                    <span class="spacer"></span>
+                    <button class="btn btn-accent" id="addUserBtn" type="button">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                        Add user
+                    </button>
+                </div>
+
+                <div class="table-scroll">
+                    <table class="data">
+                        <thead>
+                            <tr>
+                                <th>Username</th>
+                                <th>Email</th>
+                                <th>Role</th>
+                                <th>Created</th>
+                                <th>Status</th>
+                                <th class="col-actions">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="userRows"></tbody>
+                    </table>
+                </div>
+
+            </div>
+
+        </section>
+
+    </main>
+
+</div>
+
+
+<!-- ---------- add / edit dialog ---------- -->
+<dialog id="userDialog" class="user-dialog">
+    <form method="dialog" id="userForm">
+
+        <h3 id="dialogTitle">Add user</h3>
+
+        <div class="form-alert error js-error" role="alert"></div>
+
+        <div class="field" data-field="username">
+            <label for="f_username">Username</label>
+            <div class="input-wrap">
+                <input type="text" id="f_username" name="username" autocomplete="off" required>
+            </div>
+            <div class="field-error" data-error-for="username"></div>
+        </div>
+
+        <div class="field" data-field="email">
+            <label for="f_email">Email</label>
+            <div class="input-wrap">
+                <input type="email" id="f_email" name="email" autocomplete="off" required>
+            </div>
+            <div class="field-error" data-error-for="email"></div>
+        </div>
+
+        <div class="field" data-field="password">
+            <label for="f_password"><span id="pwLabelText">Password</span></label>
+            <div class="input-wrap">
+                <input type="text" id="f_password" name="password" autocomplete="off">
+            </div>
+            <div class="field-error" data-error-for="password"></div>
+        </div>
+
+        <div class="dialog-row">
+            <div class="field" data-field="role">
+                <label for="f_role">Role</label>
+                <div class="input-wrap">
+                    <select id="f_role" name="role">
+                        <option value="user">User</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+            </div>
+            <div class="field" data-field="status">
+                <label for="f_status">Status</label>
+                <div class="input-wrap">
+                    <select id="f_status" name="status">
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="dialog-actions">
+            <button class="btn btn-ghost" type="button" id="dialogCancel">Cancel</button>
+            <button class="btn btn-accent" type="submit" id="dialogSave">Save</button>
+        </div>
+
+    </form>
+</dialog>
+
+<script src="assets/theme.js"></script>
+<script src="assets/admin.js"></script>
+
+</body>
+</html>

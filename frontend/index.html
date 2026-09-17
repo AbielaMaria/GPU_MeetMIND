@@ -14,542 +14,1164 @@
         MeetMind - AI Meeting Intelligence
     </title>
 
+    <meta name="color-scheme" content="light dark">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    >
+
+    <script>
+        /* Pre-paint theme resolution. Additive only — no app logic. */
+        (function () {
+            try {
+                var saved = localStorage.getItem("meetmind-theme");
+                if (saved === "light" || saved === "dark") {
+                    document.documentElement.setAttribute("data-theme", saved);
+                }
+            } catch (e) {}
+        })();
+    </script>
+<!-- PDF export (Download PDF button). Loaded from CDN; no app
+         logic depends on it until the user clicks Download PDF. -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
     <style>
 
-        * {
-            box-sizing: border-box;
-        }
-
-        body {
-
-            margin: 0;
-
-            font-family:
-                Arial,
-                Helvetica,
-                sans-serif;
-
-            background:
-                #f5f7fb;
-
-            color:
-                #172033;
-        }
-
-        .container {
-
-            max-width:
-                1180px;
-
-            margin:
-                0 auto;
-
-            padding:
-                30px 20px;
-        }
-
-        .card {
-
-            background:
-                white;
-
-            border:
-                1px solid #e4e8f0;
-
-            border-radius:
-                16px;
-
-            padding:
-                22px;
-
-            margin-bottom:
-                20px;
-
-            box-shadow:
-                0 5px 18px
-                rgba(0, 0, 0, 0.05);
-        }
-
-        header {
-
-            display:
-                flex;
-
-            justify-content:
-                space-between;
-
-            align-items:
-                center;
-
-            gap:
-                20px;
-        }
-
-        h1 {
-
-            margin:
-                0;
-
-            font-size:
-                30px;
-        }
-
-        h2 {
-
-            margin-top:
-                0;
-
-            font-size:
-                20px;
-        }
-
-        .subtitle {
-
-            margin:
-                7px 0 0;
-
-            color:
-                #6b7280;
-        }
-
-        .connection {
-
-            white-space:
-                nowrap;
-        }
-
-        .status-dot {
-
-            display:
-                inline-block;
-
-            width:
-                9px;
-
-            height:
-                9px;
-
-            border-radius:
-                50%;
-
-            background:
-                #22c55e;
-
-            margin-right:
-                7px;
-        }
-
-        .controls {
-
-            display:
-                flex;
-
-            align-items:
-                center;
-
-            gap:
-                14px;
-
-            margin-top:
-                22px;
-
-            flex-wrap:
-                wrap;
-        }
-
-        button {
-
-            border:
-                0;
-
-            border-radius:
-                10px;
-
-            padding:
-                13px 22px;
-
-            font-size:
-                15px;
-
-            font-weight:
-                700;
-
-            cursor:
-                pointer;
-        }
-
-        #recordBtn {
-
-            background:
-                #dc2626;
-
-            color:
-                white;
-        }
-
-        #recordBtn.recording {
-
-            background:
-                #111827;
-        }
-
-        #summaryBtn {
-
-            background:
-                #2563eb;
-
-            color:
-                white;
-
-            margin-top:
-                16px;
-        }
-
-        button:disabled {
-
-            opacity:
-                0.45;
-
-            cursor:
-                not-allowed;
-        }
-
-        #timer {
-
-            font-family:
-                monospace;
-
-            font-size:
-                22px;
-
-            font-weight:
-                700;
-        }
-
-        #status {
-
-            margin-top:
-                18px;
-
-            padding:
-                12px 15px;
-
-            border-radius:
-                9px;
-
-            background:
-                #f3f4f6;
-
-            color:
-                #374151;
-        }
-
-        .grid {
-
-            display:
-                grid;
-
-            grid-template-columns:
-                1.15fr 1fr;
-
-            gap:
-                20px;
-        }
-
-        @media (
-            max-width: 850px
-        ) {
-
-            .grid {
-
-                grid-template-columns:
-                    1fr;
-            }
-        }
-
-        .transcript {
-
-            min-height:
-                280px;
-
-            max-height:
-                600px;
-
-            overflow-y:
-                auto;
-
-            border:
-                1px solid #e5e7eb;
-
-            border-radius:
-                10px;
-
-            padding:
-                16px;
-
-            white-space:
-                pre-wrap;
-
-            line-height:
-                1.7;
-        }
-
-        .placeholder {
-
-            color:
-                #9ca3af;
-
-            text-align:
-                center;
-
-            padding:
-                70px 10px;
-        }
-
-        .result-section {
-
-            margin-bottom:
-                22px;
-        }
-
-        .result-section:last-child {
-
-            margin-bottom:
-                0;
-        }
-
-        .label {
-
-            font-size:
-                12px;
-
-            font-weight:
-                800;
-
-            letter-spacing:
-                0.08em;
-
-            color:
-                #6b7280;
-
-            margin-bottom:
-                7px;
-        }
-
-        .title-result {
-
-            font-size:
-                24px;
-
-            font-weight:
-                800;
-
-            line-height:
-                1.25;
-        }
-
-        .summary {
-
-            line-height:
-                1.7;
-
-            color:
-                #374151;
-        }
-
-
-
-        /* ========================================================
-           EDITABLE MEETING SUMMARY
-        ======================================================== */
-
-        .editable-summary {
-            width: 100%;
-            min-height: 150px;
-            padding: 12px;
-            border: 1px solid #d1d5db;
-            border-radius: 8px;
-            box-sizing: border-box;
-            font-family: inherit;
-            font-size: 15px;
-            line-height: 1.7;
-            color: #374151;
-            background: #ffffff;
-            resize: vertical;
-        }
-
-        .editable-summary:focus {
-            outline: none;
-            border-color: #2563eb;
-            box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
-        }
-
-        .edit-hint {
-            margin-top: 6px;
-            color: #9ca3af;
-            font-size: 12px;
-        }
-
-        .summary-actions {
-            display: none;
-            margin-top: 10px;
-        }
-
-        .summary-actions.visible {
-            display: block;
-        }
-
-        #saveSummaryBtn {
-            background: #059669;
-            color: white;
-            margin-top: 0;
-        }
-
-        #cancelSummaryBtn {
-            background: #6b7280;
-            color: white;
-            margin-top: 0;
-            margin-left: 8px;
-        }
-
-
-        .editable-field {
-            cursor: text;
-            border: 1px solid transparent;
-            border-radius: 7px;
-            padding: 5px 7px;
-            min-height: 22px;
-            outline: none;
-            white-space: pre-wrap;
-        }
-
-        .editable-field:hover {
-            border-color: #d1d5db;
-            background: #ffffff;
-        }
-
-        .editable-field:focus {
-            border-color: #2563eb;
-            background: #ffffff;
-            box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
-        }
-
-        .editable-title {
-            font-size: 18px;
-            font-weight: 700;
-            line-height: 1.4;
-        }
-
-        .item {
-
-            padding:
-                12px 14px;
-
-            border:
-                1px solid #e5e7eb;
-
-            border-radius:
-                10px;
-
-            margin-bottom:
-                9px;
-
-            background:
-                #fafafa;
-        }
-
-        .item strong {
-
-            display:
-                block;
-
-            margin-bottom:
-                5px;
-        }
-
-        .meta {
-
-            color:
-                #6b7280;
-
-            font-size:
-                13px;
-
-            margin-top:
-                4px;
-        }
-
-        .decision {
-
-            padding:
-                11px 13px;
-
-            border-left:
-                4px solid #7c3aed;
-
-            background:
-                #faf5ff;
-
-            margin-bottom:
-                9px;
-
-            border-radius:
-                5px;
-
-            line-height:
-                1.5;
-        }
-
-        .objection {
-
-            border-left:
-                4px solid #dc2626;
-
-            background:
-                #fef2f2;
-
-            line-height:
-                1.5;
-        }
-
-        .action {
-
-            border-left:
-                4px solid #059669;
-
-            background:
-                #ecfdf5;
-
-            line-height:
-                1.5;
-        }
-
-        #logs {
-
-            height:
-                180px;
-
-            overflow:
-                auto;
-
-            background:
-                #111827;
-
-            color:
-                #d1d5db;
-
-            border-radius:
-                10px;
-
-            padding:
-                12px;
-
-            font:
-                12px/1.6 monospace;
-
-            white-space:
-                pre-wrap;
-        }
+/* ============================================================
+   MeetMind — visual design system
+   Styling only. No behavioural JS depends on any rule here.
+============================================================ */
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+/* ---------- Tokens : light (default) ---------- */
+
+:root {
+    color-scheme: light;
+
+    /* background layers */
+    --bg-base: #f4f4f2;
+    --bg-surface: #faf9f7;
+    --bg-elevated: #ffffff;
+
+    /* text */
+    --text-primary: #1b1a18;
+    --text-secondary: #56524c;
+    --text-muted: #8b867e;
+
+    /* lines */
+    --border: #e7e3dd;
+    --border-strong: #d7d2ca;
+
+    /* brand + semantic */
+    --accent: #4f46e5;
+    --accent-hover: #4338ca;
+    --accent-soft: #eeeefc;
+    --btn-accent-bg: #4f46e5;
+    --btn-accent-hover: #4338ca;
+    --success: #15803d;
+    --success-soft: #edf6ef;
+    --warning: #b45309;
+    --danger: #dc2626;
+    --danger-hover: #b91c1c;
+    --danger-soft: #fdf1f0;
+    --danger-ring: rgba(220, 38, 38, .28);
+
+    /* elevation */
+    --shadow-sm: 0 1px 2px rgba(24, 23, 21, .06), 0 1px 3px rgba(24, 23, 21, .05);
+    --shadow-md: 0 6px 16px -4px rgba(24, 23, 21, .10), 0 2px 6px -2px rgba(24, 23, 21, .06);
+    --shadow-lg: 0 18px 40px -12px rgba(24, 23, 21, .16);
+
+    /* radius scale */
+    --r-sm: 8px;
+    --r-md: 12px;
+    --r-lg: 16px;
+    --r-full: 999px;
+
+    /* type */
+    --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+    /* icons (lucide, stroke rendered as mask alpha) */
+    --icon-mic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z'/%3E%3Cpath d='M19 10v2a7 7 0 0 1-14 0v-2'/%3E%3Cline x1='12' x2='12' y1='19' y2='22'/%3E%3C/svg%3E");
+    --icon-stop: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Crect x='6' y='6' width='12' height='12' rx='2.5' fill='black'/%3E%3C/svg%3E");
+    --icon-sparkles: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .962 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.962 0z'/%3E%3Cpath d='M20 3v4'/%3E%3Cpath d='M22 5h-4'/%3E%3Cpath d='M4 17v2'/%3E%3Cpath d='M5 18H3'/%3E%3C/svg%3E");
+    --icon-sun: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='4'/%3E%3Cpath d='M12 2v2'/%3E%3Cpath d='M12 20v2'/%3E%3Cpath d='m4.93 4.93 1.41 1.41'/%3E%3Cpath d='m17.66 17.66 1.41 1.41'/%3E%3Cpath d='M2 12h2'/%3E%3Cpath d='M20 12h2'/%3E%3Cpath d='m6.34 17.66-1.41 1.41'/%3E%3Cpath d='m19.07 4.93-1.41 1.41'/%3E%3C/svg%3E");
+    --icon-moon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z'/%3E%3C/svg%3E");
+    --icon-info: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M12 16v-4'/%3E%3Cpath d='M12 8h.01'/%3E%3C/svg%3E");
+    --icon-clock: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpolyline points='12 6 12 12 16 14'/%3E%3C/svg%3E");
+    --icon-file: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z'/%3E%3Cpath d='M14 2v4a2 2 0 0 0 2 2h4'/%3E%3Cpath d='M10 9H8'/%3E%3Cpath d='M16 13H8'/%3E%3Cpath d='M16 17H8'/%3E%3C/svg%3E");
+    --icon-bulb: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5'/%3E%3Cpath d='M9 18h6'/%3E%3Cpath d='M10 22h4'/%3E%3C/svg%3E");
+    --icon-audio: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 10v3'/%3E%3Cpath d='M6 6v11'/%3E%3Cpath d='M10 3v18'/%3E%3Cpath d='M14 8v7'/%3E%3Cpath d='M18 5v13'/%3E%3Cpath d='M22 10v3'/%3E%3C/svg%3E");
+    --icon-terminal: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4 17 6-6-6-6'/%3E%3Cpath d='M12 19h8'/%3E%3C/svg%3E");
+}
+
+/* ---------- Tokens : dark ---------- */
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+        color-scheme: dark;
+        --bg-base: #0b0f18;
+        --bg-surface: #111725;
+        --bg-elevated: #161d2e;
+        --text-primary: #e7e9f0;
+        --text-secondary: #aab2c4;
+        --text-muted: #717a90;
+        --border: #232c40;
+        --border-strong: #313c56;
+        --accent: #7c8cff;
+        --accent-hover: #4338ca;
+        --accent-soft: rgba(124, 140, 255, .12);
+        --btn-accent-bg: #4f46e5;
+        --btn-accent-hover: #4338ca;
+        --success: #34d399;
+        --success-soft: rgba(52, 211, 153, .10);
+        --warning: #fbbf24;
+        --danger: #dc2626;
+        --danger-hover: #b91c1c;
+        --danger-soft: rgba(248, 113, 113, .12);
+        --danger-ring: rgba(248, 113, 113, .30);
+        --shadow-sm: 0 0 0 1px rgba(255, 255, 255, .02), 0 2px 8px rgba(0, 0, 0, .40);
+        --shadow-md: 0 0 0 1px rgba(255, 255, 255, .03), 0 10px 24px -8px rgba(0, 0, 0, .55);
+        --shadow-lg: 0 0 0 1px rgba(255, 255, 255, .03), 0 24px 48px -16px rgba(0, 0, 0, .60);
+    }
+}
+
+:root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg-base: #0b0f18;
+    --bg-surface: #111725;
+    --bg-elevated: #161d2e;
+    --text-primary: #e7e9f0;
+    --text-secondary: #aab2c4;
+    --text-muted: #717a90;
+    --border: #232c40;
+    --border-strong: #313c56;
+    --accent: #7c8cff;
+    --accent-hover: #4338ca;
+    --accent-soft: rgba(124, 140, 255, .12);
+    --btn-accent-bg: #4f46e5;
+    --btn-accent-hover: #4338ca;
+    --success: #34d399;
+    --success-soft: rgba(52, 211, 153, .10);
+    --warning: #fbbf24;
+    --danger: #dc2626;
+    --danger-hover: #b91c1c;
+    --danger-soft: rgba(248, 113, 113, .12);
+    --danger-ring: rgba(248, 113, 113, .30);
+    --shadow-sm: 0 0 0 1px rgba(255, 255, 255, .02), 0 2px 8px rgba(0, 0, 0, .40);
+    --shadow-md: 0 0 0 1px rgba(255, 255, 255, .03), 0 10px 24px -8px rgba(0, 0, 0, .55);
+    --shadow-lg: 0 0 0 1px rgba(255, 255, 255, .03), 0 24px 48px -16px rgba(0, 0, 0, .60);
+}
+
+/* ---------- Base ---------- */
+
+body {
+    margin: 0;
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.55;
+    background: var(--bg-base);
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+:where(body, .card, .connection, .theme-toggle, #status, .transcript,
+    #intelligence, #logs, .item, .decision, .title-result, .summary,
+    .meta, .label, h1, h2, .subtitle) {
+    transition:
+        background-color .24s ease,
+        border-color .24s ease,
+        color .24s ease,
+        box-shadow .24s ease;
+}
+
+::selection {
+    background: var(--accent-soft);
+    color: var(--text-primary);
+}
+
+:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 3px;
+}
+
+.container {
+    width: 100%;
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 40px clamp(16px, 4vw, 48px) 72px;
+}
+
+/* ---------- Card ---------- */
+
+.card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    padding: 24px;
+    margin-bottom: 20px;
+    box-shadow: var(--shadow-sm);
+}
+
+/* ---------- Header ---------- */
+
+.app-header {
+    box-shadow: var(--shadow-md);
+}
+
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 24px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-width: 0;
+}
+
+.brand-mark {
+    width: 42px;
+    height: 42px;
+    flex: none;
+    border-radius: 12px;
+    background: linear-gradient(140deg, var(--accent), #8b5cf6);
+    display: grid;
+    place-items: center;
+    box-shadow: var(--shadow-sm);
+}
+
+.brand-mark::after {
+    content: "";
+    width: 21px;
+    height: 21px;
+    background: #fff;
+    -webkit-mask: var(--icon-audio) center / contain no-repeat;
+    mask: var(--icon-audio) center / contain no-repeat;
+}
+
+h1 {
+    margin: 0;
+    font-size: 1.6rem;
+    font-weight: 650;
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
+}
+
+.subtitle {
+    margin: 4px 0 0;
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: none;
+}
+
+.connection {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-full);
+    background: var(--bg-surface);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.status-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    position: relative;
+    flex: none;
+}
+
+/* live pulse only while recording (CSS-only hook via :has) */
+.app-header:has(#recordBtn.recording) .status-dot::after {
+    content: "";
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    border: 1.5px solid var(--danger);
+    animation: ping 1.5s cubic-bezier(0, 0, .2, 1) infinite;
+}
+
+@keyframes ping {
+    0% {
+        transform: scale(.55);
+        opacity: .9;
+    }
+    100% {
+        transform: scale(1.9);
+        opacity: 0;
+    }
+}
+
+.theme-toggle {
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    flex: none;
+    display: inline-grid;
+    place-items: center;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.theme-toggle:hover {
+    color: var(--text-primary);
+    border-color: var(--border-strong);
+    background: var(--bg-elevated);
+}
+
+.theme-toggle::before {
+    content: "";
+    width: 17px;
+    height: 17px;
+    background: currentColor;
+    -webkit-mask: var(--icon-sun) center / contain no-repeat;
+    mask: var(--icon-sun) center / contain no-repeat;
+}
+
+:root[data-theme="dark"] .theme-toggle::before {
+    -webkit-mask-image: var(--icon-moon);
+    mask-image: var(--icon-moon);
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .theme-toggle::before {
+        -webkit-mask-image: var(--icon-moon);
+        mask-image: var(--icon-moon);
+    }
+}
+
+/* ---------- Controls / record button ---------- */
+
+.controls {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-top: 20px;
+    flex-wrap: wrap;
+}
+
+button {
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    border: 1px solid transparent;
+    border-radius: var(--r-md);
+    padding: 10px 16px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    -webkit-user-select: none;
+    user-select: none;
+    transition:
+        background-color .16s ease,
+        border-color .16s ease,
+        color .16s ease,
+        box-shadow .16s ease,
+        transform .09s ease;
+}
+
+button::before {
+    content: "";
+    width: 16px;
+    height: 16px;
+    flex: none;
+    background: currentColor;
+    -webkit-mask-position: center;
+    mask-position: center;
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+}
+
+button:active {
+    transform: scale(.97);
+}
+
+button:disabled {
+    opacity: .5;
+    cursor: not-allowed;
+    pointer-events: none;
+    box-shadow: none;
+}
+
+#recordBtn {
+    background: var(--danger);
+    color: #fff;
+    box-shadow: var(--shadow-sm);
+}
+
+#recordBtn::before {
+    -webkit-mask-image: var(--icon-mic);
+    mask-image: var(--icon-mic);
+}
+
+#recordBtn:hover {
+    background: var(--danger-hover);
+}
+
+#recordBtn.recording {
+    background: var(--text-primary);
+    color: var(--bg-elevated);
+    border-color: transparent;
+    animation: recpulse 2s ease-in-out infinite;
+}
+
+#recordBtn.recording::before {
+    -webkit-mask-image: var(--icon-stop);
+    mask-image: var(--icon-stop);
+    background: var(--danger);
+}
+
+#recordBtn.recording:hover {
+    background: var(--text-secondary);
+}
+
+@keyframes recpulse {
+    0%, 100% {
+        box-shadow: 0 0 0 0 var(--danger-ring);
+    }
+    50% {
+        box-shadow: 0 0 0 7px transparent;
+    }
+}
+
+#summaryBtn {
+    background: var(--btn-accent-bg);
+    color: #fff;
+    margin-top: 20px;
+    align-self: flex-start;
+    box-shadow: var(--shadow-sm);
+}
+
+#summaryBtn::before {
+    -webkit-mask-image: var(--icon-sparkles);
+    mask-image: var(--icon-sparkles);
+}
+
+#summaryBtn:hover {
+    background: var(--btn-accent-hover);
+}
+
+#timer {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 19px;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+#timer::before {
+    content: "";
+    width: 15px;
+    height: 15px;
+    background: var(--text-muted);
+    -webkit-mask: var(--icon-clock) center / contain no-repeat;
+    mask: var(--icon-clock) center / contain no-repeat;
+}
+
+.app-header:has(#recordBtn.recording) #timer {
+    color: var(--danger);
+}
+
+.app-header:has(#recordBtn.recording) #timer::before {
+    background: var(--danger);
+}
+
+/* ---------- Status line ---------- */
+
+#status {
+    margin-top: 18px;
+    padding: 12px 14px 12px 40px;
+    position: relative;
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+#status::before {
+    content: "";
+    position: absolute;
+    left: 14px;
+    top: 12px;
+    width: 16px;
+    height: 16px;
+    background: var(--text-muted);
+    -webkit-mask: var(--icon-info) center / contain no-repeat;
+    mask: var(--icon-info) center / contain no-repeat;
+}
+
+/* ---------- Grid + panels ---------- */
+
+.grid {
+    display: grid;
+    grid-template-columns: 1.15fr 1fr;
+    gap: 24px;
+}
+
+@media (max-width: 900px) {
+    .grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.panel {
+    display: flex;
+    flex-direction: column;
+}
+
+.panel-head {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin-bottom: 16px;
+}
+
+.panel-head h2 {
+    margin: 0;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--text-primary);
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+}
+
+.panel-head h2::before {
+    content: "";
+    width: 16px;
+    height: 16px;
+    flex: none;
+    background: var(--accent);
+    -webkit-mask: var(--icon-file) center / contain no-repeat;
+    mask: var(--icon-file) center / contain no-repeat;
+}
+
+.panel--intel .panel-head h2::before {
+    -webkit-mask-image: var(--icon-bulb);
+    mask-image: var(--icon-bulb);
+}
+
+.panel--logs .panel-head h2::before {
+    -webkit-mask-image: var(--icon-terminal);
+    mask-image: var(--icon-terminal);
+}
+
+.panel-body {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 340px;
+    max-height: 560px;
+    display: flex;
+}
+
+/* scroll area — also a flex column so the empty state fills it
+   cleanly and stray whitespace text nodes are ignored */
+.panel-body > div {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    border-radius: var(--r-md);
+    display: flex;
+    flex-direction: column;
+}
+
+.panel-body > div > .placeholder {
+    flex: 1 0 auto;
+}
+
+.scroll-fade::before,
+.scroll-fade::after {
+    content: "";
+    position: absolute;
+    left: 2px;
+    right: 12px;
+    height: 26px;
+    pointer-events: none;
+    z-index: 3;
+}
+
+.scroll-fade::before {
+    top: 1px;
+    background: linear-gradient(var(--bg-elevated), transparent);
+    border-radius: var(--r-md) var(--r-md) 0 0;
+}
+
+.scroll-fade::after {
+    bottom: 1px;
+    background: linear-gradient(transparent, var(--bg-elevated));
+    border-radius: 0 0 var(--r-md) var(--r-md);
+}
+
+.panel--transcript .scroll-fade::before {
+    background: linear-gradient(var(--bg-surface), transparent);
+}
+
+.panel--transcript .scroll-fade::after {
+    background: linear-gradient(transparent, var(--bg-surface));
+}
+
+/* scrollbars */
+
+.panel-body > div,
+#logs {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+}
+
+.panel-body > div::-webkit-scrollbar,
+#logs::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+.panel-body > div::-webkit-scrollbar-thumb,
+#logs::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: var(--r-full);
+}
+
+.panel-body > div::-webkit-scrollbar-track,
+#logs::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+/* ---------- Transcript ---------- */
+
+.transcript {
+    border: 1px solid var(--border);
+    background: var(--bg-surface);
+    padding: 16px 18px;
+    white-space: pre-wrap;
+    line-height: 1.75;
+    font-size: 13.5px;
+    color: var(--text-secondary);
+}
+
+/* ---------- Empty / loading states ---------- */
+
+.placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    min-height: 240px;
+    padding: 40px 28px;
+    text-align: center;
+    white-space: normal;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-muted);
+    animation: breathe 2.6s ease-in-out infinite;
+}
+
+.placeholder::before {
+    content: "";
+    width: 22px;
+    height: 22px;
+    background: var(--accent);
+    -webkit-mask: var(--icon-audio) center / contain no-repeat;
+    mask: var(--icon-audio) center / contain no-repeat;
+    border-radius: 6px;
+    box-shadow: 0 0 0 12px var(--accent-soft);
+    margin-bottom: 8px;
+}
+
+@keyframes breathe {
+    0%, 100% {
+        opacity: .72;
+    }
+    50% {
+        opacity: 1;
+    }
+}
+
+/* CSS-driven skeleton utility — ready for an existing loading-state
+   class to be attached by JS; no behaviour added here. */
+.skeleton,
+.skeleton-line {
+    position: relative;
+    overflow: hidden;
+    background: var(--bg-surface);
+    border-radius: var(--r-sm);
+}
+
+.skeleton-line {
+    height: 12px;
+    margin-bottom: 10px;
+}
+
+.skeleton::after,
+.skeleton-line::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, var(--border) 45%, var(--border-strong) 50%, var(--border) 55%, transparent);
+    animation: shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+    100% {
+        transform: translateX(100%);
+    }
+}
+
+/* ---------- Meeting intelligence results ---------- */
+
+#intelligence {
+    border: 1px solid var(--border);
+    background: var(--bg-surface);
+    padding: 16px 18px;
+}
+
+.result-section {
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+}
+
+.result-section:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: 0;
+}
+
+.label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+}
+
+.title-result {
+    font-size: 20px;
+    font-weight: 650;
+    line-height: 1.3;
+    letter-spacing: -0.01em;
+    color: var(--text-primary);
+}
+
+.summary {
+    line-height: 1.7;
+    font-size: 13.5px;
+    color: var(--text-secondary);
+}
+
+.item {
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    margin-bottom: 8px;
+    background: var(--bg-surface);
+}
+
+.item:last-child {
+    margin-bottom: 0;
+}
+
+.item strong {
+    display: block;
+    margin-bottom: 4px;
+    font-weight: 600;
+    font-size: 13.5px;
+    color: var(--text-primary);
+}
+
+.meta {
+    color: var(--text-muted);
+    font-size: 12px;
+    margin-top: 3px;
+}
+
+.decision {
+    padding: 11px 13px;
+    border-left: 3px solid var(--accent);
+    background: var(--accent-soft);
+    margin-bottom: 8px;
+    border-radius: 0 var(--r-sm) var(--r-sm) 0;
+    line-height: 1.6;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.decision:last-child {
+    margin-bottom: 0;
+}
+
+.objection {
+    border-left: 3px solid var(--danger);
+    background: var(--danger-soft);
+    border-radius: 0 var(--r-sm) var(--r-sm) 0;
+    line-height: 1.6;
+}
+
+.action {
+    border-left: 3px solid var(--success);
+    background: var(--success-soft);
+    border-radius: 0 var(--r-sm) var(--r-sm) 0;
+    line-height: 1.6;
+}
+
+/* ---------- Backend log : terminal / console ---------- */
+
+.terminal {
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    overflow: hidden;
+    background: #0c1119;
+    box-shadow: var(--shadow-sm);
+}
+
+.terminal-bar {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 9px 13px;
+    background: #10151f;
+    border-bottom: 1px solid rgba(255, 255, 255, .06);
+}
+
+.term-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #3a4150;
+    flex: none;
+}
+
+.term-dot:nth-child(1) {
+    background: #ff5f57;
+}
+
+.term-dot:nth-child(2) {
+    background: #febc2e;
+}
+
+.term-dot:nth-child(3) {
+    background: #28c840;
+}
+
+.term-title {
+    margin-left: 8px;
+    font: 500 11px/1 var(--mono);
+    letter-spacing: .06em;
+    color: #697088;
+}
+
+#logs {
+    height: 200px;
+    overflow: auto;
+    margin: 0;
+    background: #0c1119;
+    color: #c7d0e0;
+    padding: 14px 16px;
+    font: 12px/1.7 var(--mono);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+#logs::-webkit-scrollbar-thumb {
+    background: #2b3446;
+}
+
+/* ---------- Transcript search ---------- */
+
+.transcript-search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 14px;
+    flex-wrap: wrap;
+}
+
+.transcript-search-input {
+    flex: 1 1 220px;
+    min-width: 0;
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 13px;
+}
+
+.transcript-search-input::placeholder {
+    color: var(--text-muted);
+}
+
+.transcript-search-input:disabled {
+    opacity: .5;
+    cursor: not-allowed;
+}
+
+.search-nav-btn {
+    padding: 9px 12px;
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    font-size: 13px;
+}
+
+.search-nav-btn::before {
+    content: none;
+}
+
+.search-nav-btn:hover:not(:disabled) {
+    color: var(--text-primary);
+    border-color: var(--border-strong);
+    background: var(--bg-elevated);
+}
+
+.search-count {
+    min-width: 76px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+mark.transcript-match {
+    background: var(--accent-soft);
+    color: var(--text-primary);
+    border-radius: 3px;
+    padding: 0 1px;
+}
+
+mark.transcript-match.current {
+    background: var(--accent);
+    color: #fff;
+}
+
+/* ---------- Editable meeting summary ---------- */
+
+.editable-summary {
+    width: 100%;
+    min-height: 140px;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    background: var(--bg-elevated);
+    color: var(--text-secondary);
+    font-family: inherit;
+    font-size: 13.5px;
+    line-height: 1.7;
+    resize: vertical;
+}
+
+.editable-summary:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+    border-color: var(--border-strong);
+}
+
+.edit-hint {
+    display: none;
+    margin: 0 0 14px;
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+.edit-hint.visible {
+    display: block;
+}
+
+.editable-field {
+    cursor: text;
+    border: 1px solid transparent;
+    border-radius: var(--r-sm);
+    padding: 3px 6px;
+    margin: -3px -6px;
+    min-height: 22px;
+    outline: none;
+    white-space: pre-wrap;
+}
+
+.editable-field:hover {
+    border-color: var(--border);
+    background: var(--bg-elevated);
+}
+
+.editable-field:focus-visible {
+    border-color: var(--accent);
+    background: var(--bg-elevated);
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+.summary-actions {
+    display: none;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.summary-actions.visible {
+    display: flex;
+}
+
+#saveSummaryBtn,
+#cancelSummaryBtn {
+    padding: 9px 15px;
+}
+
+#saveSummaryBtn::before,
+#cancelSummaryBtn::before {
+    content: none;
+}
+
+#saveSummaryBtn {
+    background: var(--success);
+    color: #fff;
+}
+
+#saveSummaryBtn:hover {
+    filter: brightness(.92);
+}
+
+#cancelSummaryBtn {
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+}
+
+#cancelSummaryBtn:hover {
+    color: var(--text-primary);
+    border-color: var(--border-strong);
+}
+
+/* ---------- Summary export ---------- */
+
+.download-actions {
+    display: none;
+    gap: 8px;
+    margin: 0 0 16px;
+    flex-wrap: wrap;
+}
+
+.download-actions.visible {
+    display: flex;
+}
+
+.download-btn {
+    padding: 9px 14px;
+    font-size: 12.5px;
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+}
+
+.download-btn::before {
+    content: none;
+}
+
+.download-btn:hover:not(:disabled) {
+    color: var(--text-primary);
+    border-color: var(--border-strong);
+    background: var(--bg-elevated);
+}
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 640px) {
+    .container {
+        padding: 28px 16px 56px;
+    }
+
+    header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 16px;
+    }
+
+    .header-actions {
+        justify-content: space-between;
+    }
+
+    h1 {
+        font-size: 1.4rem;
+    }
+
+    .card {
+        padding: 18px;
+    }
+
+    .controls {
+        gap: 12px;
+    }
+
+    #recordBtn {
+        flex: 1 1 auto;
+    }
+
+    .panel-body {
+        max-height: 60vh;
+    }
+}
+
+/* ---------- Reduced motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+    .placeholder,
+    #recordBtn.recording,
+    .skeleton::after,
+    .skeleton-line::after,
+    .app-header:has(#recordBtn.recording) .status-dot::after {
+        animation: none;
+    }
+
+    :where(body, .card, button, #status, .connection, .theme-toggle) {
+        transition: none;
+    }
+}
 
     </style>
 
@@ -566,32 +1188,50 @@
          HEADER
     ======================================================= -->
 
-    <div class="card">
+    <div class="card app-header">
 
         <header>
 
-            <div>
+            <div class="brand">
 
-                <h1>
-                    MeetMind
-                </h1>
+                <div class="brand-mark" aria-hidden="true"></div>
 
-                <p class="subtitle">
-                    AI meeting transcription and meeting intelligence
-                </p>
+                <div>
+
+                    <h1>
+                        MeetMind
+                    </h1>
+
+                    <p class="subtitle">
+                        AI meeting transcription and meeting intelligence
+                    </p>
+
+                </div>
 
             </div>
 
-            <div class="connection">
+            <div class="header-actions">
 
-                <span
-                    class="status-dot"
-                    id="statusDot"
-                ></span>
+                <div class="connection">
 
-                <span id="connection">
-                    Ready
-                </span>
+                    <span
+                        class="status-dot"
+                        id="statusDot"
+                    ></span>
+
+                    <span id="connection">
+                        Ready
+                    </span>
+
+                </div>
+
+                <button
+                    id="themeToggle"
+                    class="theme-toggle"
+                    type="button"
+                    aria-label="Switch color theme"
+                    title="Switch color theme"
+                ></button>
 
             </div>
 
@@ -632,20 +1272,62 @@
              TRANSCRIPT
         =================================================== -->
 
-        <div class="card">
+        <div class="card panel panel--transcript">
 
-            <h2>
-                Complete Transcript
-            </h2>
+            <div class="panel-head">
+                <h2>
+                    Complete Transcript
+                </h2>
+            </div>
 
-            <div
-                id="transcript"
-                class="transcript"
-            >
+            <div class="transcript-search">
 
-                <div class="placeholder">
-                    Your complete transcript will appear here
-                    after you stop recording.
+                <input
+                    id="transcriptSearch"
+                    class="transcript-search-input"
+                    type="search"
+                    placeholder="Search transcript..."
+                    aria-label="Search transcript"
+                    autocomplete="off"
+                    disabled
+                >
+
+                <button
+                    id="searchPrevBtn"
+                    class="search-nav-btn"
+                    type="button"
+                    title="Previous match"
+                    disabled
+                >&uarr;</button>
+
+                <button
+                    id="searchNextBtn"
+                    class="search-nav-btn"
+                    type="button"
+                    title="Next match"
+                    disabled
+                >&darr;</button>
+
+                <span
+                    id="searchCount"
+                    class="search-count"
+                    aria-live="polite"
+                >0 matches</span>
+
+            </div>
+
+            <div class="panel-body scroll-fade">
+
+                <div
+                    id="transcript"
+                    class="transcript"
+                >
+
+                    <div class="placeholder">
+                        Your complete transcript will appear here
+                        after you stop recording.
+                    </div>
+
                 </div>
 
             </div>
@@ -666,17 +1348,51 @@
              MEETING INTELLIGENCE
         =================================================== -->
 
-        <div class="card">
+        <div class="card panel panel--intel">
 
-            <h2>
-                Meeting Intelligence
-            </h2>
+            <div class="panel-head">
+                <h2>
+                    Meeting Intelligence
+                </h2>
+            </div>
 
-            <div id="intelligence">
+            <div
+                id="editHint"
+                class="edit-hint"
+            >
+                Click any field to edit it.
+            </div>
 
-                <div class="placeholder">
-                    After the transcript is ready,
-                    click Create Summary.
+            <div
+                id="downloadActions"
+                class="download-actions"
+            >
+
+                <button
+                    id="downloadPdfBtn"
+                    class="download-btn"
+                    type="button"
+                    disabled
+                >Download PDF</button>
+
+                <button
+                    id="downloadMarkdownBtn"
+                    class="download-btn"
+                    type="button"
+                    disabled
+                >Download Markdown</button>
+
+            </div>
+
+            <div class="panel-body scroll-fade">
+
+                <div id="intelligence">
+
+                    <div class="placeholder">
+                        After the transcript is ready,
+                        click Create Summary.
+                    </div>
+
                 </div>
 
             </div>
@@ -691,13 +1407,26 @@
          BACKEND LOG
     ======================================================= -->
 
-    <div class="card">
+    <div class="card panel panel--logs">
 
-        <h2>
-            Backend Log
-        </h2>
+        <div class="panel-head">
+            <h2>
+                Backend Log
+            </h2>
+        </div>
 
-        <div id="logs"></div>
+        <div class="terminal">
+
+            <div class="terminal-bar" aria-hidden="true">
+                <span class="term-dot"></span>
+                <span class="term-dot"></span>
+                <span class="term-dot"></span>
+                <span class="term-title">meetmind &mdash; backend</span>
+            </div>
+
+            <div id="logs"></div>
+
+        </div>
 
     </div>
 
@@ -732,8 +1461,13 @@ let transcript = "";
 
 let currentSummary = "";
 
-let savedIntelligenceData = null;
+let latestMeetingData = null;
+
 let currentIntelligenceData = null;
+
+let searchMatches = [];
+
+let currentSearchIndex = -1;
 
 
 /* ============================================================
@@ -783,6 +1517,46 @@ const connectionEl =
 const statusDot =
     document.getElementById(
         "statusDot"
+    );
+
+const transcriptSearch =
+    document.getElementById(
+        "transcriptSearch"
+    );
+
+const searchPrevBtn =
+    document.getElementById(
+        "searchPrevBtn"
+    );
+
+const searchNextBtn =
+    document.getElementById(
+        "searchNextBtn"
+    );
+
+const searchCount =
+    document.getElementById(
+        "searchCount"
+    );
+
+const editHint =
+    document.getElementById(
+        "editHint"
+    );
+
+const downloadActions =
+    document.getElementById(
+        "downloadActions"
+    );
+
+const downloadPdfBtn =
+    document.getElementById(
+        "downloadPdfBtn"
+    );
+
+const downloadMarkdownBtn =
+    document.getElementById(
+        "downloadMarkdownBtn"
     );
 
 
@@ -1223,6 +1997,8 @@ function handleServerMessage(
                 transcript
             );
 
+            resetTranscriptSearch();
+
             summaryBtn.disabled =
                 !transcript;
 
@@ -1299,6 +2075,8 @@ function handleServerMessage(
             renderTranscript(
                 transcript
             );
+
+            resetTranscriptSearch();
 
             renderIntelligence(
                 data
@@ -1395,17 +2173,58 @@ function renderIntelligence(
     resetSaved = true
 ) {
 
-    if (!data) {
+    if (
+        !data
+    ) {
+
         return;
     }
 
-    currentIntelligenceData =
-        JSON.parse(JSON.stringify(data));
+    const merged =
+        {
+            ...data,
+            transcript:
+                data.transcript
+                ||
+                transcript
+                ||
+                ""
+        };
 
-    if (resetSaved || !savedIntelligenceData) {
-        savedIntelligenceData =
-            JSON.parse(JSON.stringify(data));
+    currentIntelligenceData =
+        JSON.parse(
+            JSON.stringify(
+                merged
+            )
+        );
+
+    if (
+        resetSaved
+        ||
+        !latestMeetingData
+    ) {
+
+        latestMeetingData =
+            JSON.parse(
+                JSON.stringify(
+                    merged
+                )
+            );
     }
+
+    editHint.classList.add(
+        "visible"
+    );
+
+    downloadActions.classList.add(
+        "visible"
+    );
+
+    downloadPdfBtn.disabled =
+        false;
+
+    downloadMarkdownBtn.disabled =
+        false;
 
     const title =
         data.title
@@ -1423,68 +2242,98 @@ function renderIntelligence(
         "No summary available.";
 
     const tasks =
-        Array.isArray(data.tasks_assigned)
+        Array.isArray(
+            data.tasks_assigned
+        )
             ? data.tasks_assigned
             : [];
 
     const decisions =
-        Array.isArray(data.decision_points)
+        Array.isArray(
+            data.decision_points
+        )
             ? data.decision_points
             : [];
 
     const objections =
-        Array.isArray(data.objections)
+        Array.isArray(
+            data.objections
+        )
             ? data.objections
             : [];
 
     const actions =
-        Array.isArray(data.action_items)
+        Array.isArray(
+            data.action_items
+        )
             ? data.action_items
             : [];
 
-    let html = "";
+
+    let html =
+        "";
+
 
     /* ========================================================
        TITLE
     ======================================================== */
 
-    html += `
+    html +=
+        `
         <div class="result-section">
-            <div class="label">TITLE</div>
+
+            <div class="label">
+                TITLE
+            </div>
+
             <div
-                class="title-result editable-field editable-title"
+                class="title-result editable-field"
                 contenteditable="true"
                 spellcheck="true"
                 data-edit-path="title"
                 role="textbox"
                 aria-label="Editable meeting title"
             >${escapeHtml(title)}</div>
+
         </div>
-    `;
+        `;
+
 
     /* ========================================================
        MEETING SUMMARY
     ======================================================== */
 
-    html += `
+    html +=
+        `
         <div class="result-section">
-            <div class="label">MEETING SUMMARY</div>
+
+            <div class="label">
+                MEETING SUMMARY
+            </div>
+
             <textarea
                 id="meetingSummaryEditor"
                 class="editable-summary"
                 spellcheck="true"
                 aria-label="Editable meeting summary"
             >${escapeHtml(summary)}</textarea>
+
         </div>
-    `;
+        `;
+
 
     /* ========================================================
        OBJECTIVE
     ======================================================== */
 
-    html += `
+    html +=
+        `
         <div class="result-section">
-            <div class="label">OBJECTIVE</div>
+
+            <div class="label">
+                OBJECTIVE
+            </div>
+
             <div
                 class="summary editable-field"
                 contenteditable="true"
@@ -1493,265 +2342,570 @@ function renderIntelligence(
                 role="textbox"
                 aria-label="Editable meeting objective"
             >${escapeHtml(objective)}</div>
+
         </div>
-    `;
+        `;
+
 
     /* ========================================================
        TASKS
     ======================================================== */
 
-    html += `
+    html +=
+        `
         <div class="result-section">
-            <div class="label">TASKS</div>
-    `;
 
-    if (tasks.length === 0) {
-        html += `<div class="meta">No tasks identified.</div>`;
-    } else {
-        tasks.forEach((task, index) => {
-            if (!task || !task.task) {
-                return;
-            }
+            <div class="label">
+                TASKS
+            </div>
+        `;
 
-            html += `
-                <div class="item">
-                    <strong
-                        class="editable-field"
-                        contenteditable="true"
-                        spellcheck="true"
-                        data-edit-path="tasks.${index}.task"
-                        role="textbox"
-                        aria-label="Editable task"
-                    >${escapeHtml(task.task)}</strong>
+
+    if (
+        tasks.length === 0
+    ) {
+
+        html +=
+            `
+            <div class="meta">
+                No tasks identified.
+            </div>
             `;
 
-            if (task.assignee && String(task.assignee).trim()) {
-                html += `
-                    <div class="meta">
-                        Assignee:
-                        <span
+    } else {
+
+        tasks.forEach(
+            (task, taskIndex) => {
+
+                if (
+                    !task
+                    ||
+                    !task.task
+                ) {
+
+                    return;
+                }
+
+                html +=
+                    `
+                    <div class="item">
+
+                        <strong
                             class="editable-field"
                             contenteditable="true"
                             spellcheck="true"
-                            data-edit-path="tasks.${index}.assignee"
+                            data-edit-path="tasks_assigned.${taskIndex}.task"
                             role="textbox"
-                            aria-label="Editable task assignee"
-                        >${escapeHtml(task.assignee)}</span>
-                    </div>
-                `;
-            }
+                            aria-label="Editable task"
+                        >${escapeHtml(
+                                task.task
+                            )}</strong>
+                    `;
 
-            if (task.deadline && String(task.deadline).trim()) {
-                html += `
-                    <div class="meta">
-                        Deadline:
-                        <span
-                            class="editable-field"
-                            contenteditable="true"
-                            spellcheck="true"
-                            data-edit-path="tasks.${index}.deadline"
-                            role="textbox"
-                            aria-label="Editable task deadline"
-                        >${escapeHtml(task.deadline)}</span>
-                    </div>
-                `;
-            }
 
-            html += `</div>`;
-        });
+                /* ------------------------------------------------
+                   ASSIGNEE
+                   Only display if explicitly returned.
+                ------------------------------------------------ */
+
+                if (
+                    task.assignee
+                    &&
+                    String(
+                        task.assignee
+                    ).trim()
+                ) {
+
+                    html +=
+                        `
+                        <div class="meta">
+                            Assignee:
+                            <span
+                                class="editable-field"
+                                contenteditable="true"
+                                spellcheck="true"
+                                data-edit-path="tasks_assigned.${taskIndex}.assignee"
+                                role="textbox"
+                                aria-label="Editable task assignee"
+                            >${escapeHtml(
+                                task.assignee
+                            )}</span>
+                        </div>
+                        `;
+                }
+
+
+                /* ------------------------------------------------
+                   DEADLINE
+                   Only display if explicitly returned.
+                ------------------------------------------------ */
+
+                if (
+                    task.deadline
+                    &&
+                    String(
+                        task.deadline
+                    ).trim()
+                ) {
+
+                    html +=
+                        `
+                        <div class="meta">
+                            Deadline:
+                            <span
+                                class="editable-field"
+                                contenteditable="true"
+                                spellcheck="true"
+                                data-edit-path="tasks_assigned.${taskIndex}.deadline"
+                                role="textbox"
+                                aria-label="Editable task deadline"
+                            >${escapeHtml(
+                                task.deadline
+                            )}</span>
+                        </div>
+                        `;
+                }
+
+
+                html +=
+                    `
+                    </div>
+                    `;
+            }
+        );
     }
 
-    html += `</div>`;
+
+    html +=
+        `
+        </div>
+        `;
+
 
     /* ========================================================
        DECISIONS
     ======================================================== */
 
-    html += `
+    html +=
+        `
         <div class="result-section">
-            <div class="label">DECISIONS</div>
-    `;
 
-    if (decisions.length === 0) {
-        html += `<div class="meta">No decisions identified.</div>`;
-    } else {
-        decisions.forEach((decision, index) => {
-            if (!decision || !String(decision).trim()) {
-                return;
-            }
+            <div class="label">
+                DECISIONS
+            </div>
+        `;
 
-            html += `
-                <div
-                    class="decision editable-field"
-                    contenteditable="true"
-                    spellcheck="true"
-                    data-edit-path="decision_points.${index}"
-                    role="textbox"
-                    aria-label="Editable decision"
-                >${escapeHtml(decision)}</div>
+
+    if (
+        decisions.length === 0
+    ) {
+
+        html +=
+            `
+            <div class="meta">
+                No decisions identified.
+            </div>
             `;
-        });
+
+    } else {
+
+        decisions.forEach(
+            (decision, decisionIndex) => {
+
+                if (
+                    !decision
+                    ||
+                    !String(
+                        decision
+                    ).trim()
+                ) {
+
+                    return;
+                }
+
+                html +=
+                    `
+                    <div
+                        class="decision editable-field"
+                        contenteditable="true"
+                        spellcheck="true"
+                        data-edit-path="decision_points.${decisionIndex}"
+                        role="textbox"
+                        aria-label="Editable decision"
+                    >${escapeHtml(
+                            decision
+                        )}</div>
+                    `;
+            }
+        );
     }
 
-    html += `</div>`;
+
+    html +=
+        `
+        </div>
+        `;
+
 
     /* ========================================================
        OBJECTIONS
+
+       IMPORTANT:
+       The entire section is hidden when there are no objections.
     ======================================================== */
 
-    if (objections.length > 0) {
-        html += `
+    if (
+        objections.length > 0
+    ) {
+
+        html +=
+            `
             <div class="result-section">
-                <div class="label">OBJECTIONS</div>
-        `;
 
-        objections.forEach((objection, index) => {
-            if (!objection || !String(objection).trim()) {
-                return;
-            }
-
-            html += `
-                <div
-                    class="item objection editable-field"
-                    contenteditable="true"
-                    spellcheck="true"
-                    data-edit-path="objections.${index}"
-                    role="textbox"
-                    aria-label="Editable objection"
-                >${escapeHtml(objection)}</div>
+                <div class="label">
+                    OBJECTIONS
+                </div>
             `;
-        });
 
-        html += `</div>`;
+
+        objections.forEach(
+            (objection, objectionIndex) => {
+
+                if (
+                    !objection
+                    ||
+                    !String(
+                        objection
+                    ).trim()
+                ) {
+
+                    return;
+                }
+
+                html +=
+                    `
+                    <div
+                        class="item objection editable-field"
+                        contenteditable="true"
+                        spellcheck="true"
+                        data-edit-path="objections.${objectionIndex}"
+                        role="textbox"
+                        aria-label="Editable objection"
+                    >${escapeHtml(
+                            objection
+                        )}</div>
+                    `;
+            }
+        );
+
+
+        html +=
+            `
+            </div>
+            `;
     }
+
 
     /* ========================================================
        ACTION ITEMS
     ======================================================== */
 
-    if (actions.length > 0) {
-        html += `
+    if (
+        actions.length > 0
+    ) {
+
+        html +=
+            `
             <div class="result-section">
-                <div class="label">ACTION ITEMS</div>
-        `;
 
-        actions.forEach((action, index) => {
-            if (!action || !String(action).trim()) {
-                return;
-            }
-
-            html += `
-                <div
-                    class="item action editable-field"
-                    contenteditable="true"
-                    spellcheck="true"
-                    data-edit-path="action_items.${index}"
-                    role="textbox"
-                    aria-label="Editable action item"
-                >${escapeHtml(action)}</div>
+                <div class="label">
+                    ACTION ITEMS
+                </div>
             `;
-        });
 
-        html += `</div>`;
+
+        actions.forEach(
+            (action, actionIndex) => {
+
+                if (
+                    !action
+                    ||
+                    !String(
+                        action
+                    ).trim()
+                ) {
+
+                    return;
+                }
+
+                html +=
+                    `
+                    <div
+                        class="item action editable-field"
+                        contenteditable="true"
+                        spellcheck="true"
+                        data-edit-path="action_items.${actionIndex}"
+                        role="textbox"
+                        aria-label="Editable action item"
+                    >${escapeHtml(
+                            action
+                        )}</div>
+                    `;
+            }
+        );
+
+
+        html +=
+            `
+            </div>
+            `;
     }
 
-    html += `
-        <div id="summaryActions" class="summary-actions">
-            <button id="saveSummaryBtn" type="button">Save Changes</button>
-            <button id="cancelSummaryBtn" type="button">Cancel</button>
-        </div>
-    `;
 
-    intelligenceEl.innerHTML = html;
+    /* ========================================================
+       SAVE / CANCEL (governs every editable field above)
+    ======================================================== */
+
+    html +=
+        `
+        <div
+            id="summaryActions"
+            class="summary-actions"
+        >
+            <button
+                id="saveSummaryBtn"
+                type="button"
+            >
+                Save Changes
+            </button>
+
+            <button
+                id="cancelSummaryBtn"
+                type="button"
+            >
+                Cancel
+            </button>
+        </div>
+        `;
+
+
+    intelligenceEl.innerHTML =
+        html;
 
     setupSummaryEditor();
 }
 
 
 /* ============================================================
-       SUMMARY EDITOR
-    ============================================================ */
+   SUMMARY EDITOR
+============================================================ */
 
-    function setupSummaryEditor() {
+function setupSummaryEditor() {
 
     const editor =
-        document.getElementById("meetingSummaryEditor");
+        document.getElementById(
+            "meetingSummaryEditor"
+        );
 
     const actions =
-        document.getElementById("summaryActions");
+        document.getElementById(
+            "summaryActions"
+        );
 
     const saveBtn =
-        document.getElementById("saveSummaryBtn");
+        document.getElementById(
+            "saveSummaryBtn"
+        );
 
     const cancelBtn =
-        document.getElementById("cancelSummaryBtn");
+        document.getElementById(
+            "cancelSummaryBtn"
+        );
 
-    if (!editor || !actions || !saveBtn || !cancelBtn) {
+    if (
+        !editor
+        ||
+        !actions
+        ||
+        !saveBtn
+        ||
+        !cancelBtn
+    ) {
+
         return;
     }
 
-    currentSummary = editor.value;
+    currentSummary =
+        editor.value;
 
     const editableFields =
-        intelligenceEl.querySelectorAll("[data-edit-path]");
+        intelligenceEl.querySelectorAll(
+            "[data-edit-path]"
+        );
 
-    editableFields.forEach(field => {
-        field.addEventListener("input", () => {
-            actions.classList.add("visible");
-        });
-    });
+    function showActions() {
 
-    editor.addEventListener("input", () => {
-        actions.classList.add("visible");
-    });
-
-    function setPath(object, path, value) {
-        const parts = path.split(".");
-        let target = object;
-
-        for (let i = 0; i < parts.length - 1; i++) {
-            const part = parts[i];
-            target = target[part];
-        }
-
-        const last = parts[parts.length - 1];
-        target[last] = value;
+        actions.classList.add(
+            "visible"
+        );
     }
 
+    editor.addEventListener(
+        "input",
+        showActions
+    );
+
+    editableFields.forEach(
+        field => {
+
+            field.addEventListener(
+                "input",
+                showActions
+            );
+        }
+    );
+
+
+    /* ------------------------------------------------------
+       Write a value into a nested object using a dot-path
+       such as "tasks_assigned.0.assignee".
+    ------------------------------------------------------ */
+
+    function setPath(
+        object,
+        path,
+        value
+    ) {
+
+        const parts =
+            path.split(
+                "."
+            );
+
+        let target =
+            object;
+
+        for (
+            let i = 0;
+            i < parts.length - 1;
+            i++
+        ) {
+
+            target =
+                target[
+                    parts[i]
+                ];
+
+            if (
+                !target
+            ) {
+
+                return;
+            }
+        }
+
+        target[
+            parts[
+                parts.length - 1
+            ]
+        ] = value;
+    }
+
+
     function collectEditedData() {
+
         const edited =
-            JSON.parse(JSON.stringify(currentIntelligenceData || {}));
+            JSON.parse(
+                JSON.stringify(
+                    currentIntelligenceData
+                    ||
+                    {}
+                )
+            );
 
-        editableFields.forEach(field => {
-            const path = field.dataset.editPath;
-            const value = field.innerText.replace(/\u00a0/g, " ").trim();
-            setPath(edited, path, value);
-        });
+        editableFields.forEach(
+            field => {
 
-        edited.meeting_summary = editor.value;
+                const path =
+                    field.dataset.editPath;
+
+                const value =
+                    field.innerText
+                        .replace(
+                            / /g,
+                            " "
+                        )
+                        .trim();
+
+                setPath(
+                    edited,
+                    path,
+                    value
+                );
+            }
+        );
+
+        edited.meeting_summary =
+            editor.value;
+
         return edited;
     }
 
-    saveBtn.addEventListener("click", () => {
-        currentIntelligenceData = collectEditedData();
-        savedIntelligenceData =
-            JSON.parse(JSON.stringify(currentIntelligenceData));
-        currentSummary = editor.value;
 
-        actions.classList.remove("visible");
+    saveBtn.addEventListener(
+        "click",
+        () => {
 
-        setStatus("Meeting intelligence changes saved.");
-        log("Meeting intelligence fields manually edited and saved.");
-    });
+            currentIntelligenceData =
+                collectEditedData();
 
-    cancelBtn.addEventListener("click", () => {
-        if (savedIntelligenceData) {
-            renderIntelligence(savedIntelligenceData, false);
+            latestMeetingData =
+                JSON.parse(
+                    JSON.stringify(
+                        currentIntelligenceData
+                    )
+                );
+
+            currentSummary =
+                editor.value;
+
+            actions.classList.remove(
+                "visible"
+            );
+
+            setStatus(
+                "Meeting intelligence changes saved."
+            );
+
+            log(
+                "Meeting intelligence fields manually edited and saved."
+            );
         }
+    );
 
-        setStatus("Changes cancelled.");
-        log("Meeting intelligence edits cancelled.");
-    });
+    cancelBtn.addEventListener(
+        "click",
+        () => {
+
+            if (
+                latestMeetingData
+            ) {
+
+                renderIntelligence(
+                    latestMeetingData,
+                    false
+                );
+            }
+
+            setStatus(
+                "Changes cancelled."
+            );
+
+            log(
+                "Meeting intelligence edits cancelled."
+            );
+        }
+    );
 }
 
 
@@ -1788,6 +2942,337 @@ function escapeHtml(
 
 
 /* ============================================================
+   TRANSCRIPT SEARCH
+============================================================ */
+
+function escapeRegExp(
+    value
+) {
+
+    return String(value).replace(
+        /[.*+?^${}()|[\]\\]/g,
+        "\\$&"
+    );
+}
+
+
+function updateSearchCount() {
+
+    const count =
+        searchMatches.length;
+
+    if (
+        !transcriptSearch.value.trim()
+    ) {
+
+        searchCount.textContent =
+            "0 matches";
+
+    } else if (
+        !count
+    ) {
+
+        searchCount.textContent =
+            "No matches";
+
+    } else {
+
+        searchCount.textContent =
+            `${currentSearchIndex + 1} / ${count}`;
+    }
+
+    searchPrevBtn.disabled =
+        !count;
+
+    searchNextBtn.disabled =
+        !count;
+}
+
+
+function setCurrentSearchMatch(
+    index
+) {
+
+    if (
+        !searchMatches.length
+    ) {
+
+        currentSearchIndex =
+            -1;
+
+        updateSearchCount();
+
+        return;
+    }
+
+    currentSearchIndex =
+        (
+            index
+            +
+            searchMatches.length
+        ) % searchMatches.length;
+
+    searchMatches.forEach(
+        (
+            mark,
+            i
+        ) => {
+
+            mark.classList.toggle(
+                "current",
+                i === currentSearchIndex
+            );
+        }
+    );
+
+    searchMatches[
+        currentSearchIndex
+    ].scrollIntoView(
+        {
+            behavior:
+                "smooth",
+            block:
+                "center"
+        }
+    );
+
+    updateSearchCount();
+}
+
+
+function highlightTranscriptSearch() {
+
+    const query =
+        transcriptSearch.value.trim();
+
+    searchMatches =
+        [];
+
+    currentSearchIndex =
+        -1;
+
+    if (
+        !transcript
+    ) {
+
+        updateSearchCount();
+
+        return;
+    }
+
+    const div =
+        document.createElement(
+            "div"
+        );
+
+    if (
+        !query
+    ) {
+
+        div.textContent =
+            transcript;
+
+        transcriptEl.innerHTML =
+            "";
+
+        transcriptEl.appendChild(
+            div
+        );
+
+        updateSearchCount();
+
+        return;
+    }
+
+    const regex =
+        new RegExp(
+            escapeRegExp(
+                query
+            ),
+            "gi"
+        );
+
+    let lastIndex =
+        0;
+
+    let match;
+
+    while (
+        (
+            match =
+                regex.exec(
+                    transcript
+                )
+        ) !== null
+    ) {
+
+        if (
+            match.index > lastIndex
+        ) {
+
+            div.appendChild(
+                document.createTextNode(
+                    transcript.slice(
+                        lastIndex,
+                        match.index
+                    )
+                )
+            );
+        }
+
+        const mark =
+            document.createElement(
+                "mark"
+            );
+
+        mark.className =
+            "transcript-match";
+
+        mark.textContent =
+            match[0];
+
+        div.appendChild(
+            mark
+        );
+
+        searchMatches.push(
+            mark
+        );
+
+        lastIndex =
+            match.index
+            +
+            match[0].length;
+
+        if (
+            match[0].length === 0
+        ) {
+
+            regex.lastIndex++;
+        }
+    }
+
+    if (
+        lastIndex < transcript.length
+    ) {
+
+        div.appendChild(
+            document.createTextNode(
+                transcript.slice(
+                    lastIndex
+                )
+            )
+        );
+    }
+
+    transcriptEl.innerHTML =
+        "";
+
+    transcriptEl.appendChild(
+        div
+    );
+
+    if (
+        searchMatches.length
+    ) {
+
+        setCurrentSearchMatch(
+            0
+        );
+
+    } else {
+
+        updateSearchCount();
+    }
+}
+
+
+function resetTranscriptSearch() {
+
+    searchMatches =
+        [];
+
+    currentSearchIndex =
+        -1;
+
+    transcriptSearch.value =
+        "";
+
+    transcriptSearch.disabled =
+        !transcript;
+
+    updateSearchCount();
+}
+
+
+transcriptSearch.addEventListener(
+    "input",
+    highlightTranscriptSearch
+);
+
+
+transcriptSearch.addEventListener(
+    "keydown",
+    event => {
+
+        if (
+            event.key === "Enter"
+        ) {
+
+            event.preventDefault();
+
+            if (
+                searchMatches.length
+            ) {
+
+                setCurrentSearchMatch(
+                    currentSearchIndex
+                    +
+                    (
+                        event.shiftKey
+                            ? -1
+                            : 1
+                    )
+                );
+            }
+        }
+
+        if (
+            event.key === "Escape"
+        ) {
+
+            transcriptSearch.value =
+                "";
+
+            highlightTranscriptSearch();
+        }
+    }
+);
+
+
+searchPrevBtn.addEventListener(
+    "click",
+    () => {
+
+        setCurrentSearchMatch(
+            currentSearchIndex - 1
+        );
+    }
+);
+
+
+searchNextBtn.addEventListener(
+    "click",
+    () => {
+
+        setCurrentSearchMatch(
+            currentSearchIndex + 1
+        );
+    }
+);
+
+
+/* ============================================================
    START RECORDING
 ============================================================ */
 
@@ -1810,6 +3295,12 @@ async function startRecording() {
     transcript =
         "";
 
+    latestMeetingData =
+        null;
+
+    currentIntelligenceData =
+        null;
+
 
     setStatus(
         "Requesting microphone..."
@@ -1823,6 +3314,8 @@ async function startRecording() {
         </div>
         `;
 
+    resetTranscriptSearch();
+
 
     intelligenceEl.innerHTML =
         `
@@ -1831,6 +3324,20 @@ async function startRecording() {
             after transcription.
         </div>
         `;
+
+    editHint.classList.remove(
+        "visible"
+    );
+
+    downloadActions.classList.remove(
+        "visible"
+    );
+
+    downloadPdfBtn.disabled =
+        true;
+
+    downloadMarkdownBtn.disabled =
+        true;
 
 
     try {
@@ -2360,6 +3867,487 @@ async function createSummary() {
 
 
 /* ============================================================
+   SUMMARY EXPORT
+============================================================ */
+
+function getExportData() {
+
+    const data =
+        latestMeetingData || {};
+
+    return {
+
+        title:
+            data.title
+            ||
+            "Untitled Meeting",
+
+        objective:
+            data.objective
+            ||
+            "Objective could not be generated.",
+
+        meeting_summary:
+            data.meeting_summary
+            ||
+            "No summary available.",
+
+        tasks_assigned:
+            Array.isArray(
+                data.tasks_assigned
+            )
+                ? data.tasks_assigned
+                : [],
+
+        decision_points:
+            Array.isArray(
+                data.decision_points
+            )
+                ? data.decision_points
+                : [],
+
+        objections:
+            Array.isArray(
+                data.objections
+            )
+                ? data.objections
+                : [],
+
+        action_items:
+            Array.isArray(
+                data.action_items
+            )
+                ? data.action_items
+                : []
+    };
+}
+
+
+function exportItemText(
+    item
+) {
+
+    if (
+        item
+        &&
+        typeof item === "object"
+    ) {
+
+        let value =
+            item.task
+            ||
+            item.text
+            ||
+            "";
+
+        if (
+            item.assignee
+        ) {
+
+            value +=
+                ` — Assignee: ${item.assignee}`;
+        }
+
+        if (
+            item.deadline
+        ) {
+
+            value +=
+                ` — Deadline: ${item.deadline}`;
+        }
+
+        return value;
+    }
+
+    return String(
+        item || ""
+    );
+}
+
+
+function exportList(
+    items
+) {
+
+    if (
+        !items.length
+    ) {
+
+        return "- None identified.";
+    }
+
+    return items
+        .map(
+            (
+                item,
+                index
+            ) =>
+                `${index + 1}. ${exportItemText(item)}`
+        )
+        .join(
+            "\n"
+        );
+}
+
+
+function sanitizeFilename(
+    value
+) {
+
+    return String(
+        value || "meeting-summary"
+    )
+        .replace(
+            /[<>:"/\\|?*]+/g,
+            ""
+        )
+        .replace(
+            /\s+/g,
+            "_"
+        )
+        .slice(
+            0,
+            100
+        );
+}
+
+
+function buildMarkdownSummary() {
+
+    const data =
+        getExportData();
+
+    return `# ${data.title}
+
+## Objective
+
+${data.objective}
+
+## Meeting Summary
+
+${data.meeting_summary}
+
+## Tasks
+
+${exportList(data.tasks_assigned)}
+
+## Decisions
+
+${exportList(data.decision_points)}
+
+## Objections
+
+${exportList(data.objections)}
+
+## Action Items
+
+${exportList(data.action_items)}
+`;
+}
+
+
+function downloadMarkdown() {
+
+    const data =
+        getExportData();
+
+    const blob =
+        new Blob(
+            [
+                buildMarkdownSummary()
+            ],
+            {
+                type:
+                    "text/markdown;charset=utf-8"
+            }
+        );
+
+    const url =
+        URL.createObjectURL(
+            blob
+        );
+
+    const anchor =
+        document.createElement(
+            "a"
+        );
+
+    anchor.href =
+        url;
+
+    anchor.download =
+        `${sanitizeFilename(data.title)}.md`;
+
+    document.body.appendChild(
+        anchor
+    );
+
+    anchor.click();
+
+    anchor.remove();
+
+    URL.revokeObjectURL(
+        url
+    );
+
+    setStatus(
+        "Markdown summary downloaded."
+    );
+
+    log(
+        "Meeting summary exported as Markdown."
+    );
+}
+
+
+function pdfWrite(
+    doc,
+    text,
+    x,
+    y,
+    width
+) {
+
+    const pageHeight =
+        doc.internal.pageSize.getHeight();
+
+    const lines =
+        doc.splitTextToSize(
+            String(text || ""),
+            width
+        );
+
+    lines.forEach(
+        line => {
+
+            if (
+                y > pageHeight - 18
+            ) {
+
+                doc.addPage();
+
+                y = 18;
+            }
+
+            doc.text(
+                line,
+                x,
+                y
+            );
+
+            y += 5.5;
+        }
+    );
+
+    return y;
+}
+
+
+function pdfSection(
+    doc,
+    heading,
+    text,
+    y
+) {
+
+    const width =
+        doc.internal.pageSize.getWidth() - 30;
+
+    doc.setFont(
+        "helvetica",
+        "bold"
+    );
+
+    doc.setFontSize(
+        12
+    );
+
+    y =
+        pdfWrite(
+            doc,
+            heading,
+            15,
+            y,
+            width
+        ) + 2;
+
+    doc.setFont(
+        "helvetica",
+        "normal"
+    );
+
+    doc.setFontSize(
+        10
+    );
+
+    y =
+        pdfWrite(
+            doc,
+            text,
+            15,
+            y,
+            width
+        ) + 7;
+
+    return y;
+}
+
+
+function downloadPdf() {
+
+    if (
+        !window.jspdf
+        ||
+        !window.jspdf.jsPDF
+    ) {
+
+        setStatus(
+            "PDF export is unavailable. Check your internet connection and try again."
+        );
+
+        log(
+            "PDF export failed: jsPDF could not be loaded."
+        );
+
+        return;
+    }
+
+    const data =
+        getExportData();
+
+    const doc =
+        new window.jspdf.jsPDF(
+            {
+                unit: "mm",
+                format: "a4"
+            }
+        );
+
+    let y = 20;
+
+    doc.setFont(
+        "helvetica",
+        "bold"
+    );
+
+    doc.setFontSize(
+        20
+    );
+
+    y =
+        pdfWrite(
+            doc,
+            data.title,
+            15,
+            y,
+            doc.internal.pageSize.getWidth() - 30
+        ) + 4;
+
+    doc.setFont(
+        "helvetica",
+        "normal"
+    );
+
+    doc.setFontSize(
+        9
+    );
+
+    y =
+        pdfWrite(
+            doc,
+            "MeetMind — AI Meeting Intelligence",
+            15,
+            y,
+            doc.internal.pageSize.getWidth() - 30
+        ) + 8;
+
+    y = pdfSection(
+        doc,
+        "Objective",
+        data.objective,
+        y
+    );
+
+    y = pdfSection(
+        doc,
+        "Meeting Summary",
+        data.meeting_summary,
+        y
+    );
+
+    y = pdfSection(
+        doc,
+        "Tasks",
+        exportList(
+            data.tasks_assigned
+        ),
+        y
+    );
+
+    y = pdfSection(
+        doc,
+        "Decisions",
+        exportList(
+            data.decision_points
+        ),
+        y
+    );
+
+    if (
+        data.objections.length
+    ) {
+
+        y = pdfSection(
+            doc,
+            "Objections",
+            exportList(
+                data.objections
+            ),
+            y
+        );
+    }
+
+    if (
+        data.action_items.length
+    ) {
+
+        y = pdfSection(
+            doc,
+            "Action Items",
+            exportList(
+                data.action_items
+            ),
+            y
+        );
+    }
+
+    doc.save(
+        `${sanitizeFilename(data.title)}.pdf`
+    );
+
+    setStatus(
+        "PDF summary downloaded."
+    );
+
+    log(
+        "Meeting summary exported as PDF."
+    );
+}
+
+
+downloadMarkdownBtn.addEventListener(
+    "click",
+    downloadMarkdown
+);
+
+
+downloadPdfBtn.addEventListener(
+    "click",
+    downloadPdf
+);
+
+
+/* ============================================================
    BUTTON EVENT
 ============================================================ */
 
@@ -2388,6 +4376,150 @@ summaryBtn.addEventListener(
         createSummary();
     }
 );
+
+
+</script>
+
+
+<script>
+
+
+/* ============================================================
+   THEME TOGGLE
+   Additive module. Does not read or modify any variable,
+   function, handler, element id/class, or data-attribute used
+   by the recording / websocket / summary code above.
+============================================================ */
+
+(function () {
+
+    var STORAGE_KEY =
+        "meetmind-theme";
+
+    var root =
+        document.documentElement;
+
+    var toggle =
+        document.getElementById(
+            "themeToggle"
+        );
+
+
+    function systemPref() {
+
+        return (
+            window.matchMedia &&
+            window.matchMedia(
+                "(prefers-color-scheme: dark)"
+            ).matches
+        )
+            ? "dark"
+            : "light";
+    }
+
+
+    function stored() {
+
+        try {
+
+            var value =
+                localStorage.getItem(
+                    STORAGE_KEY
+                );
+
+            return (
+                value === "light" ||
+                value === "dark"
+            )
+                ? value
+                : null;
+
+        } catch (e) {
+
+            return null;
+        }
+    }
+
+
+    function current() {
+
+        return (
+            root.getAttribute(
+                "data-theme"
+            ) ||
+            stored() ||
+            systemPref()
+        );
+    }
+
+
+    function apply(theme) {
+
+        root.setAttribute(
+            "data-theme",
+            theme
+        );
+
+        if (toggle) {
+
+            toggle.setAttribute(
+                "aria-pressed",
+                String(theme === "dark")
+            );
+        }
+    }
+
+
+    apply(current());
+
+
+    if (toggle) {
+
+        toggle.addEventListener(
+            "click",
+            function () {
+
+                var next =
+                    current() === "dark"
+                        ? "light"
+                        : "dark";
+
+                try {
+
+                    localStorage.setItem(
+                        STORAGE_KEY,
+                        next
+                    );
+
+                } catch (e) {}
+
+                apply(next);
+            }
+        );
+    }
+
+
+    if (window.matchMedia) {
+
+        window.matchMedia(
+            "(prefers-color-scheme: dark)"
+        ).addEventListener(
+            "change",
+            function (event) {
+
+                if (!stored()) {
+
+                    apply(
+                        event.matches
+                            ? "dark"
+                            : "light"
+                    );
+                }
+            }
+        );
+    }
+
+})();
 
 
 </script>

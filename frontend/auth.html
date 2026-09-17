@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<!-- ============================================================
+     PLACEHOLDER CONTENT — copy, testimonial, and (crucially) the
+     auth logic are stubs. Real backend wiring points are marked
+     TODO(backend) in assets/auth-forms.js and assets/auth-store.js.
+     ------------------------------------------------------------
+     MeetMind — single auth page. One card, two panels toggled in
+     place (sign in / sign up). Served at BOTH /sign-in and
+     /sign-up; the initial panel is chosen from the URL.
+
+     ONE sign-in for everyone. Admins log in here exactly like
+     users; their account just has role "admin" and gets routed
+     to /admin afterwards. Sign-up always creates role "user" —
+     admins are seeded or added by another admin in the dashboard.
+============================================================ -->
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign In — MeetMind</title>
+    <meta name="color-scheme" content="light dark">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+
+    <script>
+        (function () {
+            try {
+                var s = localStorage.getItem("meetmind-theme");
+                if (s === "light" || s === "dark") {
+                    document.documentElement.setAttribute("data-theme", s);
+                }
+            } catch (e) {}
+        })();
+    </script>
+
+    <link rel="stylesheet" href="assets/theme.css">
+    <link rel="stylesheet" href="assets/auth.css">
+
+</head>
+
+<body data-auth-mode="signin">
+
+<!-- Pick the initial panel from the URL BEFORE first paint (no flash).
+     ?mode=signup wins, then a path containing "sign-up", else sign in. -->
+<script>
+    (function () {
+        var sp = new URLSearchParams(location.search).get("mode");
+        var mode = (sp === "signup" || sp === "signin")
+            ? sp
+            : (location.pathname.indexOf("sign-up") !== -1 ? "signup" : "signin");
+        document.body.setAttribute("data-auth-mode", mode);
+    })();
+</script>
+
+<div class="auth-wrap">
+
+    <!-- ---------- brand panel ---------- -->
+    <aside class="auth-aside">
+
+        <div class="bg-mesh" aria-hidden="true"><span></span><span></span><span></span></div>
+
+        <a class="brand" href="/">
+            <span class="brand-mark" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/></svg>
+            </span>
+            MeetMind
+        </a>
+
+        <div class="auth-pitch">
+            <h2 data-copy="signin">Welcome back to clearer meetings.</h2>
+            <h2 data-copy="signup">Your meetings, transcribed and understood.</h2>
+
+            <ul class="auth-points">
+                <li>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                    Real-time transcription, no software to install
+                </li>
+                <li>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                    Searchable history across every past call
+                </li>
+                <li>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                    Summaries, decisions &amp; action items in one click
+                </li>
+            </ul>
+        </div>
+
+        <!-- PLACEHOLDER testimonial -->
+        <p class="auth-quote">
+            "MeetMind quietly became the source of truth for what we agreed to."
+            <strong>— Ava Ramirez, Head of Product, Northwind (PLACEHOLDER)</strong>
+        </p>
+
+    </aside>
+
+    <!-- ---------- form side ---------- -->
+    <main class="auth-main">
+        <div class="auth-card">
+
+            <div class="auth-topbar">
+                <button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch color theme" title="Switch color theme">
+                    <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+                    <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+                </button>
+            </div>
+
+            <!-- ============================================
+                 PANEL: SIGN IN
+            ============================================= -->
+            <div data-panel="signin">
+
+                <h1>Sign in</h1>
+                <p class="sub">Enter your details to access your meetings.</p>
+
+                <div class="form-alert error js-error" role="alert"></div>
+
+                <form class="auth-form" id="signInForm" novalidate>
+
+                    <div class="field" data-field="email">
+                        <label for="si_email">Email</label>
+                        <div class="input-wrap">
+                            <input type="email" id="si_email" name="email" autocomplete="email"
+                                placeholder="you@company.com" required>
+                        </div>
+                        <div class="field-error" data-error-for="email"></div>
+                    </div>
+
+                    <div class="field" data-field="password">
+                        <label for="si_password">Password</label>
+                        <div class="input-wrap">
+                            <input type="password" id="si_password" name="password" autocomplete="current-password"
+                                placeholder="Your password" required>
+                            <button type="button" class="toggle-pw" data-toggle-pw="si_password" aria-label="Show password">
+                                <svg class="icon-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                                <svg class="icon-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg>
+                            </button>
+                        </div>
+                        <div class="field-error" data-error-for="password"></div>
+                    </div>
+
+                    <div class="row-between">
+                        <label class="checkbox-row" style="margin-bottom:0">
+                            <input type="checkbox" id="si_remember" name="remember" checked>
+                            Remember me
+                        </label>
+                        <!-- PLACEHOLDER: no reset flow yet -->
+                        <a href="#" data-forgot>Forgot password?</a>
+                    </div>
+
+                    <button type="submit" class="btn btn-accent btn-lg btn-block">Sign in</button>
+
+                </form>
+
+                <p class="auth-alt">
+                    New to MeetMind? <a href="#" data-auth-switch="signup">Create an account</a>
+                </p>
+
+            </div>
+
+            <!-- ============================================
+                 PANEL: SIGN UP
+            ============================================= -->
+            <div data-panel="signup">
+
+                <h1>Create your account</h1>
+                <p class="sub">Start recording and summarizing meetings in minutes.</p>
+
+                <div class="form-alert error js-error" role="alert"></div>
+                <div class="form-alert success js-success" role="status"></div>
+
+                <form class="auth-form" id="signUpForm" novalidate>
+
+                    <div class="field" data-field="username">
+                        <label for="su_username">Username</label>
+                        <div class="input-wrap">
+                            <input type="text" id="su_username" name="username" autocomplete="username"
+                                placeholder="jordanlee" required>
+                        </div>
+                        <div class="field-error" data-error-for="username"></div>
+                    </div>
+
+                    <div class="field" data-field="email">
+                        <label for="su_email">Email</label>
+                        <div class="input-wrap">
+                            <input type="email" id="su_email" name="email" autocomplete="email"
+                                placeholder="you@company.com" required>
+                        </div>
+                        <div class="field-error" data-error-for="email"></div>
+                    </div>
+
+                    <div class="field" data-field="password">
+                        <label for="su_password">Password</label>
+                        <div class="input-wrap">
+                            <input type="password" id="su_password" name="password" autocomplete="new-password"
+                                placeholder="Choose a password" required>
+                            <button type="button" class="toggle-pw" data-toggle-pw="su_password" aria-label="Show password">
+                                <svg class="icon-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                                <svg class="icon-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg>
+                            </button>
+                        </div>
+                        <div class="field-error" data-error-for="password"></div>
+                    </div>
+
+                    <div class="field" data-field="confirm">
+                        <label for="su_confirm">Confirm password</label>
+                        <div class="input-wrap">
+                            <input type="password" id="su_confirm" name="confirm" autocomplete="new-password"
+                                placeholder="Re-enter your password" required>
+                            <button type="button" class="toggle-pw" data-toggle-pw="su_confirm" aria-label="Show password">
+                                <svg class="icon-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                                <svg class="icon-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg>
+                            </button>
+                        </div>
+                        <div class="field-error" data-error-for="confirm"></div>
+                    </div>
+
+                    <!-- Role fixed to "user" for self-service. Admins are
+                         provisioned separately. Sent explicitly to the backend. -->
+                    <input type="hidden" id="su_role" name="role" value="user">
+
+                    <label class="checkbox-row" data-field="terms">
+                        <input type="checkbox" id="su_terms" name="terms">
+                        <span>I agree to the <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a>.</span>
+                    </label>
+                    <div class="field-error" data-error-for="terms" style="margin:-10px 0 14px"></div>
+
+                    <button type="submit" class="btn btn-accent btn-lg btn-block">Create account</button>
+
+                </form>
+
+                <p class="auth-alt">
+                    Already have an account? <a href="#" data-auth-switch="signin">Sign in</a>
+                </p>
+
+            </div>
+
+        </div>
+    </main>
+
+</div>
+
+<script src="assets/theme.js"></script>
+<script src="assets/auth-store.js"></script>
+<script src="assets/auth-forms.js"></script>
+
+</body>
+</html>
