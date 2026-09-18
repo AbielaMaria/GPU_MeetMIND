@@ -1,194 +1,85 @@
 /* ============================================================
-   MeetMind — MOCK auth / user store
+   MeetMind — real auth / user store (server-backed)
    ============================================================
-   ⚠️  TEMPORARY / PLACEHOLDER — NO REAL SECURITY HERE.
-   Client-side stand-in so the product flow (landing → sign-up →
-   sign-in → role routing → app / admin → logout) and basic user
-   admin (list / add / edit / remove) work before a backend exists.
+   Talks to the FastAPI backend's /api/auth/* and /api/users
+   endpoints (see backend/auth.py + backend/database.py). Accounts
+   and sessions live in a SQLite database on the server, not in
+   this browser's localStorage — so an account registered on one
+   machine can sign in from any other machine hitting the same
+   backend, and the admin dashboard's changes persist for everyone.
 
-   Everything lives in the browser's localStorage:
-     meetmind:session → JSON { username, email, role, ts }
-     meetmind:users   → JSON array of user records
-     meetmind:seed    → seed version marker (forces a reset when bumped)
+   The session itself is an HttpOnly cookie the server sets on
+   /api/auth/login — JS never reads or writes it directly. Closing
+   the tab/browser without "remember me" checked drops the cookie
+   (the server issues it with no Max-Age in that case), so the next
+   visit requires signing in again.
 
-   Nothing is sent to the server / a database yet.
-
-   ADMIN IS NOT A SEPARATE LOGIN.
-   -------------------------------------------------------------
-   There is ONE sign-in form and ONE signIn() path for everyone.
-   A user record just carries a `role` field ("user" | "admin");
-   after login landingPathForRole() sends admins to /admin and
-   everyone else to /app. The only thing admins can't do is
-   self-register as admin (sign-up always creates role "user") —
-   an admin account is seeded, or created by another admin from
-   the dashboard.
-
-   WHAT YOU (backend dev) SWAP IN LATER
-   -------------------------------------------------------------
-   signUp()      → POST /api/auth/register            (role: "user")
-   signIn()      → POST /api/auth/login               (same endpoint
-                   for admins and users; server returns the role)
-   getSession()  → real server-verified session (httpOnly cookie)
-   signOut()     → POST /api/auth/logout
-   listUsers()/addUser()/updateUser()/deleteUser()
-                 → the admin USER-MANAGEMENT screen (not auth) —
-                   back it with admin-gated /api/users endpoints.
-   Then delete SEED_USERS and the seed-reset block.
+   Every function below returns a Promise, since every call now
+   round-trips to the server. `auth-forms.js` and `admin.js` already
+   consume signIn()/signUp() as promises; the CRUD helpers changed
+   from synchronous to async here too, and their call sites were
+   updated to match.
 ============================================================ */
 
 (function (global) {
+    "use strict";
 
-    var SESSION_KEY = "meetmind:session";
-    var USERS_KEY = "meetmind:users";
-    var SEED_KEY = "meetmind:seed";
+    var API_BASE = "/api";
 
-    /* Bump this string to wipe every browser's user list + session
-       and re-seed from scratch on next load. */
-    var SEED_VERSION = "4";
+    function request(method, path, body) {
+        var opts = {
+            method: method,
+            headers: { "Content-Type": "application/json" },
+            credentials: "same-origin"
+        };
+        if (body !== undefined) opts.body = JSON.stringify(body);
 
-    /* --- PLACEHOLDER seed: a single admin account. -------------- */
-    var SEED_USERS = [
-        {
-            username: "admin",
-            email: "admin@gmail.com",
-            password: "admin123",       // PLACEHOLDER — plaintext, mock only
-            role: "admin",
-            createdAt: "2026-09-01T09:00:00Z",
-            status: "active"
-        }
-    ];
-
-    function readJSON(key, fallback) {
-        try {
-            var raw = localStorage.getItem(key);
-            return raw ? JSON.parse(raw) : fallback;
-        } catch (e) {
-            return fallback;
-        }
-    }
-
-    function writeJSON(key, value) {
-        try {
-            localStorage.setItem(key, JSON.stringify(value));
-        } catch (e) {}
-    }
-
-    /* ---- one-time reset when SEED_VERSION changes -------------- */
-    (function seedReset() {
-        try {
-            if (localStorage.getItem(SEED_KEY) === SEED_VERSION) return;
-            localStorage.removeItem(USERS_KEY);
-            localStorage.removeItem(SESSION_KEY);
-            writeJSON(USERS_KEY, SEED_USERS.slice());
-            localStorage.setItem(SEED_KEY, SEED_VERSION);
-        } catch (e) {}
-    })();
-
-    function getUsers() {
-        var users = readJSON(USERS_KEY, null);
-        if (!Array.isArray(users)) {
-            users = SEED_USERS.slice();
-            writeJSON(USERS_KEY, users);
-        }
-        return users;
-    }
-
-    function saveUsers(users) {
-        writeJSON(USERS_KEY, users);
-    }
-
-    function normEmail(v) {
-        return String(v || "").toLowerCase().trim();
-    }
-
-    function findByEmail(users, email) {
-        var e = normEmail(email);
-        return users.find(function (u) { return normEmail(u.email) === e; }) || null;
+        return fetch(API_BASE + path, opts).then(function (res) {
+            if (res.status === 204) return null;
+            return res.json().catch(function () { return null; }).then(function (data) {
+                if (!res.ok) {
+                    throw new Error((data && data.detail) || "Request failed.");
+                }
+                return data;
+            });
+        });
     }
 
     var MeetMindAuth = {
 
         /* ---- session ------------------------------------------- */
 
+        // Resolves with the session {username,email,role,...} or null.
         getSession: function () {
-            return readJSON(SESSION_KEY, null);
+            return request("GET", "/auth/session").catch(function () { return null; });
         },
 
         isAuthed: function () {
-            var s = this.getSession();
-            return !!(s && s.email);
-        },
-
-        _startSession: function (user, remember) {
-            var session = {
-                username: user.username || user.name || "",
-                email: user.email,
-                role: user.role || "user",
-                ts: Date.now(),
-                remember: !!remember
-            };
-            writeJSON(SESSION_KEY, session);
-            return session;
+            return this.getSession().then(function (s) { return !!(s && s.email); });
         },
 
         signOut: function () {
-            try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
+            return request("POST", "/auth/logout").catch(function () {});
         },
 
         /* ---- sign up (self-service = always role "user") ------ */
 
         signUp: function (payload) {
-            return new Promise(function (resolve, reject) {
-                setTimeout(function () {
-                    var users = getUsers();
-                    var email = normEmail(payload.email);
-                    var username = String(payload.username || "").trim();
-
-                    if (!username) { reject(new Error("Username is required.")); return; }
-                    if (findByEmail(users, email)) {
-                        reject(new Error("An account with that email already exists."));
-                        return;
-                    }
-
-                    var user = {
-                        username: username,
-                        email: email,
-                        password: payload.password,   // PLACEHOLDER — plaintext
-                        role: "user",
-                        createdAt: new Date().toISOString(),
-                        status: "active"
-                    };
-                    users.push(user);
-                    saveUsers(users);
-                    resolve({ user: user });
-                }, 500);
-            });
+            return request("POST", "/auth/register", {
+                username: payload.username,
+                email: payload.email,
+                password: payload.password
+            }).then(function (user) { return { user: user }; });
         },
 
         /* ---- sign in ----------------------------------------- */
 
         signIn: function (email, password, remember) {
-            var self = this;
-            return new Promise(function (resolve, reject) {
-                setTimeout(function () {
-                    var users = getUsers();
-                    var match = users.find(function (u) {
-                        return normEmail(u.email) === normEmail(email)
-                            && u.password === password;
-                    });
-
-                    if (!match) {
-                        reject(new Error("Incorrect email or password."));
-                        return;
-                    }
-                    if (match.status && match.status !== "active") {
-                        reject(new Error("This account is inactive. Contact your administrator."));
-                        return;
-                    }
-
-                    resolve({ session: self._startSession(match, remember) });
-                }, 500);
-            });
+            return request("POST", "/auth/login", {
+                email: email,
+                password: password,
+                remember: !!remember
+            }).then(function (session) { return { session: session }; });
         },
 
         /* ---- role routing / guard --------------------------- */
@@ -197,95 +88,27 @@
             return role === "admin" ? "/admin" : "/app";
         },
 
-        guard: function (requiredRole) {
-            var s = this.getSession();
-            if (!s || !s.email) {
-                var next = encodeURIComponent(location.pathname + location.search);
-                location.replace("/sign-in?next=" + next);
-                return false;
-            }
-            if (requiredRole && s.role !== requiredRole) {
-                location.replace(this.landingPathForRole(s.role));
-                return false;
-            }
-            return true;
-        },
-
         /* ============================================================
-           ADMIN — user CRUD  (synchronous; localStorage-backed)
-           TODO(backend): swap each for a /api/admin/users call.
+           ADMIN — user CRUD (server-backed, admin-only endpoints)
         ============================================================ */
 
         listUsers: function () {
-            // newest first
-            return getUsers().slice().sort(function (a, b) {
-                return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
-            });
+            return request("GET", "/users");
         },
 
         addUser: function (data) {
-            var users = getUsers();
-            var email = normEmail(data.email);
-            var username = String(data.username || "").trim();
-
-            if (!username) throw new Error("Username is required.");
-            if (!email) throw new Error("Email is required.");
-            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("Enter a valid email address.");
-            if (!data.password) throw new Error("Password is required.");
-            if (findByEmail(users, email)) throw new Error("A user with that email already exists.");
-
-            var user = {
-                username: username,
-                email: email,
-                password: String(data.password),
-                role: data.role === "admin" ? "admin" : "user",
-                status: data.status === "inactive" ? "inactive" : "active",
-                createdAt: new Date().toISOString()
-            };
-            users.push(user);
-            saveUsers(users);
-            return user;
+            return request("POST", "/users", data);
         },
 
         // `originalEmail` identifies the row; patch may include a new email.
         updateUser: function (originalEmail, patch) {
-            var users = getUsers();
-            var user = findByEmail(users, originalEmail);
-            if (!user) throw new Error("User not found.");
-
-            if (patch.email != null) {
-                var newEmail = normEmail(patch.email);
-                if (!newEmail) throw new Error("Email is required.");
-                if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) throw new Error("Enter a valid email address.");
-                var clash = findByEmail(users, newEmail);
-                if (clash && clash !== user) throw new Error("Another user already uses that email.");
-                user.email = newEmail;
-            }
-            if (patch.username != null) {
-                var un = String(patch.username).trim();
-                if (!un) throw new Error("Username is required.");
-                user.username = un;
-            }
-            if (patch.password != null && patch.password !== "") {
-                user.password = String(patch.password);
-            }
-            if (patch.role != null) {
-                user.role = patch.role === "admin" ? "admin" : "user";
-            }
-            if (patch.status != null) {
-                user.status = patch.status === "inactive" ? "inactive" : "active";
-            }
-            saveUsers(users);
-            return user;
+            return request("PATCH", "/users/" + encodeURIComponent(originalEmail), patch);
         },
 
         deleteUser: function (email) {
-            var users = getUsers();
-            var e = normEmail(email);
-            var next = users.filter(function (u) { return normEmail(u.email) !== e; });
-            if (next.length === users.length) return false;
-            saveUsers(next);
-            return true;
+            return request("DELETE", "/users/" + encodeURIComponent(email))
+                .then(function () { return true; })
+                .catch(function () { return false; });
         }
     };
 

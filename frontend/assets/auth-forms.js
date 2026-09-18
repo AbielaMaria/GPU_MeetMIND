@@ -23,12 +23,11 @@
 
     var A = window.MeetMindAuth;
 
-    /* ---- already signed in? skip the forms entirely ---- */
-    if (A && A.isAuthed()) {
-        var s = A.getSession();
-        location.replace(A.landingPathForRole(s.role));
-        return;
-    }
+    /* An already-signed-in visitor never reaches this page: /sign-in and
+       /sign-up redirect them server-side before the HTML is served (see
+       backend/app.py). Doing it here as well used to race with that check
+       and, against a stale cached app-guard.js, looped the browser between
+       /sign-in and /app indefinitely. The server is the only authority. */
 
     var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 

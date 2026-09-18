@@ -1,63 +1,36 @@
 /* ============================================================
-   MeetMind — app route guard + account bar  (loaded by index.html)
+   MeetMind — account bar  (loaded by index.html)
    ============================================================
    The ONLY hook added to index.html — a single <script> tag. It
    does not touch the recorder / websocket / summary logic, ids,
-   classes, or data-attributes. It only:
+   classes, or data-attributes. It only injects a plain-text
+   "Log out" button (and, for admins, a "Dashboard" link) into
+   the header.
 
-     1. Redirects to /sign-in when there is no session.
-     2. Injects a plain-text "Log out" button (and, for admins, a
-        "Dashboard" link) into the header.
+   This file deliberately does NOT redirect. Access to /app is
+   enforced server-side in backend/app.py before the page is ever
+   served, so a second opinion here can only disagree with the
+   server — and when it did (an old cached copy of this file still
+   reading the long-gone localStorage session), the two bounced the
+   browser back and forth in an endless redirect loop. The server
+   is the single authority on who is signed in.
 
-   ⚠️  TEMPORARY / PLACEHOLDER auth. Session is in this browser's
-   localStorage ("meetmind:session", written by auth-store.js on
-   the sign-in page). Nothing is sent to the backend yet.
-
-   TODO(backend): replace the localStorage check with a real
-   server-verified session; point "Log out" at POST /api/auth/logout.
+   Session is a server-side HttpOnly cookie (see backend/auth.py) —
+   this file no longer reads or writes localStorage for auth.
 ============================================================ */
 
 (function () {
     "use strict";
 
-    var SESSION_KEY = "meetmind:session";
-    var SEED_KEY = "meetmind:seed";
-    var SEED_VERSION = "4"; // keep in sync with auth-store.js
-
-    function read(key) {
-        try {
-            var raw = localStorage.getItem(key);
-            return raw ? JSON.parse(raw) : null;
-        } catch (e) { return null; }
-    }
-
-    /* If auth-store's seed version moved on, the old session is stale —
-       drop it so the user re-authenticates against the fresh data. */
-    try {
-        if (localStorage.getItem(SEED_KEY) !== SEED_VERSION) {
-            localStorage.removeItem(SESSION_KEY);
-        }
-    } catch (e) {}
-
-    var session = read(SESSION_KEY);
-
-    /* ---- 1. guard ------------------------------------- */
-
-    if (!session || !session.email) {
-        var next = encodeURIComponent(location.pathname + location.search);
-        location.replace("/sign-in?next=" + next);
-        return;
-    }
-
-    /* ---- 2. account bar ------------------------------ */
+    var A = window.MeetMindAuth;
 
     function signOut() {
-        try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
-        // TODO(backend): also POST /api/auth/logout
-        location.href = "/sign-in";
+        (A ? A.signOut() : Promise.resolve()).then(function () {
+            location.href = "/sign-in";
+        });
     }
 
-    function buildBar() {
+    function buildBar(session) {
         if (document.getElementById("mm-account-bar")) return;
 
         // Scoped styles. The `button::before` reset is important: index.html
@@ -112,9 +85,18 @@
         }
     }
 
+    function init() {
+        if (!A) return;
+        A.getSession().then(function (session) {
+            // No session here just means "don't draw the bar". The server
+            // decides access; this never redirects. See the header note.
+            if (session && session.email) buildBar(session);
+        });
+    }
+
     if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", buildBar);
+        document.addEventListener("DOMContentLoaded", init);
     } else {
-        buildBar();
+        init();
     }
 })();

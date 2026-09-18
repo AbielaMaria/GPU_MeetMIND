@@ -4,9 +4,9 @@
 ============================================================ */
 
 .admin-shell {
-    max-width: 1100px;
+    max-width: 1600px;
     margin: 0 auto;
-    padding: 0 clamp(16px, 4vw, 32px) 64px;
+    padding: 0 clamp(20px, 3vw, 40px) 72px;
 }
 
 /* ---------- Top bar ---------- */
@@ -16,9 +16,18 @@
     align-items: center;
     gap: 12px;
     flex-wrap: wrap;
-    padding: 18px 0;
-    margin-bottom: 24px;
+    padding: 20px 0;
+    margin-bottom: 32px;
     border-bottom: 1px solid var(--border);
+}
+
+/* ---------- Page body ---------- */
+/* Panels are stacked sections; without this they sit flush against each
+   other with no separation at all. */
+
+.admin-body {
+    display: grid;
+    gap: 28px;
 }
 
 .admin-top .spacer,
@@ -60,13 +69,14 @@
     align-items: baseline;
     justify-content: space-between;
     gap: 16px;
-    padding: 16px 18px;
+    padding: 18px 22px;
     border-bottom: 1px solid var(--border);
 }
 
 .panel-hd h2 {
-    font-size: 1rem;
+    font-size: 1.05rem;
     font-weight: 600;
+    letter-spacing: -0.01em;
 }
 
 .hint {
@@ -76,7 +86,7 @@
 }
 
 .panel-bd {
-    padding: 18px;
+    padding: 22px;
 }
 
 /* ---------- Toolbar ---------- */
@@ -86,7 +96,7 @@
     align-items: center;
     gap: 10px;
     flex-wrap: wrap;
-    margin-bottom: 16px;
+    margin-bottom: 20px;
 }
 
 .search-wrap {
@@ -153,7 +163,7 @@ table.data {
 table.data th,
 table.data td {
     text-align: left;
-    padding: 11px 14px;
+    padding: 13px 16px;
     border-bottom: 1px solid var(--border);
     white-space: nowrap;
 }
@@ -282,4 +292,100 @@ td.cell-actions {
 @media (max-width: 560px) {
     .admin-who { display: none; }
     .dialog-row { grid-template-columns: 1fr; }
+}
+
+/* ============================================================
+   Meeting viewer  (added with the meeting-history feature)
+   ------------------------------------------------------------
+   Additive only: new classes for the meetings panel + viewer
+   dialog. Nothing above is modified, and every value is an
+   existing token so light/dark follow automatically.
+============================================================ */
+
+.meeting-dialog {
+    width: min(760px, calc(100vw - 32px));
+}
+
+.meeting-tabs {
+    display: flex;
+    gap: 4px;
+    margin: 18px 0 14px;
+    border-bottom: 1px solid var(--border);
+}
+
+.meeting-tab {
+    padding: 8px 14px;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    font: 600 13px/1 var(--font-sans);
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+.meeting-tab:hover {
+    color: var(--text-primary);
+}
+
+.meeting-tab.is-active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+
+.meeting-pane {
+    max-height: min(52vh, 460px);
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.meeting-section + .meeting-section {
+    margin-top: 18px;
+}
+
+.meeting-section h4 {
+    margin: 0 0 7px;
+    font: 700 10.5px/1 var(--font-sans);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.meeting-section p {
+    margin: 0;
+    font-size: 13.5px;
+    line-height: 1.65;
+    color: var(--text-secondary);
+}
+
+.meeting-section ul {
+    margin: 0;
+    padding-left: 18px;
+}
+
+.meeting-section li {
+    font-size: 13.5px;
+    line-height: 1.65;
+    color: var(--text-secondary);
+}
+
+.meeting-transcript {
+    margin: 0;
+    padding: 14px 15px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.75;
+    color: var(--text-secondary);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.meeting-none {
+    padding: 22px 0;
+    text-align: center;
+    font-size: 13px;
+    color: var(--text-muted);
 }
