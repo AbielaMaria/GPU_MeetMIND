@@ -35,11 +35,18 @@
         })();
     </script>
 
-    <!-- Auth guard (wrapper only). PLACEHOLDER: redirects to /sign-in
-         when there is no mock session. Does not touch the recorder /
-         websocket / summary logic below. Remove this line to unbind
-         the app from the auth flow. See frontend/assets/app-guard.js -->
-    <script src="/assets/app-guard.js"></script>
+    <!-- Auth guard (wrapper only). Redirects to /sign-in when there is
+         no server-verified session. Does not touch the recorder /
+         websocket / summary logic below. Remove these two lines to
+         unbind the app from the auth flow. See frontend/assets/
+         auth-store.js and frontend/assets/app-guard.js -->
+    <script src="/assets/auth-store.js?v=3"></script>
+    <script src="/assets/app-guard.js?v=3"></script>
+
+    <!-- Past-meetings drawer. Additive: its styles are scoped to its own
+         classes and it reads the app through window.meetmindHistory,
+         defined at the end of this file. -->
+    <link rel="stylesheet" href="/assets/history.css?v=3">
 
     <!-- PDF export (Download PDF button). Loaded from CDN; no app
          logic depends on it until the user clicks Download PDF. -->
@@ -4462,6 +4469,101 @@ summaryBtn.addEventListener(
 })();
 
 
+/* ============================================================
+   MEETING HISTORY BRIDGE
+   ------------------------------------------------------------
+   The only hook the history drawer (assets/history.js) uses. It
+   lives here because loading a saved meeting means reusing this
+   file's own renderers and state -- so the saved meeting appears
+   in exactly the same panels, styled exactly the same way, as one
+   that was just recorded. Nothing above is modified.
+============================================================ */
+
+const pristineTranscriptHTML =
+    transcriptEl.innerHTML;
+
+const pristineIntelligenceHTML =
+    intelligenceEl.innerHTML;
+
+
+window.meetmindHistory = {
+
+    /* Show a saved meeting in the live panels. */
+    load: function (meeting) {
+
+        transcript =
+            (meeting.transcript || "").trim();
+
+        renderTranscript(
+            transcript
+        );
+
+        resetTranscriptSearch();
+
+        summaryBtn.disabled =
+            !transcript;
+
+        if (meeting.summary) {
+
+            renderIntelligence(
+                {
+                    ...meeting.summary,
+                    transcript: transcript
+                },
+                true
+            );
+
+        } else {
+
+            intelligenceEl.innerHTML =
+                pristineIntelligenceHTML;
+        }
+
+        setStatus(
+            "Viewing a saved meeting."
+        );
+    },
+
+    /* Put the panels back to their untouched, ready-to-record state. */
+    reset: function () {
+
+        transcript =
+            "";
+
+        transcriptEl.innerHTML =
+            pristineTranscriptHTML;
+
+        intelligenceEl.innerHTML =
+            pristineIntelligenceHTML;
+
+        resetTranscriptSearch();
+
+        summaryBtn.disabled =
+            true;
+
+        editHint.classList.remove(
+            "visible"
+        );
+
+        downloadActions.classList.remove(
+            "visible"
+        );
+
+        setStatus(
+            "Ready"
+        );
+    },
+
+    /* True once a recording/transcript of its own is in progress. */
+    isBusy: function () {
+
+        return isRecording;
+    }
+};
+
+
 </script>
+
+<script src="/assets/history.js?v=3"></script>
 </body>
 </html>
