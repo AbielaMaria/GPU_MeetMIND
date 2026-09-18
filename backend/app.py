@@ -1,61 +1,53 @@
 """
-MeetMind FastAPI application.
+MeetMind
+FastAPI application.
 
 Complete flow:
 
-    Browser
-       ↓
-    /ws/meeting
-       ↓
-    Complete recording
-       ↓
-    Parrotlet-A 2.5 Pro
-       ↓
-    Complete transcript
-       ↓
-    Frontend displays transcript
-       ↓
-    User clicks "Create Summary"
-       ↓
-    /api/meeting/summarize
-       ↓
-    Llama 3.1 8B / Ollama
-       ↓
-    Meeting intelligence
+Browser
+    ↓
+/ws/meeting
+    ↓
+Complete recording
+    ↓
+Parrotlet-A 2.5 Pro
+    ↓
+Complete transcript
+    ↓
+Frontend displays transcript
+    ↓
+User clicks "Create Summary"
+    ↓
+/api/meeting/summarize
+    ↓
+Llama 3.1 8B / Ollama
+    ↓
+Meeting intelligence
 
 Speaker diarization:
-    Disabled
+Disabled
 """
-
 
 from pathlib import Path
 
 from fastapi import (
     FastAPI,
     WebSocket,
-    HTTPException
+    HTTPException,
 )
-
 from fastapi.responses import FileResponse
-from fastapi.middleware.cors import (
-    CORSMiddleware,
-)
-from fastapi.responses import (
-    FileResponse,
-)
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from meeting_websocket import (
-    meeting_websocket,
-)
+from meeting_websocket import meeting_websocket
 
 from meeting_intelligence import (
     generate_meeting_summary,
     LLAMA_MODEL,
 )
 
-from parrotlet_transcriber import (
+from parrotlet_transcriber_gpu import (
     MODEL_NAME,
     SAMPLE_RATE,
 )
@@ -66,29 +58,29 @@ from parrotlet_transcriber import (
 # ============================================================
 
 BASE_DIR = Path(__file__).resolve().parent
+
 FRONTEND_DIR = BASE_DIR.parent / "frontend"
+
 INDEX_FILE = FRONTEND_DIR / "index.html"
 
-# Product-flow pages that wrap the (untouched) app in index.html.
+# Product-flow pages that wrap the (untouched) recorder app in index.html.
 LANDING_FILE = FRONTEND_DIR / "landing.html"
 AUTH_FILE = FRONTEND_DIR / "auth.html"      # one page, serves both /sign-in and /sign-up
 ADMIN_FILE = FRONTEND_DIR / "admin.html"
 ASSETS_DIR = FRONTEND_DIR / "assets"
+
 
 # ============================================================
 # APPLICATION
 # ============================================================
 
 app = FastAPI(
-
     title="MeetMind",
-
     description=(
         "AI Meeting Intelligence using "
         "Parrotlet-A 2.5 Pro and "
         "Llama 3.1 8B"
     ),
-
     version="3.0.0",
 )
 
@@ -98,30 +90,16 @@ app = FastAPI(
 # ============================================================
 
 app.add_middleware(
-
     CORSMiddleware,
-
     allow_origins=["*"],
-
     allow_credentials=True,
-
     allow_methods=["*"],
-
     allow_headers=["*"],
 )
 
 
 # ============================================================
-# REQUEST SCHEMA
-# ============================================================
-
-class SummaryRequest(BaseModel):
-
-    transcript: str
-
-
-# ============================================================
-# STATIC ASSETS  (shared CSS/JS for the new product-flow pages)
+# STATIC ASSETS  (shared CSS/JS for the product-flow pages)
 # ============================================================
 
 if ASSETS_DIR.exists():
@@ -133,13 +111,21 @@ if ASSETS_DIR.exists():
 
 
 # ============================================================
+# REQUEST SCHEMA
+# ============================================================
+
+class SummaryRequest(BaseModel):
+    transcript: str
+
+
+# ============================================================
 # PAGE ROUTES
 # ============================================================
 #
-# Routing / layout shell only. The app itself (index.html) is
-# unchanged — it just moved from "/" to "/app". Its WebSocket
-# uses window.location.host (not a path) and its API calls use
-# absolute paths, so the move is transparent to it.
+# Routing / layout shell only. The recorder app itself (index.html)
+# is served from "/app". Its WebSocket uses window.location.host
+# (not a path) and its API calls use absolute paths, so the move is
+# transparent to it.
 #
 # Auth is enforced client-side for now (see frontend/assets/
 # app-guard.js and auth-store.js). TODO(backend): add a real
@@ -151,7 +137,7 @@ def _serve(page: Path) -> FileResponse:
     if not page.exists():
         raise HTTPException(
             status_code=404,
-            detail=f"Frontend file not found: {page}"
+            detail=f"Frontend file not found: {page}",
         )
 
     # no-store: these pages are actively changing during development, and a
@@ -201,23 +187,12 @@ async def admin_view():
 
 @app.get("/health")
 async def health():
-
     return {
-
-        "status":
-            "healthy",
-
-        "service":
-            "MeetMind",
-
-        "speech_model":
-            MODEL_NAME,
-
-        "llm_model":
-            LLAMA_MODEL,
-
-        "speaker_diarization":
-            False,
+        "status": "healthy",
+        "service": "MeetMind",
+        "speech_model": MODEL_NAME,
+        "llm_model": LLAMA_MODEL,
+        "speaker_diarization": False,
     }
 
 
@@ -227,54 +202,26 @@ async def health():
 
 @app.get("/api/info")
 async def api_info():
-
     return {
-
-        "project":
-            "MeetMind",
-
-        "version":
-            "3.0.0",
-
+        "project": "MeetMind",
+        "version": "3.0.0",
         "pipeline": [
-
             "Browser microphone",
-
             "PCM16 mono 16 kHz",
-
             "Complete meeting recording",
-
             "Parrotlet-A 2.5 Pro",
-
             "Complete transcript",
-
             "User requests summary",
-
             "Llama 3.1 8B via Ollama",
-
             "Meeting intelligence",
         ],
-
-        "speech_to_text":
-            MODEL_NAME,
-
-        "sample_rate":
-            SAMPLE_RATE,
-
-        "llm":
-            LLAMA_MODEL,
-
-        "speaker_diarization":
-            False,
-
-        "processing_mode":
-            "record_then_process",
-
-        "websocket":
-            "/ws/meeting",
-
-        "summary_endpoint":
-            "/api/meeting/summarize",
+        "speech_to_text": MODEL_NAME,
+        "sample_rate": SAMPLE_RATE,
+        "llm": LLAMA_MODEL,
+        "speaker_diarization": False,
+        "processing_mode": "record_then_process",
+        "websocket": "/ws/meeting",
+        "summary_endpoint": "/api/meeting/summarize",
     }
 
 
@@ -282,13 +229,10 @@ async def api_info():
 # WEBSOCKET
 # ============================================================
 
-@app.websocket(
-    "/ws/meeting"
-)
+@app.websocket("/ws/meeting")
 async def websocket_endpoint(
     websocket: WebSocket,
 ):
-
     await meeting_websocket(
         websocket
     )
@@ -298,16 +242,12 @@ async def websocket_endpoint(
 # CREATE SUMMARY
 # ============================================================
 
-@app.post(
-    "/api/meeting/summarize"
-)
+@app.post("/api/meeting/summarize")
 async def create_summary(
     request: SummaryRequest,
 ):
-
     transcript = (
-        request.transcript
-        or ""
+        request.transcript or ""
     ).strip()
 
     # --------------------------------------------------------
@@ -315,15 +255,9 @@ async def create_summary(
     # --------------------------------------------------------
 
     if not transcript:
-
         return {
-
-            "success":
-                False,
-
-            "error":
-                "Transcript is empty.",
-
+            "success": False,
+            "error": "Transcript is empty.",
         }
 
     print()
@@ -349,15 +283,11 @@ async def create_summary(
     # --------------------------------------------------------
 
     try:
-
-        result = (
-            generate_meeting_summary(
-                transcript
-            )
+        result = generate_meeting_summary(
+            transcript
         )
 
     except Exception as exc:
-
         print()
         print(
             "Summary generation failed:"
@@ -368,12 +298,8 @@ async def create_summary(
         )
 
         return {
-
-            "success":
-                False,
-
-            "error":
-                str(exc),
+            "success": False,
+            "error": str(exc),
         }
 
     # --------------------------------------------------------
@@ -381,40 +307,33 @@ async def create_summary(
     # --------------------------------------------------------
 
     return {
-    "success": True,
-
-    "title": result.get(
-        "title",
-        "Untitled Meeting",
-    ),
-
-    "objective": result.get(
-        "objective",
-        "",
-    ),
-
-    "meeting_summary": result.get(
-        "meeting_summary",
-        "",
-    ),
-
-    "tasks_assigned": result.get(
-        "tasks_assigned",
-        [],
-    ),
-
-    "decision_points": result.get(
-        "decision_points",
-        [],
-    ),
-
-    "objections": result.get(
-        "objections",
-        [],
-    ),
-
-    "action_items": result.get(
-        "action_items",
-        [],
-    ),
-}
+        "success": True,
+        "title": result.get(
+            "title",
+            "Untitled Meeting",
+        ),
+        "objective": result.get(
+            "objective",
+            "",
+        ),
+        "meeting_summary": result.get(
+            "meeting_summary",
+            "",
+        ),
+        "tasks_assigned": result.get(
+            "tasks_assigned",
+            [],
+        ),
+        "decision_points": result.get(
+            "decision_points",
+            [],
+        ),
+        "objections": result.get(
+            "objections",
+            [],
+        ),
+        "action_items": result.get(
+            "action_items",
+            [],
+        ),
+    }
