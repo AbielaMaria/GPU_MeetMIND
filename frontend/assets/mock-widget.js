@@ -27,7 +27,7 @@
     function run(elT, elI) {
         if (reduce) {
             elT.innerHTML = lines.map(function (l) {
-                return '<span class="spk">' + l.spk + ':</span> ' + l.text;
+                return l.text;
             }).join("<br>");
             if (elI) elI.textContent = insights[insights.length - 1];
             return;
@@ -38,11 +38,11 @@
         function tick() {
             var line = lines[li];
             var shown = lines.slice(0, li).map(function (l) {
-                return '<span class="spk">' + l.spk + ':</span> ' + l.text;
+                return l.text;
             });
 
             var partial = line.text.slice(0, ci);
-            shown.push('<span class="spk">' + line.spk + ':</span> ' + partial + '<span class="caret"></span>');
+            shown.push(partial + '<span class="caret"></span>');
             elT.innerHTML = shown.join("<br>");
 
             ci++;
