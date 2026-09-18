@@ -30,6 +30,7 @@ Disabled
 
 import json
 from pathlib import Path
+from typing import Any, List, Optional
 
 from fastapi import (
     FastAPI,
@@ -157,6 +158,18 @@ if ASSETS_DIR.exists():
 
 class SummaryRequest(BaseModel):
     transcript: str
+
+
+# Fields the meeting-intelligence editor (frontend/index.html) lets an owner
+# hand-edit and save. All optional: only the keys actually sent are patched.
+class MeetingUpdateRequest(BaseModel):
+    title: Optional[str] = None
+    objective: Optional[str] = None
+    meeting_summary: Optional[str] = None
+    tasks_assigned: Optional[List[Any]] = None
+    decision_points: Optional[List[Any]] = None
+    objections: Optional[List[Any]] = None
+    action_items: Optional[List[Any]] = None
 
 
 # ============================================================
@@ -339,6 +352,47 @@ async def api_get_meeting(
         "summary": json.loads(meeting["summary_json"]) if meeting["summary_json"] else None,
         "username": meeting["username"],
         "email": meeting["email"],
+    }
+
+
+@app.patch("/api/meetings/{meeting_id}")
+async def api_update_meeting(
+    meeting_id: int,
+    request: MeetingUpdateRequest,
+    http_request: Request,
+):
+    """
+    Persists hand-edits made in the meeting-intelligence editor
+    (frontend/index.html's "Save Changes" button). Only the owner (or an
+    admin) may edit; the transcript itself is never touched here.
+    """
+    user = auth.require_user(http_request)
+
+    meeting = db.get_meeting(meeting_id)
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found.")
+    if meeting["user_id"] != user["id"] and user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="You don't have access to this meeting.")
+
+    updates = request.dict(exclude_unset=True)
+
+    summary = json.loads(meeting["summary_json"]) if meeting["summary_json"] else {}
+    summary.update(updates)
+
+    fields = {"summary_json": json.dumps(summary)}
+    if "title" in updates and updates["title"]:
+        fields["title"] = updates["title"]
+
+    updated = db.update_meeting(meeting_id, **fields)
+
+    return {
+        "id": updated["id"],
+        "title": updated["title"],
+        "createdAt": updated["created_at"],
+        "transcript": updated["transcript"],
+        "summary": json.loads(updated["summary_json"]) if updated["summary_json"] else None,
+        "username": updated["username"],
+        "email": updated["email"],
     }
 
 

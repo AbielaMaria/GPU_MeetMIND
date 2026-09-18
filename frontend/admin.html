@@ -72,6 +72,51 @@
 
     <main class="admin-body">
 
+        <!-- ---------- overview stats ---------- -->
+        <section class="stats-grid" aria-label="Platform overview">
+
+            <div class="stat-card">
+                <span class="stat-icon stat-icon-accent" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                </span>
+                <span class="stat-info">
+                    <span class="stat-value" id="statTotalUsers">—</span>
+                    <span class="stat-label">Total users</span>
+                </span>
+            </div>
+
+            <div class="stat-card">
+                <span class="stat-icon stat-icon-success" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/></svg>
+                </span>
+                <span class="stat-info">
+                    <span class="stat-value" id="statActiveUsers">—</span>
+                    <span class="stat-label">Active users</span>
+                </span>
+            </div>
+
+            <div class="stat-card">
+                <span class="stat-icon stat-icon-violet" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/></svg>
+                </span>
+                <span class="stat-info">
+                    <span class="stat-value" id="statTotalMeetings">—</span>
+                    <span class="stat-label">Meetings transcribed</span>
+                </span>
+            </div>
+
+            <div class="stat-card">
+                <span class="stat-icon stat-icon-warning" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.287 1.288L3 12l5.8 1.9a2 2 0 0 1 1.288 1.287L12 21l1.9-5.8a2 2 0 0 1 1.287-1.288L21 12l-5.8-1.9a2 2 0 0 1-1.288-1.287Z"/></svg>
+                </span>
+                <span class="stat-info">
+                    <span class="stat-value" id="statSummarized">—</span>
+                    <span class="stat-label">Meetings summarized</span>
+                </span>
+            </div>
+
+        </section>
+
         <section class="panel">
 
             <div class="panel-hd">
@@ -139,6 +184,24 @@
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
                         <input type="search" id="meetingSearch" placeholder="Search meeting or user…" autocomplete="off">
                     </div>
+                    <select id="meetingUserFilter" aria-label="Filter by user">
+                        <option value="">All users</option>
+                    </select>
+                    <select id="meetingStatusFilter" aria-label="Filter by summary status">
+                        <option value="">All statuses</option>
+                        <option value="summarized">Summarized</option>
+                        <option value="transcript">Transcript only</option>
+                    </select>
+                    <label class="date-field">
+                        <span class="date-field-label">From</span>
+                        <input type="date" id="meetingDateFrom" aria-label="From date">
+                    </label>
+                    <label class="date-field">
+                        <span class="date-field-label">To</span>
+                        <input type="date" id="meetingDateTo" aria-label="To date">
+                    </label>
+                    <span class="spacer"></span>
+                    <button class="btn btn-ghost" id="meetingFilterReset" type="button">Reset filters</button>
                 </div>
 
                 <div class="table-scroll">
@@ -250,7 +313,7 @@
 </dialog>
 
 <script src="assets/theme.js?v=3"></script>
-<script src="assets/admin.js?v=3"></script>
+<script src="assets/admin.js?v=4"></script>
 
 </body>
 </html>

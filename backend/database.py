@@ -203,6 +203,17 @@ def get_meeting(meeting_id):
         return dict(row) if row else None
 
 
+def update_meeting(meeting_id, **fields):
+    """Patch title/summary_json (or any column) on an existing meeting."""
+    if not fields:
+        return get_meeting(meeting_id)
+    columns = ", ".join(f"{key} = ?" for key in fields)
+    values = list(fields.values()) + [meeting_id]
+    with _connect() as conn:
+        conn.execute(f"UPDATE meetings SET {columns} WHERE id = ?", values)
+    return get_meeting(meeting_id)
+
+
 def list_meetings(user_id=None):
     """
     Newest first. Without `user_id` this returns every user's meetings

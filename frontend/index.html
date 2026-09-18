@@ -1446,6 +1446,11 @@ let latestMeetingData = null;
 
 let currentIntelligenceData = null;
 
+// Id of the meeting row this data was saved as on the server (backend/database.py's
+// meetings table). Null until a summary has actually been persisted — either just
+// generated (see /api/meeting/summarize's meeting_id) or opened from history.
+let currentMeetingId = null;
+
 let searchMatches = [];
 
 let currentSearchIndex = -1;
@@ -2835,32 +2840,140 @@ function setupSummaryEditor() {
 
     saveBtn.addEventListener(
         "click",
-        () => {
+        async () => {
 
-            currentIntelligenceData =
+            const edited =
                 collectEditedData();
 
-            latestMeetingData =
-                JSON.parse(
-                    JSON.stringify(
-                        currentIntelligenceData
-                    )
-                );
-
-            currentSummary =
-                editor.value;
-
-            actions.classList.remove(
-                "visible"
-            );
+            saveBtn.disabled =
+                true;
 
             setStatus(
-                "Meeting intelligence changes saved."
+                "Saving meeting intelligence changes..."
             );
 
-            log(
-                "Meeting intelligence fields manually edited and saved."
-            );
+            try {
+
+                /* ------------------------------------------------
+                   Persist to the server, when this summary is
+                   actually a saved meeting (backend/database.py's
+                   meetings table). Without this, edits only ever
+                   lived in local JS state — they looked "saved"
+                   but a reopen from history, or another device,
+                   never saw them.
+                ------------------------------------------------ */
+
+                if (
+                    currentMeetingId
+                ) {
+
+                    const response =
+                        await fetch(
+                            `/api/meetings/${currentMeetingId}`,
+                            {
+                                method:
+                                    "PATCH",
+
+                                credentials:
+                                    "same-origin",
+
+                                headers: {
+
+                                    "Content-Type":
+                                        "application/json"
+                                },
+
+                                body:
+                                    JSON.stringify(
+                                        {
+                                            title:
+                                                edited.title,
+
+                                            objective:
+                                                edited.objective,
+
+                                            meeting_summary:
+                                                edited.meeting_summary,
+
+                                            tasks_assigned:
+                                                edited.tasks_assigned,
+
+                                            decision_points:
+                                                edited.decision_points,
+
+                                            objections:
+                                                edited.objections,
+
+                                            action_items:
+                                                edited.action_items
+                                        }
+                                    )
+                            }
+                        );
+
+                    if (
+                        !response.ok
+                    ) {
+
+                        const errBody =
+                            await response
+                                .json()
+                                .catch(
+                                    () => ({})
+                                );
+
+                        throw new Error(
+                            errBody.detail
+                            ||
+                            "The server rejected the changes."
+                        );
+                    }
+                }
+
+                currentIntelligenceData =
+                    edited;
+
+                latestMeetingData =
+                    JSON.parse(
+                        JSON.stringify(
+                            edited
+                        )
+                    );
+
+                currentSummary =
+                    editor.value;
+
+                actions.classList.remove(
+                    "visible"
+                );
+
+                setStatus(
+                    currentMeetingId
+                        ? "Meeting intelligence changes saved."
+                        : "Changes kept for this session — this summary was never saved to your history."
+                );
+
+                log(
+                    "Meeting intelligence fields manually edited and saved."
+                );
+
+            } catch (
+                error
+            ) {
+
+                setStatus(
+                    `Could not save changes: ${error.message}`
+                );
+
+                log(
+                    `Meeting intelligence save failed: ${error.message}`
+                );
+
+            } finally {
+
+                saveBtn.disabled =
+                    false;
+            }
         }
     );
 
@@ -3280,6 +3393,9 @@ async function startRecording() {
         null;
 
     currentIntelligenceData =
+        null;
+
+    currentMeetingId =
         null;
 
 
@@ -3814,6 +3930,11 @@ async function createSummary() {
             );
         }
 
+
+        currentMeetingId =
+            data.meeting_id
+            ||
+            null;
 
         renderIntelligence(
             data
@@ -4494,6 +4615,9 @@ window.meetmindHistory = {
         transcript =
             (meeting.transcript || "").trim();
 
+        currentMeetingId =
+            meeting.id || null;
+
         renderTranscript(
             transcript
         );
@@ -4508,6 +4632,10 @@ window.meetmindHistory = {
             renderIntelligence(
                 {
                     ...meeting.summary,
+                    title:
+                        meeting.title
+                        ||
+                        meeting.summary.title,
                     transcript: transcript
                 },
                 true
@@ -4529,6 +4657,9 @@ window.meetmindHistory = {
 
         transcript =
             "";
+
+        currentMeetingId =
+            null;
 
         transcriptEl.innerHTML =
             pristineTranscriptHTML;

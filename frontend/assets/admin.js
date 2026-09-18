@@ -20,6 +20,11 @@
     var statusEl = document.getElementById("statusFilter");
     var rowCount = document.getElementById("rowCount");
 
+    var statTotalUsers = document.getElementById("statTotalUsers");
+    var statActiveUsers = document.getElementById("statActiveUsers");
+    var statTotalMeetings = document.getElementById("statTotalMeetings");
+    var statSummarized = document.getElementById("statSummarized");
+
     var dialog = document.getElementById("userDialog");
     var form = document.getElementById("userForm");
     var dialogTitle = document.getElementById("dialogTitle");
@@ -64,11 +69,25 @@
         alertEl.classList.remove("is-shown");
     }
 
+    /* ---- overview stats ------------------------------ */
+
+    function renderStats() {
+        statTotalUsers.textContent = allUsers.length;
+        statActiveUsers.textContent = allUsers.filter(function (u) {
+            return (u.status || "active") === "active";
+        }).length;
+        statTotalMeetings.textContent = allMeetings.length;
+        statSummarized.textContent = allMeetings.filter(function (m) {
+            return m.hasSummary;
+        }).length;
+    }
+
     /* ---- render table ------------------------------- */
 
     function render() {
         return A.listUsers().then(function (all) {
             allUsers = all;
+            renderStats();
 
             var q = searchEl.value.trim().toLowerCase();
             var role = roleEl.value;
@@ -228,6 +247,11 @@
     var mtBody = document.getElementById("meetingRows");
     var mtSearch = document.getElementById("meetingSearch");
     var mtCount = document.getElementById("meetingCount");
+    var mtUserFilter = document.getElementById("meetingUserFilter");
+    var mtStatusFilter = document.getElementById("meetingStatusFilter");
+    var mtDateFrom = document.getElementById("meetingDateFrom");
+    var mtDateTo = document.getElementById("meetingDateTo");
+    var mtFilterReset = document.getElementById("meetingFilterReset");
 
     var mtDialog = document.getElementById("meetingDialog");
     var mtTitle = document.getElementById("meetingDialogTitle");
@@ -251,19 +275,58 @@
         });
     }
 
+    function populateMeetingUserFilter() {
+        var current = mtUserFilter.value;
+        var seen = {};
+        var options = [];
+
+        allMeetings.forEach(function (m) {
+            var key = m.email || m.username;
+            if (key && !seen[key]) {
+                seen[key] = true;
+                options.push({ value: key, label: m.username || m.email });
+            }
+        });
+        options.sort(function (a, b) { return a.label.localeCompare(b.label); });
+
+        mtUserFilter.innerHTML = '<option value="">All users</option>' +
+            options.map(function (o) {
+                return '<option value="' + esc(o.value) + '">' + esc(o.label) + "</option>";
+            }).join("");
+
+        if (current && seen[current]) mtUserFilter.value = current;
+    }
+
     function renderMeetings() {
         var q = mtSearch.value.trim().toLowerCase();
+        var userVal = mtUserFilter.value;
+        var statusVal = mtStatusFilter.value;
+        var fromVal = mtDateFrom.value;
+        var toVal = mtDateTo.value;
 
         var rows = allMeetings.filter(function (m) {
-            if (!q) return true;
-            return ((m.title || "") + " " + (m.username || "") + " " + (m.email || ""))
-                .toLowerCase().indexOf(q) !== -1;
+            if (q && ((m.title || "") + " " + (m.username || "") + " " + (m.email || ""))
+                    .toLowerCase().indexOf(q) === -1) return false;
+
+            if (userVal && (m.email || m.username) !== userVal) return false;
+
+            if (statusVal === "summarized" && !m.hasSummary) return false;
+            if (statusVal === "transcript" && m.hasSummary) return false;
+
+            if (fromVal || toVal) {
+                var d = new Date(m.createdAt);
+                if (isNaN(d)) return false;
+                if (fromVal && d < new Date(fromVal + "T00:00:00")) return false;
+                if (toVal && d > new Date(toVal + "T23:59:59")) return false;
+            }
+
+            return true;
         });
 
         if (!rows.length) {
             mtBody.innerHTML = '<tr><td colspan="5"><div class="table-empty">' +
                 (allMeetings.length
-                    ? "No meetings match your search."
+                    ? "No meetings match your filters."
                     : "No meetings have been recorded yet.") +
                 "</div></td></tr>";
         } else {
@@ -289,7 +352,9 @@
     function loadMeetings() {
         return api("/api/meetings?scope=all").then(function (meetings) {
             allMeetings = meetings;
+            populateMeetingUserFilter();
             renderMeetings();
+            renderStats();
         }).catch(function () {
             mtBody.innerHTML = '<tr><td colspan="5"><div class="table-empty">' +
                 "Could not load meetings.</div></td></tr>";
@@ -419,6 +484,19 @@
     });
 
     mtSearch.addEventListener("input", renderMeetings);
+    mtUserFilter.addEventListener("change", renderMeetings);
+    mtStatusFilter.addEventListener("change", renderMeetings);
+    mtDateFrom.addEventListener("change", renderMeetings);
+    mtDateTo.addEventListener("change", renderMeetings);
+
+    mtFilterReset.addEventListener("click", function () {
+        mtSearch.value = "";
+        mtUserFilter.value = "";
+        mtStatusFilter.value = "";
+        mtDateFrom.value = "";
+        mtDateTo.value = "";
+        renderMeetings();
+    });
 
     /* ---- boot -------------------------------------- */
 
