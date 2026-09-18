@@ -3,10 +3,10 @@
      MeetMind — Admin (role = "admin" only)
      ------------------------------------------------------------
      Deliberately simple: one screen to see / add / edit / remove
-     users. Users are the mock store in assets/auth-store.js
-     (localStorage key "meetmind:users"); changes here affect who
-     can sign in. TODO(backend): swap the MeetMindAuth.*User calls
-     for /api/admin/users endpoints.
+     users. Users live in the server's SQLite database (see
+     backend/database.py), via the admin-only /api/users endpoints
+     in backend/auth.py; changes here affect who can sign in,
+     everywhere.
 ============================================================ -->
 <html lang="en">
 
@@ -33,13 +33,12 @@
         })();
     </script>
 
-    <!-- guard: bounce non-admins before paint -->
-    <script src="assets/auth-store.js"></script>
-    <script>
-        if (window.MeetMindAuth && !window.MeetMindAuth.guard("admin")) {
-            document.documentElement.style.display = "none";
-        }
-    </script>
+    <!-- Access control for this page (signed in AND role "admin") is
+         enforced server-side before admin.html is served at all; see
+         backend/app.py's /admin route. No client-side guard here: a
+         second opinion can only disagree with the server, and when it
+         did, the two redirected the browser back and forth endlessly. -->
+    <script src="assets/auth-store.js?v=3"></script>
 
     <link rel="stylesheet" href="assets/theme.css">
     <link rel="stylesheet" href="assets/admin.css">
@@ -62,8 +61,6 @@
         <span class="spacer"></span>
 
         <span class="admin-who" id="whoEmail">admin@example.com</span>
-
-        <a class="btn btn-ghost" href="/app">Recorder</a>
 
         <button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch color theme" title="Switch color theme">
             <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
@@ -119,6 +116,43 @@
                             </tr>
                         </thead>
                         <tbody id="userRows"></tbody>
+                    </table>
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- ---------- meetings ---------- -->
+        <section class="panel">
+
+            <div class="panel-hd">
+                <h2>Meetings</h2>
+                <span class="hint" id="meetingCount"></span>
+            </div>
+
+            <div class="panel-bd">
+
+                <div class="table-tools">
+                    <div class="search-wrap">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                        <input type="search" id="meetingSearch" placeholder="Search meeting or user…" autocomplete="off">
+                    </div>
+                </div>
+
+                <div class="table-scroll">
+                    <table class="data">
+                        <thead>
+                            <tr>
+                                <th>Meeting</th>
+                                <th>User</th>
+                                <th>Recorded</th>
+                                <th>Contents</th>
+                                <th class="col-actions">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="meetingRows"></tbody>
                     </table>
                 </div>
 
@@ -192,8 +226,31 @@
     </form>
 </dialog>
 
-<script src="assets/theme.js"></script>
-<script src="assets/admin.js"></script>
+
+<!-- ---------- meeting transcript / summary viewer ---------- -->
+<dialog id="meetingDialog" class="user-dialog meeting-dialog">
+    <form method="dialog">
+
+        <h3 id="meetingDialogTitle">Meeting</h3>
+        <p class="hint" id="meetingDialogMeta"></p>
+
+        <div class="meeting-tabs" role="tablist">
+            <button class="meeting-tab is-active" type="button" data-tab="summary" role="tab">Summary</button>
+            <button class="meeting-tab" type="button" data-tab="transcript" role="tab">Transcript</button>
+        </div>
+
+        <div class="meeting-pane" id="meetingSummaryPane"></div>
+        <div class="meeting-pane" id="meetingTranscriptPane" hidden></div>
+
+        <div class="dialog-actions">
+            <button class="btn btn-ghost" type="button" id="meetingDialogClose">Close</button>
+        </div>
+
+    </form>
+</dialog>
+
+<script src="assets/theme.js?v=3"></script>
+<script src="assets/admin.js?v=3"></script>
 
 </body>
 </html>
