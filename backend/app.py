@@ -28,17 +28,22 @@ Speaker diarization:
 Disabled
 """
 
+import json
 from pathlib import Path
 
 from fastapi import (
     FastAPI,
     WebSocket,
     HTTPException,
+    Request,
 )
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+
+import database as db
+import auth
 
 from meeting_websocket import meeting_websocket
 
@@ -99,6 +104,42 @@ app.add_middleware(
 
 
 # ============================================================
+# STARTUP  (DB schema + seed admin account)
+# ============================================================
+
+@app.on_event("startup")
+async def on_startup():
+    db.init_db()
+    db.ensure_seed_admin(auth.hash_password("admin123"))
+
+
+# ============================================================
+# AUTH ROUTER
+# ============================================================
+
+app.include_router(auth.router)
+
+
+# ============================================================
+# NO-STALE-CACHE MIDDLEWARE
+# ============================================================
+#
+# Without this, a browser can serve a stale cached page/script after
+# login state changes (e.g. after sign-in/sign-out), causing an
+# infinite redirect loop between /sign-in and /app.
+
+@app.middleware("http")
+async def no_stale_cache(request: Request, call_next):
+    response = await call_next(request)
+    path = request.url.path
+    if path.startswith("/assets/") or not path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
+
+# ============================================================
 # STATIC ASSETS  (shared CSS/JS for the product-flow pages)
 # ============================================================
 
@@ -127,10 +168,10 @@ class SummaryRequest(BaseModel):
 # (not a path) and its API calls use absolute paths, so the move is
 # transparent to it.
 #
-# Auth is enforced client-side for now (see frontend/assets/
-# app-guard.js and auth-store.js). TODO(backend): add a real
-# server-side session/role check here before returning
-# INDEX_FILE / ADMIN_FILE.
+# Server-side session/role gating (the no-stale-cache middleware above
+# keeps a browser from replaying a cached page across a login-state
+# change). frontend/assets/app-guard.js and auth-store.js layer
+# client-side UX on top of this, but this is the real gate.
 
 def _serve(page: Path) -> FileResponse:
 
@@ -140,16 +181,7 @@ def _serve(page: Path) -> FileResponse:
             detail=f"Frontend file not found: {page}",
         )
 
-    # no-store: these pages are actively changing during development, and a
-    # browser that caches the HTML document itself (as opposed to the
-    # versioned CSS/JS it links to) will keep rendering a stale DOM on a
-    # given route no matter how thoroughly the user clears the cache for
-    # other routes/tabs.
-    return FileResponse(
-        page,
-        media_type="text/html",
-        headers={"Cache-Control": "no-store, must-revalidate"},
-    )
+    return FileResponse(page, media_type="text/html")
 
 
 @app.get("/")
@@ -159,25 +191,41 @@ async def home():
 
 
 @app.get("/app")
-async def app_view():
+async def app_view(request: Request):
     # Post-login app view (the original single-page recorder UI).
+    user = auth.get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/sign-in?next=/app")
+    if user["role"] == "admin":
+        return RedirectResponse(url="/admin")
     return _serve(INDEX_FILE)
 
 
 @app.get("/sign-in")
-async def sign_in_view():
+async def sign_in_view(request: Request):
     # Single auth page; the sign-in panel is shown by default.
+    user = auth.get_current_user(request)
+    if user:
+        return RedirectResponse(url=auth.landing_path_for_role(user["role"]))
     return _serve(AUTH_FILE)
 
 
 @app.get("/sign-up")
-async def sign_up_view():
+async def sign_up_view(request: Request):
     # Same page; auth.html reads the path and opens the sign-up panel.
+    user = auth.get_current_user(request)
+    if user:
+        return RedirectResponse(url=auth.landing_path_for_role(user["role"]))
     return _serve(AUTH_FILE)
 
 
 @app.get("/admin")
-async def admin_view():
+async def admin_view(request: Request):
+    user = auth.get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/sign-in?next=/admin")
+    if user["role"] != "admin":
+        return RedirectResponse(url="/app")
     return _serve(ADMIN_FILE)
 
 
@@ -239,12 +287,69 @@ async def websocket_endpoint(
 
 
 # ============================================================
+# MEETING HISTORY
+# ============================================================
+
+@app.get("/api/meetings")
+async def api_list_meetings(
+    request: Request,
+    scope: str = "mine",
+):
+    user = auth.require_user(request)
+
+    if scope == "all":
+        if user["role"] != "admin":
+            raise HTTPException(status_code=403, detail="Admin access required.")
+        rows = db.list_meetings()
+    else:
+        rows = db.list_meetings(user_id=user["id"])
+
+    return [
+        {
+            "id": row["id"],
+            "title": row["title"],
+            "createdAt": row["created_at"],
+            "hasSummary": bool(row["has_summary"]),
+            "transcriptChars": row["transcript_chars"],
+            "username": row["username"],
+            "email": row["email"],
+        }
+        for row in rows
+    ]
+
+
+@app.get("/api/meetings/{meeting_id}")
+async def api_get_meeting(
+    meeting_id: int,
+    request: Request,
+):
+    user = auth.require_user(request)
+
+    meeting = db.get_meeting(meeting_id)
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found.")
+    if meeting["user_id"] != user["id"] and user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="You don't have access to this meeting.")
+
+    return {
+        "id": meeting["id"],
+        "title": meeting["title"],
+        "createdAt": meeting["created_at"],
+        "transcript": meeting["transcript"],
+        "summary": json.loads(meeting["summary_json"]) if meeting["summary_json"] else None,
+        "username": meeting["username"],
+        "email": meeting["email"],
+    }
+
+
+# ============================================================
 # CREATE SUMMARY
 # ============================================================
 
 @app.post("/api/meeting/summarize")
 async def create_summary(
     request: SummaryRequest,
+    http_request: Request,
 ):
     transcript = (
         request.transcript or ""
@@ -306,7 +411,7 @@ async def create_summary(
     # Return result
     # --------------------------------------------------------
 
-    return {
+    payload = {
         "success": True,
         "title": result.get(
             "title",
@@ -337,3 +442,24 @@ async def create_summary(
             [],
         ),
     }
+
+    # --------------------------------------------------------
+    # Save to history (best-effort — must never fail the request)
+    # --------------------------------------------------------
+
+    user = auth.get_current_user(http_request)
+    if user:
+        try:
+            meeting = db.create_meeting(
+                user_id=user["id"],
+                title=payload["title"],
+                transcript=transcript,
+                summary_json=json.dumps(payload),
+            )
+            payload["meeting_id"] = meeting["id"]
+        except Exception as exc:
+            print()
+            print("Saving meeting to history failed:")
+            print(repr(exc))
+
+    return payload
