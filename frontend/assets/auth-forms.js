@@ -127,17 +127,8 @@
     if (signInForm) {
         var siPanel = signInForm.closest("[data-panel]");
         var siBtn = signInForm.querySelector('[type="submit"]');
-        var forgot = siPanel.querySelector("[data-forgot]");
 
-        if (forgot) {
-            forgot.addEventListener("click", function (e) {
-                e.preventDefault();
-                // PLACEHOLDER: no password-reset flow yet.
-                showAlert(siPanel, "error", "Password reset isn't available in this preview yet.");
-            });
-        }
-
-        ["email", "password"].forEach(function (n) {
+        ["identifier", "password"].forEach(function (n) {
             signInForm.querySelector('[name="' + n + '"]').addEventListener("input", function () {
                 clearError(signInForm, n);
                 hideAlerts(siPanel);
@@ -148,20 +139,18 @@
             e.preventDefault();
             hideAlerts(siPanel);
 
-            var email = signInForm.querySelector('[name="email"]').value.trim();
+            var identifier = signInForm.querySelector('[name="identifier"]').value.trim();
             var password = signInForm.querySelector('[name="password"]').value;
-            var remember = signInForm.querySelector('[name="remember"]').checked;
 
             var ok = true;
-            if (!email) ok = setError(signInForm, "email", "Email is required.") && ok;
-            else if (!EMAIL_RE.test(email)) ok = setError(signInForm, "email", "Enter a valid email address.") && ok;
+            if (!identifier) ok = setError(signInForm, "identifier", "Username or email is required.") && ok;
             if (!password) ok = setError(signInForm, "password", "Password is required.") && ok;
             if (!ok) return;
 
             setLoading(siBtn, true);
 
             // TODO(backend): real POST /api/auth/login
-            A.signIn(email, password, remember).then(function (res) {
+            A.signIn(identifier, password).then(function (res) {
                 redirectAfterAuth(res.session.role);
             }).catch(function (err) {
                 setLoading(siBtn, false);
@@ -198,10 +187,6 @@
             });
         });
 
-        signUpForm.querySelector('[name="terms"]').addEventListener("change", function () {
-            clearError(signUpForm, "terms");
-        });
-
         signUpForm.addEventListener("submit", function (e) {
             e.preventDefault();
             hideAlerts(suPanel);
@@ -210,7 +195,6 @@
             var email = signUpForm.querySelector('[name="email"]').value.trim();
             var password = pwInput.value;
             var confirm = cfInput.value;
-            var terms = signUpForm.querySelector('[name="terms"]').checked;
 
             var ok = true;
             if (!username) ok = setError(signUpForm, "username", "A username is required.") && ok;
@@ -224,8 +208,6 @@
             if (!confirm) ok = setError(signUpForm, "confirm", "Please confirm your password.") && ok;
             else if (confirm !== password) ok = setError(signUpForm, "confirm", "Passwords don't match.") && ok;
 
-            if (!terms) ok = setError(signUpForm, "terms", "You must accept the terms to continue.") && ok;
-
             if (!ok) return;
 
             setLoading(suBtn, true);
@@ -233,7 +215,7 @@
             // TODO(backend): real POST /api/auth/register, then auto-login
             // or send them to sign in. Mock auto-logs-in.
             A.signUp({ username: username, email: email, password: password, role: "user" })
-                .then(function () { return A.signIn(email, password, true); })
+                .then(function () { return A.signIn(email, password); })
                 .then(function (res) {
                     showAlert(suPanel, "success", "Account created — taking you to the app…");
                     setTimeout(function () { redirectAfterAuth(res.session.role); }, 500);

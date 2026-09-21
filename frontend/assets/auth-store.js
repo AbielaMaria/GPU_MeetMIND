@@ -74,11 +74,11 @@
 
         /* ---- sign in ----------------------------------------- */
 
-        signIn: function (email, password, remember) {
+        // `identifier` is a username or an email — the server figures out which.
+        signIn: function (identifier, password) {
             return request("POST", "/auth/login", {
-                email: email,
-                password: password,
-                remember: !!remember
+                identifier: identifier,
+                password: password
             }).then(function (session) { return { session: session }; });
         },
 

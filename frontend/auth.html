@@ -148,13 +148,13 @@
 
                 <form class="auth-form" id="signInForm" novalidate>
 
-                    <div class="field" data-field="email">
-                        <label for="si_email">Email</label>
+                    <div class="field" data-field="identifier">
+                        <label for="si_identifier">Username or email</label>
                         <div class="input-wrap">
-                            <input type="email" id="si_email" name="email" autocomplete="email"
-                                placeholder="you@company.com" required>
+                            <input type="text" id="si_identifier" name="identifier" autocomplete="username"
+                                placeholder="jordanlee or you@company.com" required>
                         </div>
-                        <div class="field-error" data-error-for="email"></div>
+                        <div class="field-error" data-error-for="identifier"></div>
                     </div>
 
                     <div class="field" data-field="password">
@@ -168,15 +168,6 @@
                             </button>
                         </div>
                         <div class="field-error" data-error-for="password"></div>
-                    </div>
-
-                    <div class="row-between">
-                        <label class="checkbox-row" style="margin-bottom:0">
-                            <input type="checkbox" id="si_remember" name="remember" checked>
-                            Remember me
-                        </label>
-                        <!-- PLACEHOLDER: no reset flow yet -->
-                        <a href="#" data-forgot>Forgot password?</a>
                     </div>
 
                     <button type="submit" class="btn btn-accent btn-lg btn-block">Sign in</button>
@@ -249,12 +240,6 @@
                     <!-- Role fixed to "user" for self-service. Admins are
                          provisioned separately. Sent explicitly to the backend. -->
                     <input type="hidden" id="su_role" name="role" value="user">
-
-                    <label class="checkbox-row" data-field="terms">
-                        <input type="checkbox" id="su_terms" name="terms">
-                        <span>I agree to the <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a>.</span>
-                    </label>
-                    <div class="field-error" data-error-for="terms" style="margin:-10px 0 14px"></div>
 
                     <button type="submit" class="btn btn-accent btn-lg btn-block">Create account</button>
 
