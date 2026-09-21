@@ -5,18 +5,15 @@ MeetMind — real auth: password hashing, sessions, and the
 Session model
 -------------
 A random token is stored server-side in the `sessions` table (see
-database.py) and handed to the browser as an HttpOnly cookie.
-
-  * "Remember me" checked  -> cookie carries Max-Age (persists across
-    browser restarts, like before).
-  * "Remember me" unchecked -> cookie has NO Max-Age, which makes it a
-    browser*-session* cookie: the browser discards it when the tab/
-    browser is closed, so the next visit requires signing in again.
-
-Either way the DB row also carries its own expiry, so a leaked/never-
-closed cookie can't be used forever.
+database.py) and handed to the browser as an HttpOnly cookie with a
+30-day Max-Age, so signing in persists across browser restarts. The
+DB row also carries its own expiry, so a leaked/never-closed cookie
+can't be used forever.
 
 Role is decided here, from the DB row — never trusted from the client.
+
+Login accepts either a username or an email in the same field; see
+`_find_user_by_identifier`.
 """
 
 import secrets
@@ -30,8 +27,7 @@ from pydantic import BaseModel
 import database as db
 
 SESSION_COOKIE = "meetmind_session"
-REMEMBER_SECONDS = 30 * 24 * 60 * 60   # 30 days, when "remember me" is checked
-UNREMEMBERED_SESSION_HOURS = 12        # absolute cap even within one browser session
+SESSION_SECONDS = 30 * 24 * 60 * 60   # 30 days
 
 router = APIRouter(prefix="/api", tags=["auth"])
 
@@ -101,6 +97,16 @@ def _norm_email(email: str) -> str:
     return email
 
 
+def _find_user_by_identifier(identifier: str) -> Optional[dict]:
+    """Login identifier is a username or an email — tell them apart by '@'."""
+    identifier = (identifier or "").strip()
+    if not identifier:
+        return None
+    if "@" in identifier:
+        return db.get_user_by_email(identifier.lower())
+    return db.get_user_by_username(identifier)
+
+
 # ============================================================
 # REQUEST SCHEMAS
 # ============================================================
@@ -112,9 +118,8 @@ class RegisterRequest(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    email: str
+    identifier: str  # username or email
     password: str
-    remember: bool = False
 
 
 class AdminUserCreate(BaseModel):
@@ -160,21 +165,13 @@ def register(payload: RegisterRequest):
 
 @router.post("/auth/login")
 def login(payload: LoginRequest, response: Response):
-    email = _norm_email(payload.email)
-    user = db.get_user_by_email(email)
+    user = _find_user_by_identifier(payload.identifier)
     if not user or not verify_password(payload.password, user["password_hash"]):
-        raise HTTPException(status_code=401, detail="Incorrect email or password.")
+        raise HTTPException(status_code=401, detail="Incorrect username/email or password.")
     if user["status"] != "active":
         raise HTTPException(status_code=403, detail="This account is inactive. Contact your administrator.")
 
-    now = datetime.now(timezone.utc)
-    if payload.remember:
-        expires_at = now + timedelta(seconds=REMEMBER_SECONDS)
-        cookie_max_age = REMEMBER_SECONDS
-    else:
-        expires_at = now + timedelta(hours=UNREMEMBERED_SESSION_HOURS)
-        cookie_max_age = None  # session cookie: browser drops it on close
-
+    expires_at = datetime.now(timezone.utc) + timedelta(seconds=SESSION_SECONDS)
     token = secrets.token_urlsafe(32)
     db.create_session(token=token, user_id=user["id"], expires_at=expires_at.isoformat())
 
@@ -183,7 +180,7 @@ def login(payload: LoginRequest, response: Response):
         value=token,
         httponly=True,
         samesite="lax",
-        max_age=cookie_max_age,
+        max_age=SESSION_SECONDS,
         path="/",
     )
     return _public_user(user)

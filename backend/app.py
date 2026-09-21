@@ -206,11 +206,13 @@ async def home():
 @app.get("/app")
 async def app_view(request: Request):
     # Post-login app view (the original single-page recorder UI).
+    # Admins land on /admin by default (see landing_path_for_role), but
+    # can still open this page via the admin panel's "Recorder" button —
+    # each admin's own recordings are then tracked under their own
+    # account, same as any other user.
     user = auth.get_current_user(request)
     if not user:
         return RedirectResponse(url="/sign-in?next=/app")
-    if user["role"] == "admin":
-        return RedirectResponse(url="/admin")
     return _serve(INDEX_FILE)
 
 

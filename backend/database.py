@@ -89,6 +89,12 @@ def get_user_by_email(email):
         return dict(row) if row else None
 
 
+def get_user_by_username(username):
+    with _connect() as conn:
+        row = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+        return dict(row) if row else None
+
+
 def get_user_by_id(user_id):
     with _connect() as conn:
         row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
