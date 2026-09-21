@@ -112,7 +112,9 @@
                         "<td>" + esc(u.email) + "</td>" +
                         '<td><span class="pill role-' + esc(u.role) + '">' + esc(u.role) + "</span></td>" +
                         "<td>" + fmtDate(u.createdAt) + "</td>" +
-                        '<td><span class="pill st-' + esc(u.status || "active") + '">' + esc(u.status || "active") + "</span></td>" +
+                        '<td><span class="pill st-' + esc(u.status || "active") + '">' + esc(u.status || "active") + "</span>" +
+                            (u.emailVerified ? "" : ' <span class="pill st-inactive">unverified</span>') +
+                        "</td>" +
                         '<td class="cell-actions">' +
                             '<button class="row-btn" data-edit="' + esc(u.email) + '">Edit</button>' +
                             (isSelf ? "" : '<button class="row-btn danger" data-del="' + esc(u.email) + '">Delete</button>') +

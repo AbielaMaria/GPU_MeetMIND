@@ -15,7 +15,8 @@
 [data-panel] { display: none; }
 
 body[data-auth-mode="signin"] [data-panel="signin"],
-body[data-auth-mode="signup"] [data-panel="signup"] {
+body[data-auth-mode="signup"] [data-panel="signup"],
+body[data-auth-mode="verify"] [data-panel="verify"] {
     display: block;
     animation: auth-fade .25s ease both;
 }
@@ -27,13 +28,15 @@ body[data-auth-mode="signup"] [data-panel="signup"] {
 
 @media (prefers-reduced-motion: reduce) {
     body[data-auth-mode="signin"] [data-panel="signin"],
-    body[data-auth-mode="signup"] [data-panel="signup"] { animation: none; }
+    body[data-auth-mode="signup"] [data-panel="signup"],
+    body[data-auth-mode="verify"] [data-panel="verify"] { animation: none; }
 }
 
 [data-copy] { display: none; }
 
 body[data-auth-mode="signin"] [data-copy="signin"],
-body[data-auth-mode="signup"] [data-copy="signup"] {
+body[data-auth-mode="signup"] [data-copy="signup"],
+body[data-auth-mode="verify"] [data-copy="signin"] {
     display: block;
 }
 

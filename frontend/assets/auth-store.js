@@ -82,6 +82,18 @@
             }).then(function (session) { return { session: session }; });
         },
 
+        /* ---- email verification (OTP) ------------------------ */
+        // Every new account (self-signup or admin-created) starts
+        // unverified; these back the /verify-otp panel in auth-forms.js.
+
+        verifyOtp: function (email, code) {
+            return request("POST", "/auth/verify-otp", { email: email, code: code });
+        },
+
+        resendOtp: function (email) {
+            return request("POST", "/auth/resend-otp", { email: email });
+        },
+
         /* ---- role routing / guard --------------------------- */
 
         landingPathForRole: function (role) {

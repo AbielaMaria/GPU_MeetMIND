@@ -45,6 +45,7 @@ def init_db():
                 created_at TEXT NOT NULL
             )
         """)
+        _migrate_users_otp_columns(conn)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS sessions (
                 token TEXT PRIMARY KEY,
@@ -71,6 +72,25 @@ def init_db():
             "CREATE INDEX IF NOT EXISTS idx_meetings_user "
             "ON meetings(user_id, created_at DESC)"
         )
+
+
+def _migrate_users_otp_columns(conn):
+    """
+    Adds OTP email-verification columns to a `users` table created before
+    they existed. SQLite has no `ADD COLUMN IF NOT EXISTS`, so we check
+    PRAGMA table_info first. Pre-existing rows are grandfathered in as
+    already verified — otherwise every account created before this
+    migration (including the seed admin) would be locked out on next login.
+    """
+    existing = {row["name"] for row in conn.execute("PRAGMA table_info(users)")}
+    if "email_verified" in existing:
+        return
+
+    conn.execute("ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0")
+    conn.execute("ALTER TABLE users ADD COLUMN otp_code_hash TEXT")
+    conn.execute("ALTER TABLE users ADD COLUMN otp_expires_at TEXT")
+    conn.execute("ALTER TABLE users ADD COLUMN otp_attempts INTEGER NOT NULL DEFAULT 0")
+    conn.execute("UPDATE users SET email_verified = 1")
 
 
 # ============================================================

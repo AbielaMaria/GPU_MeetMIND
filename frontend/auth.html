@@ -47,13 +47,14 @@
 <body data-auth-mode="signin">
 
 <!-- Pick the initial panel from the URL BEFORE first paint (no flash).
-     ?mode=signup wins, then a path containing "sign-up", else sign in. -->
+     ?mode=... wins, then the path (/verify-otp, /sign-up), else sign in. -->
 <script>
     (function () {
         var sp = new URLSearchParams(location.search).get("mode");
-        var mode = (sp === "signup" || sp === "signin")
+        var mode = (sp === "signup" || sp === "signin" || sp === "verify")
             ? sp
-            : (location.pathname.indexOf("sign-up") !== -1 ? "signup" : "signin");
+            : (location.pathname.indexOf("verify-otp") !== -1 ? "verify"
+                : location.pathname.indexOf("sign-up") !== -1 ? "signup" : "signin");
         document.body.setAttribute("data-auth-mode", mode);
     })();
 </script>
@@ -247,6 +248,50 @@
 
                 <p class="auth-alt">
                     Already have an account? <a href="#" data-auth-switch="signin">Sign in</a>
+                </p>
+
+            </div>
+
+            <!-- ============================================
+                 PANEL: VERIFY EMAIL (OTP)
+            ============================================= -->
+            <div data-panel="verify">
+
+                <h1>Verify your email</h1>
+                <p class="sub">Enter the 6-digit code we emailed you.</p>
+
+                <div class="form-alert error js-error" role="alert"></div>
+                <div class="form-alert success js-success" role="status"></div>
+
+                <form class="auth-form" id="verifyForm" novalidate>
+
+                    <div class="field" data-field="email">
+                        <label for="vf_email">Email</label>
+                        <div class="input-wrap">
+                            <input type="email" id="vf_email" name="email" autocomplete="email"
+                                placeholder="you@company.com" required>
+                        </div>
+                        <div class="field-error" data-error-for="email"></div>
+                    </div>
+
+                    <div class="field" data-field="code">
+                        <label for="vf_code">Verification code</label>
+                        <div class="input-wrap">
+                            <input type="text" id="vf_code" name="code" inputmode="numeric" autocomplete="one-time-code"
+                                maxlength="6" placeholder="123456" required>
+                        </div>
+                        <div class="field-error" data-error-for="code"></div>
+                    </div>
+
+                    <button type="submit" class="btn btn-accent btn-lg btn-block">Verify</button>
+
+                </form>
+
+                <p class="auth-alt">
+                    Didn't get a code? <a href="#" id="resendOtpLink">Resend code</a>
+                </p>
+                <p class="auth-alt">
+                    <a href="#" data-auth-switch="signin">Back to sign in</a>
                 </p>
 
             </div>
