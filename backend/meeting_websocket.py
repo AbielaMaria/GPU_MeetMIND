@@ -21,7 +21,7 @@ Flow:
         ↓
     POST /api/meeting/summarize
         ↓
-    Llama 3.1 8B
+    MIstral 
         ↓
     Meeting intelligence
 
