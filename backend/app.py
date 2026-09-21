@@ -1,99 +1,66 @@
 """
-MeetMind
-FastAPI application.
+MeetMind FastAPI application.
 
-Complete flow:
+Browser -> /ws/meeting -> meeting_websocket.py -> Complete WAV recording
+-> Parrotlet-A 2.5 Pro -> Complete transcript -> Frontend
+-> POST /api/meeting/summarize -> meeting_intelligence.py -> mistral_client.py
+-> Mistral 128B API -> Structured Meeting Intelligence
 
-Browser
-    ↓
-/ws/meeting
-    ↓
-Complete recording
-    ↓
-Parrotlet-A 2.5 Pro
-    ↓
-Complete transcript
-    ↓
-Frontend displays transcript
-    ↓
-User clicks "Create Summary"
-    ↓
-/api/meeting/summarize
-    ↓
-Llama 3.1 8B / Ollama
-    ↓
-Meeting intelligence
-
-Speaker diarization:
-Disabled
+Speaker diarization: Disabled
 """
 
 import json
+import logging
 from pathlib import Path
 from typing import Any, List, Optional
 
-from fastapi import (
-    FastAPI,
-    WebSocket,
-    HTTPException,
-    Request,
-)
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi import FastAPI, HTTPException, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+
+from meeting_websocket import (
+    meeting_websocket,
+    MODEL_NAME,
+    SAMPLE_RATE,
+)
+from meeting_intelligence import (
+    generate_meeting_summary,
+    MISTRAL_MODEL,
+)
 
 import database as db
 import auth
 
-from meeting_websocket import meeting_websocket
 
-from meeting_intelligence import (
-    generate_meeting_summary,
-    LLAMA_MODEL,
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
 )
+logger = logging.getLogger("meetmind")
 
-from parrotlet_transcriber_gpu import (
-    MODEL_NAME,
-    SAMPLE_RATE,
-)
-
-
-# ============================================================
-# PATHS
-# ============================================================
 
 BASE_DIR = Path(__file__).resolve().parent
-
-FRONTEND_DIR = BASE_DIR.parent / "frontend"
+PROJECT_ROOT = BASE_DIR.parent
+FRONTEND_DIR = PROJECT_ROOT / "frontend"
 
 INDEX_FILE = FRONTEND_DIR / "index.html"
-
-# Product-flow pages that wrap the (untouched) recorder app in index.html.
 LANDING_FILE = FRONTEND_DIR / "landing.html"
-AUTH_FILE = FRONTEND_DIR / "auth.html"      # one page, serves both /sign-in and /sign-up
+AUTH_FILE = FRONTEND_DIR / "auth.html"
 ADMIN_FILE = FRONTEND_DIR / "admin.html"
 ASSETS_DIR = FRONTEND_DIR / "assets"
 
+logger.info("Backend directory: %s", BASE_DIR)
+logger.info("Project root: %s", PROJECT_ROOT)
+logger.info("Frontend directory: %s", FRONTEND_DIR)
 
-# ============================================================
-# APPLICATION
-# ============================================================
 
 app = FastAPI(
     title="MeetMind",
-    description=(
-        "AI Meeting Intelligence using "
-        "Parrotlet-A 2.5 Pro and "
-        "Llama 3.1 8B"
-    ),
+    description="AI Meeting Intelligence using Parrotlet-A 2.5 Pro and Mistral 128B",
     version="3.0.0",
 )
-
-
-# ============================================================
-# CORS
-# ============================================================
 
 app.add_middleware(
     CORSMiddleware,
@@ -104,57 +71,14 @@ app.add_middleware(
 )
 
 
-# ============================================================
-# STARTUP  (DB schema + seed admin account)
-# ============================================================
-
 @app.on_event("startup")
-async def on_startup():
+def _init_auth():
     db.init_db()
     db.ensure_seed_admin(auth.hash_password("admin123"))
 
 
-# ============================================================
-# AUTH ROUTER
-# ============================================================
-
 app.include_router(auth.router)
 
-
-# ============================================================
-# NO-STALE-CACHE MIDDLEWARE
-# ============================================================
-#
-# Without this, a browser can serve a stale cached page/script after
-# login state changes (e.g. after sign-in/sign-out), causing an
-# infinite redirect loop between /sign-in and /app.
-
-@app.middleware("http")
-async def no_stale_cache(request: Request, call_next):
-    response = await call_next(request)
-    path = request.url.path
-    if path.startswith("/assets/") or not path.startswith("/api/"):
-        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
-        response.headers["Pragma"] = "no-cache"
-        response.headers["Expires"] = "0"
-    return response
-
-
-# ============================================================
-# STATIC ASSETS  (shared CSS/JS for the product-flow pages)
-# ============================================================
-
-if ASSETS_DIR.exists():
-    app.mount(
-        "/assets",
-        StaticFiles(directory=ASSETS_DIR),
-        name="assets",
-    )
-
-
-# ============================================================
-# REQUEST SCHEMA
-# ============================================================
 
 class SummaryRequest(BaseModel):
     transcript: str
@@ -172,40 +96,34 @@ class MeetingUpdateRequest(BaseModel):
     action_items: Optional[List[Any]] = None
 
 
-# ============================================================
-# PAGE ROUTES
-# ============================================================
-#
-# Routing / layout shell only. The recorder app itself (index.html)
-# is served from "/app". Its WebSocket uses window.location.host
-# (not a path) and its API calls use absolute paths, so the move is
-# transparent to it.
-#
-# Server-side session/role gating (the no-stale-cache middleware above
-# keeps a browser from replaying a cached page across a login-state
-# change). frontend/assets/app-guard.js and auth-store.js layer
-# client-side UX on top of this, but this is the real gate.
+if ASSETS_DIR.exists():
+    app.mount("/assets", StaticFiles(directory=ASSETS_DIR), name="assets")
+
+
+@app.middleware("http")
+async def _no_stale_cache(request: Request, call_next):
+    response = await call_next(request)
+    path = request.url.path
+    if path.startswith("/assets/") or not path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
 
 def _serve(page: Path) -> FileResponse:
-
     if not page.exists():
-        raise HTTPException(
-            status_code=404,
-            detail=f"Frontend file not found: {page}",
-        )
-
+        raise HTTPException(status_code=404, detail=f"Frontend file not found: {page}")
     return FileResponse(page, media_type="text/html")
 
 
 @app.get("/")
 async def home():
-    # Landing page — first thing a visitor sees, pre-login.
     return _serve(LANDING_FILE)
 
 
 @app.get("/app")
 async def app_view(request: Request):
-    # Post-login app view (the original single-page recorder UI).
     user = auth.get_current_user(request)
     if not user:
         return RedirectResponse(url="/sign-in?next=/app")
@@ -214,22 +132,21 @@ async def app_view(request: Request):
     return _serve(INDEX_FILE)
 
 
-@app.get("/sign-in")
-async def sign_in_view(request: Request):
-    # Single auth page; the sign-in panel is shown by default.
+def _redirect_if_already_signed_in(request: Request):
     user = auth.get_current_user(request)
     if user:
         return RedirectResponse(url=auth.landing_path_for_role(user["role"]))
-    return _serve(AUTH_FILE)
+    return None
+
+
+@app.get("/sign-in")
+async def sign_in_view(request: Request):
+    return _redirect_if_already_signed_in(request) or _serve(AUTH_FILE)
 
 
 @app.get("/sign-up")
 async def sign_up_view(request: Request):
-    # Same page; auth.html reads the path and opens the sign-up panel.
-    user = auth.get_current_user(request)
-    if user:
-        return RedirectResponse(url=auth.landing_path_for_role(user["role"]))
-    return _serve(AUTH_FILE)
+    return _redirect_if_already_signed_in(request) or _serve(AUTH_FILE)
 
 
 @app.get("/admin")
@@ -242,24 +159,17 @@ async def admin_view(request: Request):
     return _serve(ADMIN_FILE)
 
 
-# ============================================================
-# HEALTH
-# ============================================================
-
 @app.get("/health")
 async def health():
     return {
         "status": "healthy",
         "service": "MeetMind",
         "speech_model": MODEL_NAME,
-        "llm_model": LLAMA_MODEL,
+        "llm_model": MISTRAL_MODEL,
+        "sample_rate": SAMPLE_RATE,
         "speaker_diarization": False,
     }
 
-
-# ============================================================
-# API INFORMATION
-# ============================================================
 
 @app.get("/api/info")
 async def api_info():
@@ -273,12 +183,12 @@ async def api_info():
             "Parrotlet-A 2.5 Pro",
             "Complete transcript",
             "User requests summary",
-            "Llama 3.1 8B via Ollama",
+            "Mistral 128B API",
             "Meeting intelligence",
         ],
         "speech_to_text": MODEL_NAME,
         "sample_rate": SAMPLE_RATE,
-        "llm": LLAMA_MODEL,
+        "llm": MISTRAL_MODEL,
         "speaker_diarization": False,
         "processing_mode": "record_then_process",
         "websocket": "/ws/meeting",
@@ -286,28 +196,20 @@ async def api_info():
     }
 
 
-# ============================================================
-# WEBSOCKET
-# ============================================================
+def _meeting_row(row: dict) -> dict:
+    return {
+        "id": row["id"],
+        "title": row["title"],
+        "createdAt": row["created_at"],
+        "hasSummary": bool(row["has_summary"]),
+        "transcriptChars": row["transcript_chars"] or 0,
+        "username": row["username"],
+        "email": row["email"],
+    }
 
-@app.websocket("/ws/meeting")
-async def websocket_endpoint(
-    websocket: WebSocket,
-):
-    await meeting_websocket(
-        websocket
-    )
-
-
-# ============================================================
-# MEETING HISTORY
-# ============================================================
 
 @app.get("/api/meetings")
-async def api_list_meetings(
-    request: Request,
-    scope: str = "mine",
-):
+async def list_meetings(request: Request, scope: str = "mine"):
     user = auth.require_user(request)
 
     if scope == "all":
@@ -317,70 +219,66 @@ async def api_list_meetings(
     else:
         rows = db.list_meetings(user_id=user["id"])
 
-    return [
-        {
-            "id": row["id"],
-            "title": row["title"],
-            "createdAt": row["created_at"],
-            "hasSummary": bool(row["has_summary"]),
-            "transcriptChars": row["transcript_chars"],
-            "username": row["username"],
-            "email": row["email"],
-        }
-        for row in rows
-    ]
+    return [_meeting_row(r) for r in rows]
 
 
 @app.get("/api/meetings/{meeting_id}")
-async def api_get_meeting(
-    meeting_id: int,
-    request: Request,
-):
+async def get_meeting(meeting_id: int, request: Request):
     user = auth.require_user(request)
-
     meeting = db.get_meeting(meeting_id)
+
     if not meeting:
         raise HTTPException(status_code=404, detail="Meeting not found.")
+
     if meeting["user_id"] != user["id"] and user["role"] != "admin":
-        raise HTTPException(status_code=403, detail="You don't have access to this meeting.")
+        raise HTTPException(status_code=403, detail="You don't have access to that meeting.")
+
+    summary = None
+    if meeting["summary_json"]:
+        try:
+            summary = json.loads(meeting["summary_json"])
+        except ValueError:
+            summary = None
 
     return {
         "id": meeting["id"],
         "title": meeting["title"],
         "createdAt": meeting["created_at"],
         "transcript": meeting["transcript"],
-        "summary": json.loads(meeting["summary_json"]) if meeting["summary_json"] else None,
+        "summary": summary,
         "username": meeting["username"],
         "email": meeting["email"],
     }
 
 
 @app.patch("/api/meetings/{meeting_id}")
-async def api_update_meeting(
-    meeting_id: int,
-    request: MeetingUpdateRequest,
-    http_request: Request,
-):
+async def update_meeting(meeting_id: int, request: MeetingUpdateRequest, http_request: Request):
     """
     Persists hand-edits made in the meeting-intelligence editor
     (frontend/index.html's "Save Changes" button). Only the owner (or an
     admin) may edit; the transcript itself is never touched here.
     """
     user = auth.require_user(http_request)
-
     meeting = db.get_meeting(meeting_id)
+
     if not meeting:
         raise HTTPException(status_code=404, detail="Meeting not found.")
+
     if meeting["user_id"] != user["id"] and user["role"] != "admin":
-        raise HTTPException(status_code=403, detail="You don't have access to this meeting.")
+        raise HTTPException(status_code=403, detail="You don't have access to that meeting.")
 
     updates = request.dict(exclude_unset=True)
 
-    summary = json.loads(meeting["summary_json"]) if meeting["summary_json"] else {}
+    summary = {}
+    if meeting["summary_json"]:
+        try:
+            summary = json.loads(meeting["summary_json"])
+        except ValueError:
+            summary = {}
     summary.update(updates)
 
     fields = {"summary_json": json.dumps(summary)}
-    if "title" in updates and updates["title"]:
+    if updates.get("title"):
         fields["title"] = updates["title"]
 
     updated = db.update_meeting(meeting_id, **fields)
@@ -396,124 +294,82 @@ async def api_update_meeting(
     }
 
 
-# ============================================================
-# CREATE SUMMARY
-# ============================================================
+@app.websocket("/ws/meeting")
+async def websocket_endpoint(websocket: WebSocket):
+    await meeting_websocket(websocket)
+
+
+@app.websocket("/ws/test")
+async def websocket_test(websocket: WebSocket):
+    logger.info("Test websocket handler reached.")
+    await websocket.accept()
+    logger.info("Test websocket accepted.")
+    await websocket.send_text("TEST_OK")
+    await websocket.close()
+
 
 @app.post("/api/meeting/summarize")
-async def create_summary(
-    request: SummaryRequest,
-    http_request: Request,
-):
-    transcript = (
-        request.transcript or ""
-    ).strip()
+async def create_summary(request: SummaryRequest, http_request: Request):
+    transcript = (request.transcript or "").strip()
 
-    # --------------------------------------------------------
-    # Validate transcript
-    # --------------------------------------------------------
+    logger.info("Received meeting summarization request.")
+    logger.info("Transcript length: %d characters", len(transcript))
 
     if not transcript:
-        return {
-            "success": False,
-            "error": "Transcript is empty.",
-        }
-
-    print()
-    print("=" * 70)
-    print("MEETMIND SUMMARY REQUEST")
-    print("=" * 70)
-
-    print(
-        "Transcript length:",
-        len(transcript),
-        "characters",
-    )
-
-    print(
-        "LLM:",
-        LLAMA_MODEL,
-    )
-
-    print("=" * 70)
-
-    # --------------------------------------------------------
-    # Generate summary
-    # --------------------------------------------------------
+        return {"success": False, "error": "Transcript is empty."}
 
     try:
-        result = generate_meeting_summary(
-            transcript
-        )
-
+        logger.info("Generating meeting intelligence using Mistral model: %s", MISTRAL_MODEL)
+        result = generate_meeting_summary(transcript)
+        logger.info("Meeting intelligence generated successfully.")
     except Exception as exc:
-        print()
-        print(
-            "Summary generation failed:"
-        )
-
-        print(
-            repr(exc)
-        )
-
-        return {
-            "success": False,
-            "error": str(exc),
-        }
-
-    # --------------------------------------------------------
-    # Return result
-    # --------------------------------------------------------
+        logger.exception("Summary generation failed.")
+        return {"success": False, "error": str(exc)}
 
     payload = {
         "success": True,
-        "title": result.get(
-            "title",
-            "Untitled Meeting",
-        ),
-        "objective": result.get(
-            "objective",
-            "",
-        ),
-        "meeting_summary": result.get(
-            "meeting_summary",
-            "",
-        ),
-        "tasks_assigned": result.get(
-            "tasks_assigned",
-            [],
-        ),
-        "decision_points": result.get(
-            "decision_points",
-            [],
-        ),
-        "objections": result.get(
-            "objections",
-            [],
-        ),
-        "action_items": result.get(
-            "action_items",
-            [],
-        ),
+        "title": result.get("title", "Untitled Meeting"),
+        "objective": result.get("objective", ""),
+        "meeting_summary": result.get("meeting_summary", ""),
+        "tasks_assigned": result.get("tasks_assigned", []),
+        "decision_points": result.get("decision_points", []),
+        "objections": result.get("objections", []),
+        "action_items": result.get("action_items", []),
+        "timeline": result.get("timeline", []),
     }
-
-    # --------------------------------------------------------
-    # Save to history (best-effort — must never fail the request)
-    # --------------------------------------------------------
 
     user = auth.get_current_user(http_request)
     if user:
         try:
             meeting = db.create_meeting(
                 user_id=user["id"],
-                title=payload["title"],
+                title=payload["title"] or "Untitled Meeting",
                 transcript=transcript,
                 summary_json=json.dumps(payload),
             )
             payload["meeting_id"] = meeting["id"]
         except Exception as exc:
-            print()
-            print("Saving meeting to history failed:")
-            print(repr(exc))
+            logger.exception("Could not save meeting to history: %s", exc)
 
     return payload
+
+
+@app.on_event("startup")
+async def startup_event():
+    logger.info("=" * 70)
+    logger.info("MEETMIND BACKEND STARTED")
+    logger.info("=" * 70)
+    logger.info("Mistral model: %s", MISTRAL_MODEL)
+    logger.info("ASR model: %s", MODEL_NAME)
+    logger.info("Sample rate: %s Hz", SAMPLE_RATE)
+    logger.info("Speaker diarization: DISABLED")
+    logger.info("WebSocket endpoint: /ws/meeting")
+    logger.info("WebSocket diagnostic endpoint: /ws/test")
+    logger.info("Summary endpoint: /api/meeting/summarize")
+    logger.info("Frontend directory: %s", FRONTEND_DIR)
+    logger.info("=" * 70)
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    logger.info("MeetMind backend shutting down.")

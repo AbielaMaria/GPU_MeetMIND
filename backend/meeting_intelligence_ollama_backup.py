@@ -3,24 +3,22 @@ MeetMind - Meeting Intelligence
 
 Flow:
 
-    Complete transcript
+Complete transcript
         |
         v
-    Mistral 128B API
+Llama 3.1 8B via Ollama
         |
         v
-    Structured meeting intelligence
+Structured meeting intelligence
 
 Speaker diarization: DISABLED
 """
 
 import os
 import re
-
 from typing import Optional
 
-from mistral_client import call_mistral, MISTRAL_MODEL
-
+from ollama import chat
 from pydantic import BaseModel
 
 
@@ -28,9 +26,9 @@ from pydantic import BaseModel
 # CONFIGURATION
 # ============================================================
 
-MISTRAL_MODEL = os.getenv(
-    "MISTRAL_MODEL",
-    MISTRAL_MODEL,
+LLAMA_MODEL = os.getenv(
+    "MEETMIND_LLAMA_MODEL",
+    "llama3.1:8b",
 )
 
 
@@ -47,7 +45,6 @@ _PLACEHOLDER_VALUES = {
     "null",
     "",
 }
-
 
 _REFUSAL_PATTERNS = (
     "could not be generated",
@@ -94,7 +91,6 @@ _PRONOUN_STARTS = (
     "she ",
     "it ",
 )
-
 
 _TASK_VERB_PATTERN = re.compile(
     r"\b("
@@ -217,9 +213,7 @@ The title should describe the main subject of the meeting.
 Avoid generic titles such as:
 
 "Meeting"
-
 "Project Meeting"
-
 "Discussion"
 
 when a more specific title can be generated.
@@ -251,7 +245,6 @@ Example:
 Transcript:
 
 "Today we are testing the Parrotlet speech recognition system.
-
 We want to verify whether the complete recording is transcribed
 correctly."
 
@@ -271,13 +264,9 @@ The objective must:
 NEVER return:
 
 "Objective could not be determined."
-
 "No objective found."
-
 "No objective could be generated."
-
 "Not mentioned."
-
 "Unknown."
 
 Even when the objective is not explicitly stated, infer the
@@ -364,11 +353,9 @@ Example:
 Correct:
 
 task:
-
 "Evaluate the transcription quality"
 
 assignee:
-
 "Ravi"
 
 If the transcript says:
@@ -378,11 +365,8 @@ If the transcript says:
 DO NOT use:
 
 "I"
-
 "I'll"
-
 "I'll test"
-
 "will evaluate"
 
 as the assignee.
@@ -479,11 +463,9 @@ Transcript:
 Timeline:
 
 action:
-
 "Test the Tamil demo videos"
 
 date:
-
 "Friday"
 
 Example:
@@ -507,11 +489,9 @@ Transcript:
 Timeline:
 
 action:
-
 "Test additional recordings"
 
 date:
-
 "September 5"
 
 If no action with a specific deadline/date is mentioned:
@@ -596,11 +576,9 @@ return []
 Avoid unnecessary duplication.
 
 TASK:
-
 Work that needs to be completed.
 
 ACTION ITEM:
-
 An explicit follow-up action resulting from the meeting.
 
 Use judgment when the same statement could fit both categories.
@@ -665,19 +643,12 @@ Do not treat Tamil and English as different speakers.
 Return exactly these fields:
 
 title
-
 objective
-
 meeting_summary
-
 tasks_assigned
-
 decision_points
-
 objections
-
 action_items
-
 timeline
 
 Objective MUST:
@@ -696,7 +667,6 @@ Timeline MUST:
 - be an empty list if no deadline/date is mentioned
 
 Do not add additional fields.
-
 """
 
 
@@ -705,6 +675,7 @@ Do not add additional fields.
 # ============================================================
 
 def generate_meeting_summary(transcript: str):
+
     transcript = (
         transcript or ""
     ).strip()
@@ -714,15 +685,17 @@ def generate_meeting_summary(transcript: str):
     # --------------------------------------------------------
 
     if not transcript:
+
         return {
             "title": "Untitled Meeting",
-            "objective": (
+
+            "objective":
                 "No meeting objective can be generated "
-                "because no transcript was provided."
-            ),
-            "meeting_summary": (
-                "No transcript was available."
-            ),
+                "because no transcript was provided.",
+
+            "meeting_summary":
+                "No transcript was available.",
+
             "tasks_assigned": [],
             "decision_points": [],
             "objections": [],
@@ -736,12 +709,12 @@ def generate_meeting_summary(transcript: str):
 
     print()
     print("=" * 70)
-    print("MEETMIND - MISTRAL MEETING INTELLIGENCE")
+    print("MEETMIND - LLAMA MEETING INTELLIGENCE")
     print("=" * 70)
 
     print(
         "LLM Model:",
-        MISTRAL_MODEL,
+        LLAMA_MODEL,
     )
 
     print(
@@ -805,7 +778,6 @@ do NOT include it in the Timeline.
 Never infer or invent dates.
 
 MEETING TRANSCRIPT
-
 ==================
 
 {transcript}
@@ -827,100 +799,39 @@ Return the required structured meeting intelligence.
     ]
 
     # --------------------------------------------------------
-    # MISTRAL CALL
+    # LLAMA CALL
     # --------------------------------------------------------
 
-    def _call_mistral(chat_messages):
+    def _call_llama(chat_messages):
 
         try:
-            system_prompt = ""
-            user_prompt = ""
 
-            for message in chat_messages:
-                role = message.get("role")
-                content = message.get("content", "")
-
-                if role == "system":
-                    system_prompt = content
-
-                elif role == "user":
-                    if user_prompt:
-                        user_prompt += "\n\n" + content
-                    else:
-                        user_prompt = content
-
-                elif role == "assistant":
-                    user_prompt += "\n\nPrevious assistant output:\n" + content
-
-            # Ask Mistral for strict JSON matching the Pydantic schema.
-            user_prompt += """
-
-Return ONLY valid JSON matching this exact structure:
-
-{
-  "title": "string",
-  "objective": "string",
-  "meeting_summary": "string",
-  "tasks_assigned": [
-    {
-      "task": "string",
-      "assignee": "string or null",
-      "deadline": "string or null"
-    }
-  ],
-  "decision_points": ["string"],
-  "objections": ["string"],
-  "action_items": ["string"],
-  "timeline": [
-    {
-      "action": "string",
-      "date": "string"
-    }
-  ]
-}
-
-Do not add markdown.
-Do not add explanations.
-Do not add extra fields.
-"""
-
-            content = call_mistral(
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
-                temperature=0.0,
-                max_tokens=4096,
+            response = chat(
+                model=LLAMA_MODEL,
+                messages=chat_messages,
+                format=MeetingResult.model_json_schema(),
+                options={
+                    "temperature": 0,
+                },
             )
 
         except Exception as exc:
 
             raise RuntimeError(
-                "Could not connect to Mistral 128B. "
-                f"Make sure the Mistral API is configured and "
-                f"model '{MISTRAL_MODEL}' is available. "
+                "Could not connect to Ollama/Llama 3.1 8B. "
+                f"Make sure '{LLAMA_MODEL}' is available. "
                 f"Original error: {exc}"
             ) from exc
 
-        content = (content or "").strip()
+        content = (
+            response.message.content or ""
+        ).strip()
 
         if not content:
 
             raise RuntimeError(
-                "Mistral 128B returned an empty response."
+                "Llama returned an empty response."
             )
-
-        # Remove accidental markdown fences if the API/model adds them.
-        if content.startswith("```"):
-            content = re.sub(
-                r"^```(?:json)?\s*",
-                "",
-                content,
-                flags=re.IGNORECASE,
-            )
-            content = re.sub(
-                r"\s*```$",
-                "",
-                content,
-            ).strip()
 
         try:
 
@@ -935,22 +846,22 @@ Do not add extra fields.
 
             print()
             print("=" * 70)
-            print("INVALID MISTRAL STRUCTURED OUTPUT")
+            print("INVALID LLAMA STRUCTURED OUTPUT")
             print("=" * 70)
             print(content)
             print("=" * 70)
 
             raise RuntimeError(
-                "Mistral 128B returned invalid structured output: "
+                "Llama returned invalid structured output: "
                 f"{exc}"
             ) from exc
 
     # --------------------------------------------------------
-    # FIRST MISTRAL CALL
+    # FIRST LLAMA CALL
     # --------------------------------------------------------
 
     meeting_result, raw_response = (
-        _call_mistral(messages)
+        _call_llama(messages)
     )
 
     # --------------------------------------------------------
@@ -960,6 +871,7 @@ Do not add extra fields.
     if _looks_like_refusal(
         meeting_result.objective
     ):
+
         print()
         print("=" * 70)
         print(
@@ -996,7 +908,7 @@ Do not mention this instruction in the answer.
         ]
 
         meeting_result, raw_response = (
-            _call_mistral(retry_messages)
+            _call_llama(retry_messages)
         )
 
     # --------------------------------------------------------
@@ -1013,8 +925,9 @@ Do not mention this instruction in the answer.
         not objective
         or _looks_like_refusal(objective)
     ):
+
         raise RuntimeError(
-            "Mistral 128B could not produce a valid meeting "
+            "Llama could not produce a valid meeting "
             "objective after retry."
         )
 
@@ -1044,12 +957,19 @@ Do not mention this instruction in the answer.
 
     result = {
         "title": title,
+
         "objective": objective,
+
         "meeting_summary": meeting_summary,
+
         "tasks_assigned": [],
+
         "decision_points": [],
+
         "objections": [],
+
         "action_items": [],
+
         "timeline": [],
     }
 
@@ -1076,6 +996,7 @@ Do not mention this instruction in the answer.
         # ----------------------------------------------------
 
         if task.assignee:
+
             assignee = (
                 task.assignee.strip()
             )
@@ -1083,6 +1004,7 @@ Do not mention this instruction in the answer.
             if _looks_like_real_name(
                 assignee
             ):
+
                 item["assignee"] = assignee
 
         # ----------------------------------------------------
@@ -1090,15 +1012,18 @@ Do not mention this instruction in the answer.
         # ----------------------------------------------------
 
         if task.deadline:
+
             deadline = (
                 task.deadline.strip()
             )
 
             if (
                 deadline
-                and deadline.lower()
+                and
+                deadline.lower()
                 not in _PLACEHOLDER_VALUES
             ):
+
                 item["deadline"] = deadline
 
         result[
@@ -1119,6 +1044,7 @@ Do not mention this instruction in the answer.
         decision = decision.strip()
 
         if decision:
+
             result[
                 "decision_points"
             ].append(decision)
@@ -1137,6 +1063,7 @@ Do not mention this instruction in the answer.
         objection = objection.strip()
 
         if objection:
+
             result[
                 "objections"
             ].append(objection)
@@ -1155,6 +1082,7 @@ Do not mention this instruction in the answer.
         action = action.strip()
 
         if action:
+
             result[
                 "action_items"
             ].append(action)
@@ -1181,13 +1109,12 @@ Do not mention this instruction in the answer.
         # ----------------------------------------------------
         # STRICT VALIDATION
         # ----------------------------------------------------
-
         # Timeline requires BOTH:
-        #
-        # 1. an action
-        # 2. an explicitly supplied date/deadline
+        #   1. an action
+        #   2. an explicitly supplied date/deadline
         #
         # Empty/placeholder dates are rejected.
+        # ----------------------------------------------------
 
         if not action:
             continue
@@ -1210,17 +1137,17 @@ Do not mention this instruction in the answer.
     # ========================================================
     # ADDITIONAL TIMELINE VALIDATION
     # ========================================================
-
+    #
     # Keep Timeline synchronized with actual task deadlines.
     #
-    # This prevents Mistral 128B from accidentally creating a Timeline
+    # This prevents Llama from accidentally creating a Timeline
     # entry for something that is not present in tasks_assigned.
     #
     # An action is retained when:
     #
     # - it exactly matches a task, OR
     # - it is clearly represented by a task with a deadline.
-
+    #
     # ========================================================
 
     validated_timeline = []
@@ -1318,18 +1245,21 @@ Do not mention this instruction in the answer.
             )
 
             if "assignee" in task:
+
                 print(
                     "  Assignee:",
                     task["assignee"]
                 )
 
             if "deadline" in task:
+
                 print(
                     "  Deadline:",
                     task["deadline"]
                 )
 
     else:
+
         print(
             "- No tasks identified."
         )
@@ -1349,6 +1279,7 @@ Do not mention this instruction in the answer.
             )
 
     else:
+
         print(
             "- No decisions identified."
         )
@@ -1368,6 +1299,7 @@ Do not mention this instruction in the answer.
             )
 
     else:
+
         print("- None")
 
     print()
@@ -1385,6 +1317,7 @@ Do not mention this instruction in the answer.
             )
 
     else:
+
         print(
             "- No action items identified."
         )
@@ -1418,6 +1351,7 @@ Do not mention this instruction in the answer.
             )
 
     else:
+
         print(
             "- No actions with explicit deadlines identified."
         )
