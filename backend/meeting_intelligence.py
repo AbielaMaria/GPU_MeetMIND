@@ -5,22 +5,26 @@ Flow:
 
     Complete transcript
         |
-        v
-    Mistral 128B API
-        |
-        v
-    Structured meeting intelligence
+        +------------------------------+
+        |                              |
+        v                              v
+    Mistral 128B API              Mistral 128B API
+        |                              |
+        v                              v
+Meeting Intelligence              Mind Map
+                                      |
+                                      v
+                             Hierarchical JSON
 
 Speaker diarization: DISABLED
 """
 
 import os
 import re
-
+import json
 from typing import Optional
 
 from mistral_client import call_mistral, MISTRAL_MODEL
-
 from pydantic import BaseModel
 
 
@@ -120,13 +124,9 @@ def _looks_like_real_name(value: str) -> bool:
     if lowered.startswith(_PRONOUN_STARTS):
         return False
 
-    # A person's name should not be an entire sentence.
     if len(value.split()) > 3:
         return False
 
-    # Prevent task fragments such as:
-    # "I'll test"
-    # "will evaluate"
     if _TASK_VERB_PATTERN.search(lowered):
         return False
 
@@ -148,6 +148,19 @@ class TimelineItem(BaseModel):
     date: str
 
 
+# ============================================================
+# MIND MAP SCHEMA
+# ============================================================
+
+class MindMapNode(BaseModel):
+    title: str
+    children: list["MindMapNode"] = []
+
+
+# ============================================================
+# MEETING INTELLIGENCE SCHEMA
+# ============================================================
+
 class MeetingResult(BaseModel):
     title: str
     objective: str
@@ -160,7 +173,7 @@ class MeetingResult(BaseModel):
 
 
 # ============================================================
-# SYSTEM PROMPT
+# MEETING INTELLIGENCE SYSTEM PROMPT
 # ============================================================
 
 SYSTEM_PROMPT = """
@@ -245,20 +258,6 @@ Infer the purpose from:
 - what problem is being addressed
 - what the participants are trying to accomplish
 - what outcome the meeting is working toward
-
-Example:
-
-Transcript:
-
-"Today we are testing the Parrotlet speech recognition system.
-
-We want to verify whether the complete recording is transcribed
-correctly."
-
-Objective:
-
-"Verify the accuracy and completeness of the Parrotlet
-transcription system."
 
 The objective must:
 
@@ -445,10 +444,6 @@ The Timeline is a separate section containing ONLY actions
 that have an explicitly mentioned deadline or date in the
 meeting transcript.
 
-Timeline format:
-
-| S.No | Action | Date |
-
 Rules:
 
 1. Include ONLY actions with an explicitly mentioned deadline
@@ -461,7 +456,7 @@ Rules:
 
 4. Do NOT invent dates.
 
-5. Do NOT infer dates from context.
+5. Do NOT infer dates.
 
 6. Do NOT include tasks without a deadline.
 
@@ -469,50 +464,6 @@ Rules:
 
 8. Do NOT include decisions unless they also represent an
    explicit action with a stated deadline.
-
-Example:
-
-Transcript:
-
-"Ravi will test the Tamil demo videos by Friday."
-
-Timeline:
-
-action:
-
-"Test the Tamil demo videos"
-
-date:
-
-"Friday"
-
-Example:
-
-Transcript:
-
-"We need to test additional recordings."
-
-There is no date.
-
-Therefore:
-
-timeline = []
-
-Example:
-
-Transcript:
-
-"We need to test additional recordings by September 5."
-
-Timeline:
-
-action:
-
-"Test additional recordings"
-
-date:
-
-"September 5"
 
 If no action with a specific deadline/date is mentioned:
 
@@ -524,18 +475,6 @@ timeline = []
 ============================================================
 
 Extract only decisions that were actually made.
-
-Example:
-
-"We decided to continue testing both Tamil and English audio."
-
-This is a decision.
-
-Example:
-
-"We discussed testing Tamil and English audio."
-
-This is discussion, not necessarily a decision.
 
 If there are no actual decisions:
 
@@ -555,12 +494,6 @@ Extract genuine:
 - blockers
 - explicitly raised risks
 
-Example:
-
-"I'm concerned that longer recordings may cause memory problems."
-
-This is a concern.
-
 Do not invent objections simply because a problem was discussed.
 
 If no genuine objection or concern exists:
@@ -573,14 +506,6 @@ return []
 ============================================================
 
 Extract explicit follow-up actions resulting from the meeting.
-
-Example:
-
-"The action item is to test longer audio and verify the results."
-
-Return:
-
-"Test longer audio and verify the results"
 
 Do not invent action items.
 
@@ -614,34 +539,6 @@ The task object may contain a deadline.
 
 The Timeline is a separate presentation of ONLY those tasks
 that have an explicitly stated deadline/date.
-
-For example:
-
-tasks_assigned:
-
-[
-    {
-        "task": "Test additional recordings",
-        "assignee": null,
-        "deadline": null
-    },
-    {
-        "task": "Test Tamil demo videos",
-        "assignee": "Ravi",
-        "deadline": "Friday"
-    }
-]
-
-timeline:
-
-[
-    {
-        "action": "Test Tamil demo videos",
-        "date": "Friday"
-    }
-]
-
-The undated task MUST NOT appear in timeline.
 
 
 ============================================================
@@ -696,7 +593,6 @@ Timeline MUST:
 - be an empty list if no deadline/date is mentioned
 
 Do not add additional fields.
-
 """
 
 
@@ -705,13 +601,8 @@ Do not add additional fields.
 # ============================================================
 
 def generate_meeting_summary(transcript: str):
-    transcript = (
-        transcript or ""
-    ).strip()
 
-    # --------------------------------------------------------
-    # EMPTY TRANSCRIPT
-    # --------------------------------------------------------
+    transcript = (transcript or "").strip()
 
     if not transcript:
         return {
@@ -720,9 +611,7 @@ def generate_meeting_summary(transcript: str):
                 "No meeting objective can be generated "
                 "because no transcript was provided."
             ),
-            "meeting_summary": (
-                "No transcript was available."
-            ),
+            "meeting_summary": "No transcript was available.",
             "tasks_assigned": [],
             "decision_points": [],
             "objections": [],
@@ -730,40 +619,17 @@ def generate_meeting_summary(transcript: str):
             "timeline": [],
         }
 
-    # --------------------------------------------------------
-    # LOG
-    # --------------------------------------------------------
-
     print()
     print("=" * 70)
     print("MEETMIND - MISTRAL MEETING INTELLIGENCE")
     print("=" * 70)
 
-    print(
-        "LLM Model:",
-        MISTRAL_MODEL,
-    )
-
-    print(
-        "Speaker diarization:",
-        "DISABLED",
-    )
-
-    print(
-        "Transcript length:",
-        len(transcript),
-        "characters",
-    )
-
-    print(
-        "Analyzing COMPLETE transcript..."
-    )
-
+    print("LLM Model:", MISTRAL_MODEL)
+    print("Speaker diarization:", "DISABLED")
+    print("Transcript length:", len(transcript), "characters")
+    print("Analyzing COMPLETE transcript...")
+    print("Generating meeting intelligence...")
     print("=" * 70)
-
-    # --------------------------------------------------------
-    # USER PROMPT
-    # --------------------------------------------------------
 
     user_content = f"""
 Analyze the COMPLETE meeting transcript below.
@@ -826,10 +692,6 @@ Return the required structured meeting intelligence.
         },
     ]
 
-    # --------------------------------------------------------
-    # MISTRAL CALL
-    # --------------------------------------------------------
-
     def _call_mistral(chat_messages):
 
         try:
@@ -837,6 +699,7 @@ Return the required structured meeting intelligence.
             user_prompt = ""
 
             for message in chat_messages:
+
                 role = message.get("role")
                 content = message.get("content", "")
 
@@ -844,15 +707,19 @@ Return the required structured meeting intelligence.
                     system_prompt = content
 
                 elif role == "user":
+
                     if user_prompt:
                         user_prompt += "\n\n" + content
                     else:
                         user_prompt = content
 
                 elif role == "assistant":
-                    user_prompt += "\n\nPrevious assistant output:\n" + content
 
-            # Ask Mistral for strict JSON matching the Pydantic schema.
+                    user_prompt += (
+                        "\n\nPrevious assistant output:\n"
+                        + content
+                    )
+
             user_prompt += """
 
 Return ONLY valid JSON matching this exact structure:
@@ -903,19 +770,19 @@ Do not add extra fields.
         content = (content or "").strip()
 
         if not content:
-
             raise RuntimeError(
                 "Mistral 128B returned an empty response."
             )
 
-        # Remove accidental markdown fences if the API/model adds them.
         if content.startswith("```"):
+
             content = re.sub(
                 r"^```(?:json)?\s*",
                 "",
                 content,
                 flags=re.IGNORECASE,
             )
+
             content = re.sub(
                 r"\s*```$",
                 "",
@@ -924,10 +791,7 @@ Do not add extra fields.
 
         try:
 
-            result = (
-                MeetingResult
-                .model_validate_json(content)
-            )
+            result = MeetingResult.model_validate_json(content)
 
             return result, content
 
@@ -945,26 +809,13 @@ Do not add extra fields.
                 f"{exc}"
             ) from exc
 
-    # --------------------------------------------------------
-    # FIRST MISTRAL CALL
-    # --------------------------------------------------------
+    meeting_result, raw_response = _call_mistral(messages)
 
-    meeting_result, raw_response = (
-        _call_mistral(messages)
-    )
+    if _looks_like_refusal(meeting_result.objective):
 
-    # --------------------------------------------------------
-    # OBJECTIVE RETRY
-    # --------------------------------------------------------
-
-    if _looks_like_refusal(
-        meeting_result.objective
-    ):
         print()
         print("=" * 70)
-        print(
-            "OBJECTIVE INVALID - RETRYING"
-        )
+        print("OBJECTIVE INVALID - RETRYING")
         print("=" * 70)
 
         retry_messages = messages + [
@@ -991,17 +842,24 @@ Do not refuse.
 Do not say that the objective is unknown.
 
 Do not mention this instruction in the answer.
+
+Return the complete JSON structure again, including:
+
+title
+objective
+meeting_summary
+tasks_assigned
+decision_points
+objections
+action_items
+timeline
 """,
             },
         ]
 
-        meeting_result, raw_response = (
-            _call_mistral(retry_messages)
+        meeting_result, raw_response = _call_mistral(
+            retry_messages
         )
-
-    # --------------------------------------------------------
-    # OBJECTIVE VALIDATION
-    # --------------------------------------------------------
 
     objective = (
         meeting_result.objective.strip()
@@ -1009,18 +867,12 @@ Do not mention this instruction in the answer.
         else ""
     )
 
-    if (
-        not objective
-        or _looks_like_refusal(objective)
-    ):
+    if not objective or _looks_like_refusal(objective):
+
         raise RuntimeError(
             "Mistral 128B could not produce a valid meeting "
             "objective after retry."
         )
-
-    # --------------------------------------------------------
-    # TITLE
-    # --------------------------------------------------------
 
     title = (
         meeting_result.title.strip()
@@ -1028,19 +880,11 @@ Do not mention this instruction in the answer.
         else "Untitled Meeting"
     )
 
-    # --------------------------------------------------------
-    # SUMMARY
-    # --------------------------------------------------------
-
     meeting_summary = (
         meeting_result.meeting_summary.strip()
         if meeting_result.meeting_summary
         else "No summary available."
     )
-
-    # --------------------------------------------------------
-    # FINAL RESULT
-    # --------------------------------------------------------
 
     result = {
         "title": title,
@@ -1071,28 +915,16 @@ Do not mention this instruction in the answer.
             "task": task_text
         }
 
-        # ----------------------------------------------------
-        # ASSIGNEE
-        # ----------------------------------------------------
-
         if task.assignee:
-            assignee = (
-                task.assignee.strip()
-            )
 
-            if _looks_like_real_name(
-                assignee
-            ):
+            assignee = task.assignee.strip()
+
+            if _looks_like_real_name(assignee):
                 item["assignee"] = assignee
 
-        # ----------------------------------------------------
-        # DEADLINE
-        # ----------------------------------------------------
-
         if task.deadline:
-            deadline = (
-                task.deadline.strip()
-            )
+
+            deadline = task.deadline.strip()
 
             if (
                 deadline
@@ -1101,17 +933,13 @@ Do not mention this instruction in the answer.
             ):
                 item["deadline"] = deadline
 
-        result[
-            "tasks_assigned"
-        ].append(item)
+        result["tasks_assigned"].append(item)
 
     # ========================================================
     # DECISIONS
     # ========================================================
 
-    for decision in (
-        meeting_result.decision_points
-    ):
+    for decision in meeting_result.decision_points:
 
         if not decision:
             continue
@@ -1119,17 +947,13 @@ Do not mention this instruction in the answer.
         decision = decision.strip()
 
         if decision:
-            result[
-                "decision_points"
-            ].append(decision)
+            result["decision_points"].append(decision)
 
     # ========================================================
     # OBJECTIONS
     # ========================================================
 
-    for objection in (
-        meeting_result.objections
-    ):
+    for objection in meeting_result.objections:
 
         if not objection:
             continue
@@ -1137,17 +961,13 @@ Do not mention this instruction in the answer.
         objection = objection.strip()
 
         if objection:
-            result[
-                "objections"
-            ].append(objection)
+            result["objections"].append(objection)
 
     # ========================================================
     # ACTION ITEMS
     # ========================================================
 
-    for action in (
-        meeting_result.action_items
-    ):
+    for action in meeting_result.action_items:
 
         if not action:
             continue
@@ -1155,39 +975,19 @@ Do not mention this instruction in the answer.
         action = action.strip()
 
         if action:
-            result[
-                "action_items"
-            ].append(action)
+            result["action_items"].append(action)
 
     # ========================================================
     # TIMELINE
     # ========================================================
 
-    for timeline_item in (
-        meeting_result.timeline
-    ):
+    for timeline_item in meeting_result.timeline:
 
         if not timeline_item:
             continue
 
-        action = (
-            timeline_item.action or ""
-        ).strip()
-
-        date = (
-            timeline_item.date or ""
-        ).strip()
-
-        # ----------------------------------------------------
-        # STRICT VALIDATION
-        # ----------------------------------------------------
-
-        # Timeline requires BOTH:
-        #
-        # 1. an action
-        # 2. an explicitly supplied date/deadline
-        #
-        # Empty/placeholder dates are rejected.
+        action = (timeline_item.action or "").strip()
+        date = (timeline_item.date or "").strip()
 
         if not action:
             continue
@@ -1198,9 +998,7 @@ Do not mention this instruction in the answer.
         if date.lower() in _PLACEHOLDER_VALUES:
             continue
 
-        result[
-            "timeline"
-        ].append(
+        result["timeline"].append(
             {
                 "action": action,
                 "date": date,
@@ -1209,18 +1007,6 @@ Do not mention this instruction in the answer.
 
     # ========================================================
     # ADDITIONAL TIMELINE VALIDATION
-    # ========================================================
-
-    # Keep Timeline synchronized with actual task deadlines.
-    #
-    # This prevents Mistral 128B from accidentally creating a Timeline
-    # entry for something that is not present in tasks_assigned.
-    #
-    # An action is retained when:
-    #
-    # - it exactly matches a task, OR
-    # - it is clearly represented by a task with a deadline.
-
     # ========================================================
 
     validated_timeline = []
@@ -1250,11 +1036,9 @@ Do not mention this instruction in the answer.
             )
 
             task_deadline = (
-                task_item.get("deadline")
-                or ""
+                task_item.get("deadline") or ""
             ).strip().lower()
 
-            # Exact task/action match with deadline.
             if (
                 timeline_action == task_text
                 and task_deadline
@@ -1263,9 +1047,6 @@ Do not mention this instruction in the answer.
                 matched = True
                 break
 
-            # Allow the model to phrase the timeline action
-            # slightly differently while still requiring the
-            # corresponding task to have a deadline.
             if (
                 task_deadline
                 and task_deadline == timeline_date
@@ -1312,10 +1093,7 @@ Do not mention this instruction in the answer.
 
         for task in result["tasks_assigned"]:
 
-            print(
-                "-",
-                task["task"]
-            )
+            print("-", task["task"])
 
             if "assignee" in task:
                 print(
@@ -1330,42 +1108,26 @@ Do not mention this instruction in the answer.
                 )
 
     else:
-        print(
-            "- No tasks identified."
-        )
+        print("- No tasks identified.")
 
     print()
     print("DECISIONS:")
 
     if result["decision_points"]:
 
-        for decision in (
-            result["decision_points"]
-        ):
-
-            print(
-                "-",
-                decision
-            )
+        for decision in result["decision_points"]:
+            print("-", decision)
 
     else:
-        print(
-            "- No decisions identified."
-        )
+        print("- No decisions identified.")
 
     print()
     print("OBJECTIONS:")
 
     if result["objections"]:
 
-        for objection in (
-            result["objections"]
-        ):
-
-            print(
-                "-",
-                objection
-            )
+        for objection in result["objections"]:
+            print("-", objection)
 
     else:
         print("- None")
@@ -1375,23 +1137,11 @@ Do not mention this instruction in the answer.
 
     if result["action_items"]:
 
-        for action in (
-            result["action_items"]
-        ):
-
-            print(
-                "-",
-                action
-            )
+        for action in result["action_items"]:
+            print("-", action)
 
     else:
-        print(
-            "- No action items identified."
-        )
-
-    # ========================================================
-    # TIMELINE
-    # ========================================================
+        print("- No action items identified.")
 
     print()
     print("TIMELINE:")
@@ -1426,3 +1176,670 @@ Do not mention this instruction in the answer.
     print("=" * 70)
 
     return result
+
+
+# ============================================================
+# MIND MAP SYSTEM PROMPT
+# ============================================================
+
+MINDMAP_SYSTEM_PROMPT = """
+You are MeetMind, an AI meeting mind-map generator.
+
+Your job is to analyze the COMPLETE meeting transcript and
+generate a concise, accurate hierarchical mind map.
+
+The transcript may contain:
+
+- English
+- Tamil
+- Tamil-English code-mixed speech
+- Indian English
+- informal spoken language
+- automatic speech recognition errors
+
+Speaker diarization is DISABLED.
+
+Do not create speaker labels.
+
+
+============================================================
+STRICT TRANSCRIPT GROUNDING
+============================================================
+
+The transcript is the ONLY source of truth.
+
+Use ONLY information supported by the transcript.
+
+Never invent:
+
+- people
+- names
+- tasks
+- deadlines
+- dates
+- decisions
+- technologies
+- project details
+- problems
+- outcomes
+- next steps
+
+You may correct an obvious ASR error only when the intended
+meaning is clear from the surrounding context.
+
+
+============================================================
+MIND MAP STRUCTURE
+============================================================
+
+The root node must represent the central topic of the meeting.
+
+Create meaningful branches based ONLY on information actually
+present in the transcript.
+
+Possible branches include:
+
+- Project Overview
+- Key Discussions
+- Technical Topics
+- Current Status
+- Problems / Challenges
+- Decisions
+- Action Items
+- Tasks
+- Timeline
+- Next Steps
+
+Do NOT force all categories into the mind map.
+
+Only create branches that are supported by the transcript.
+
+
+============================================================
+NODE RULES
+============================================================
+
+1. Keep node titles concise.
+
+2. Do not write paragraphs inside nodes.
+
+3. Preserve important technical terminology.
+
+4. Organize related information under the same branch.
+
+5. Avoid unnecessary duplication.
+
+6. Important action items may appear under "Action Items".
+
+7. Explicit deadlines may appear under "Timeline".
+
+8. Decisions may appear under "Decisions".
+
+9. Problems or concerns may appear under
+   "Problems / Challenges".
+
+10. The mind map may contain multiple levels of children.
+
+11. The mind map must represent the actual meeting content.
+
+12. Do not infer information that is not supported by the
+    transcript.
+
+
+============================================================
+IMPORTANT
+============================================================
+
+Generate the mind map DIRECTLY from the COMPLETE TRANSCRIPT.
+
+DO NOT generate the mind map from a meeting summary.
+
+DO NOT expect a summary to be provided.
+
+The transcript itself is the source of truth.
+
+
+============================================================
+OUTPUT
+============================================================
+
+Return ONLY valid JSON.
+
+The structure must be:
+
+{
+  "title": "Main Meeting Topic",
+  "children": [
+    {
+      "title": "Major Topic",
+      "children": [
+        {
+          "title": "Important Detail"
+        }
+      ]
+    }
+  ]
+}
+
+Every node MUST contain:
+
+"title"
+
+A node MAY contain:
+
+"children"
+
+Do not add any other fields.
+
+Do not add markdown.
+
+Do not add explanations outside the JSON.
+
+Do not copy the example information into the output unless
+that information actually exists in the transcript.
+
+JSON STRICTNESS RULES:
+
+Return syntactically valid JSON.
+
+Every opening { must have a matching }.
+Every opening [ must have a matching ].
+
+Every property must be separated by a comma.
+
+All strings must use double quotes.
+
+Never place an unescaped double quote inside a title.
+
+Do not use trailing commas.
+
+Do not output comments.
+
+Do not output markdown fences.
+
+Do not output any text before or after the JSON.
+
+Keep node titles concise.
+
+Maximum 6 top-level branches.
+Maximum 5 children per branch.
+Maximum 3 hierarchy levels below the root.
+"""
+
+
+# ============================================================
+# MIND MAP VALIDATION
+# ============================================================
+
+def _clean_mindmap_node(node):
+
+    if not isinstance(node, dict):
+
+        raise ValueError(
+            "Invalid mind-map node. "
+            "Expected a JSON object."
+        )
+
+    title = node.get("title", "")
+
+    if not isinstance(title, str):
+
+        raise ValueError(
+            "Invalid mind-map node title."
+        )
+
+    title = title.strip()
+
+    if not title:
+
+        raise ValueError(
+            "Mind-map node title cannot be empty."
+        )
+
+    cleaned_node = {
+        "title": title
+    }
+
+    children = node.get(
+        "children",
+        [],
+    )
+
+    if children is None:
+        children = []
+
+    if not isinstance(children, list):
+
+        raise ValueError(
+            "Mind-map children must be a list."
+        )
+
+    cleaned_children = []
+
+    for child in children:
+
+        cleaned_children.append(
+            _clean_mindmap_node(child)
+        )
+
+    if cleaned_children:
+        cleaned_node["children"] = cleaned_children
+
+    return cleaned_node
+
+
+# ============================================================
+# GENERATE MIND MAP
+# ============================================================
+
+def generate_mindmap(transcript: str):
+    """
+    Generate a mind map directly from the complete transcript.
+
+    This is completely independent from
+    generate_meeting_summary().
+
+    The meeting summary is NOT generated first.
+
+    The transcript is sent directly to Mistral 128B.
+    """
+
+    transcript = (transcript or "").strip()
+
+    if not transcript:
+
+        raise ValueError(
+            "Cannot generate mind map because transcript is empty."
+        )
+
+    print()
+    print("=" * 70)
+    print("MEETMIND - MISTRAL MIND MAP GENERATION")
+    print("=" * 70)
+
+    print("LLM Model:", MISTRAL_MODEL)
+    print("Speaker diarization:", "DISABLED")
+    print("Transcript length:", len(transcript), "characters")
+    print(
+        "Generating mind map directly from COMPLETE transcript..."
+    )
+    print("=" * 70)
+
+    user_prompt = f"""
+Analyze the COMPLETE meeting transcript below and generate
+a hierarchical mind map.
+
+IMPORTANT:
+
+The transcript is the source of truth.
+
+Generate the mind map DIRECTLY from the transcript.
+
+Do NOT generate it from a meeting summary.
+
+Do NOT invent information.
+
+Capture the important:
+
+- topics
+- technical discussions
+- current status
+- problems or challenges
+- decisions
+- action items
+- tasks
+- explicit timelines
+- next steps
+
+Only include categories that are actually supported by
+the transcript.
+
+Keep node titles concise.
+
+MEETING TRANSCRIPT
+
+==================
+
+{transcript}
+
+==================
+
+Return ONLY valid JSON in this exact structure:
+
+{{
+  "title": "Main Meeting Topic",
+  "children": [
+    {{
+      "title": "Major Topic",
+      "children": [
+        {{
+          "title": "Important Detail"
+        }}
+      ]
+    }}
+  ]
+}}
+
+Every node must contain a "title".
+
+A node may contain "children".
+
+Do not add any other fields.
+Do not add markdown.
+Do not add explanations.
+"""
+
+    try:
+
+        content = call_mistral(
+            system_prompt=MINDMAP_SYSTEM_PROMPT,
+            user_prompt=user_prompt,
+            temperature=0.0,
+            max_tokens=4096,
+        )
+
+    except Exception as exc:
+
+        raise RuntimeError(
+            "Could not connect to Mistral 128B while generating "
+            f"the mind map. Make sure the Mistral API is configured "
+            f"and model '{MISTRAL_MODEL}' is available. "
+            f"Original error: {exc}"
+        ) from exc
+
+    content = (content or "").strip()
+
+    if not content:
+
+        raise RuntimeError(
+            "Mistral 128B returned an empty mind-map response."
+        )
+
+    # --------------------------------------------------------
+    # REMOVE MARKDOWN FENCES
+    # --------------------------------------------------------
+
+    if content.startswith("```"):
+
+        content = re.sub(
+            r"^```(?:json)?\s*",
+            "",
+            content,
+            flags=re.IGNORECASE,
+        )
+
+        content = re.sub(
+            r"\s*```$",
+            "",
+            content,
+        ).strip()
+
+    # ========================================================
+    # ROBUST MIND-MAP JSON PARSING
+    # ========================================================
+
+    def _extract_json_object(text):
+        """
+        Extract the outermost JSON object from the Mistral response.
+
+        Handles accidental surrounding text and markdown fences.
+        """
+
+        text = (text or "").strip()
+
+        if not text:
+            return ""
+
+        # Remove markdown fences.
+        text = re.sub(
+            r"^```(?:json)?\\s*",
+            "",
+            text,
+            flags=re.IGNORECASE,
+        )
+
+        text = re.sub(
+            r"\\s*```$",
+            "",
+            text,
+        ).strip()
+
+        # Already a JSON object.
+        if text.startswith("{") and text.endswith("}"):
+            return text
+
+        # Extract the outer JSON object if Mistral added text
+        # before or after the JSON.
+        first_brace = text.find("{")
+        last_brace = text.rfind("}")
+
+        if (
+            first_brace >= 0
+            and last_brace > first_brace
+        ):
+            return text[
+                first_brace:last_brace + 1
+            ].strip()
+
+        return text
+
+    def _parse_mindmap_json(text):
+        """
+        Parse the Mistral response as JSON.
+        """
+
+        cleaned = _extract_json_object(text)
+
+        if not cleaned:
+            raise json.JSONDecodeError(
+                "Empty mind-map response",
+                "",
+                0,
+            )
+
+        return json.loads(cleaned)
+
+    # --------------------------------------------------------
+    # FIRST JSON PARSE
+    # --------------------------------------------------------
+
+    try:
+
+        mindmap_data = _parse_mindmap_json(
+            content
+        )
+
+    except json.JSONDecodeError as first_error:
+
+        # ----------------------------------------------------
+        # AUTOMATIC JSON REPAIR
+        # ----------------------------------------------------
+
+        print()
+        print("=" * 70)
+        print("MIND MAP JSON INVALID")
+        print("REQUESTING JSON REPAIR FROM MISTRAL")
+        print("=" * 70)
+
+        repair_prompt = f"""
+The following response was intended to be a JSON mind map,
+but it contains a JSON syntax error.
+
+Repair ONLY the JSON syntax.
+
+IMPORTANT RULES:
+
+1. Preserve all existing information.
+2. Do NOT invent information.
+3. Do NOT remove valid information.
+4. Do NOT summarize the content.
+5. Do NOT change node titles unless required for valid JSON.
+6. Do NOT add markdown.
+7. Do NOT add explanations.
+8. Return ONLY valid JSON.
+9. Every node must contain "title".
+10. A node may contain "children".
+11. Do not add fields other than "title" and "children".
+12. Use double quotes for all JSON strings.
+13. Do not use trailing commas.
+14. Properly close every object and array.
+
+Required structure:
+
+{{
+  "title": "Main Meeting Topic",
+  "children": [
+    {{
+      "title": "Major Topic",
+      "children": [
+        {{
+          "title": "Important Detail"
+        }}
+      ]
+    }}
+  ]
+}}
+
+INVALID RESPONSE:
+
+{content}
+
+Return ONLY the corrected JSON.
+"""
+
+        try:
+
+            repaired_content = call_mistral(
+                system_prompt="""
+You are a strict JSON repair engine for MeetMind.
+
+Your only task is to repair malformed JSON.
+
+Preserve the information exactly.
+Do not add information.
+Do not remove information.
+Do not explain anything.
+
+Return ONLY syntactically valid JSON.
+""",
+                user_prompt=repair_prompt,
+                temperature=0.0,
+                max_tokens=4096,
+            )
+
+        except Exception as repair_exc:
+
+            raise RuntimeError(
+                "Mistral 128B mind-map JSON was invalid "
+                "and the automatic JSON repair request failed: "
+                f"{repair_exc}"
+            ) from repair_exc
+
+        repaired_content = (
+            repaired_content or ""
+        ).strip()
+
+        if not repaired_content:
+
+            raise RuntimeError(
+                "Mistral 128B returned an empty response "
+                "during mind-map JSON repair."
+            )
+
+        try:
+
+            mindmap_data = _parse_mindmap_json(
+                repaired_content
+            )
+
+            print()
+            print("=" * 70)
+            print("MIND MAP JSON REPAIRED SUCCESSFULLY")
+            print("=" * 70)
+
+        except json.JSONDecodeError as repair_error:
+
+            print()
+            print("=" * 70)
+            print("MIND MAP JSON REPAIR FAILED")
+            print("=" * 70)
+            print(
+                "Original JSON error:",
+                first_error,
+            )
+            print(
+                "Repair JSON error:",
+                repair_error,
+            )
+            print()
+            print("Original response:")
+            print(content)
+            print()
+            print("Repair response:")
+            print(repaired_content)
+            print("=" * 70)
+
+            raise RuntimeError(
+                "Mistral 128B returned invalid mind-map JSON "
+                "and automatic JSON repair also failed: "
+                f"{repair_error}"
+            ) from repair_error
+
+    # --------------------------------------------------------
+    # VALIDATE ROOT
+    # --------------------------------------------------------
+
+    if not isinstance(
+        mindmap_data,
+        dict,
+    ):
+
+        raise RuntimeError(
+            "Mistral 128B mind-map response must be a JSON object."
+        )
+
+    # --------------------------------------------------------
+    # CLEAN / VALIDATE TREE
+    # --------------------------------------------------------
+
+    try:
+
+        mindmap = _clean_mindmap_node(
+            mindmap_data
+        )
+
+    except Exception as exc:
+
+        raise RuntimeError(
+            "Mistral 128B returned an invalid mind-map structure: "
+            f"{exc}"
+        ) from exc
+
+    # --------------------------------------------------------
+    # LOG RESULT
+    # --------------------------------------------------------
+
+    print()
+    print("=" * 70)
+    print("MIND MAP GENERATED SUCCESSFULLY")
+    print("=" * 70)
+
+    print()
+    print("ROOT:")
+    print(mindmap["title"])
+
+    print()
+    print(
+        "TOP-LEVEL BRANCHES:",
+        len(
+            mindmap.get(
+                "children",
+                [],
+            )
+        ),
+    )
+
+    print()
+    print("=" * 70)
+
+    return mindmap

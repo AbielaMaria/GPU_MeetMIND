@@ -16,8 +16,6 @@ Login accepts either a username or an email in the same field; see
 `_find_user_by_identifier`.
 """
 
-import hashlib
-import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -27,16 +25,9 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
 
 import database as db
-import mailer
-
-logger = logging.getLogger("meetmind")
 
 SESSION_COOKIE = "meetmind_session"
 SESSION_SECONDS = 30 * 24 * 60 * 60   # 30 days
-
-OTP_TTL_SECONDS = 10 * 60   # 10 minutes
-OTP_MAX_ATTEMPTS = 5
-UNVERIFIED_LOGIN_MSG = "Please verify your email before signing in."
 
 router = APIRouter(prefix="/api", tags=["auth"])
 
@@ -93,52 +84,7 @@ def _public_user(user: dict) -> dict:
         "role": user["role"],
         "status": user["status"],
         "createdAt": user["created_at"],
-        "emailVerified": bool(user["email_verified"]),
     }
-
-
-def _start_session(response: Response, user: dict) -> dict:
-    expires_at = datetime.now(timezone.utc) + timedelta(seconds=SESSION_SECONDS)
-    token = secrets.token_urlsafe(32)
-    db.create_session(token=token, user_id=user["id"], expires_at=expires_at.isoformat())
-
-    response.set_cookie(
-        key=SESSION_COOKIE,
-        value=token,
-        httponly=True,
-        samesite="lax",
-        max_age=SESSION_SECONDS,
-        path="/",
-    )
-    return _public_user(user)
-
-
-def _hash_otp(code: str) -> str:
-    return hashlib.sha256(code.encode("utf-8")).hexdigest()
-
-
-def _issue_otp(user: dict) -> None:
-    """
-    Generates a fresh OTP, stores its hash, and emails it. Raises a 502 if
-    the send fails — callers that just created `user` are expected to roll
-    that creation back so we never leave an unreachable pending account.
-    """
-    code = f"{secrets.randbelow(1_000_000):06d}"
-    expires_at = datetime.now(timezone.utc) + timedelta(seconds=OTP_TTL_SECONDS)
-    db.update_user(
-        user["id"],
-        otp_code_hash=_hash_otp(code),
-        otp_expires_at=expires_at.isoformat(),
-        otp_attempts=0,
-    )
-    try:
-        mailer.send_otp_email(user["email"], user["username"], code)
-    except Exception:
-        logger.exception("Could not send OTP email to %s", user["email"])
-        raise HTTPException(
-            status_code=502,
-            detail="Could not send the verification email. Please try again.",
-        )
 
 
 EMAIL_RE_MSG = "Enter a valid email address."
@@ -174,15 +120,6 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     identifier: str  # username or email
     password: str
-
-
-class VerifyOtpRequest(BaseModel):
-    email: str
-    code: str
-
-
-class ResendOtpRequest(BaseModel):
-    email: str
 
 
 class AdminUserCreate(BaseModel):
@@ -223,12 +160,7 @@ def register(payload: RegisterRequest):
         role="user",
         status="active",
     )
-    try:
-        _issue_otp(user)
-    except HTTPException:
-        db.delete_user(email)
-        raise
-    return {"pendingVerification": True, "email": email}
+    return _public_user(user)
 
 
 @router.post("/auth/login")
@@ -236,12 +168,22 @@ def login(payload: LoginRequest, response: Response):
     user = _find_user_by_identifier(payload.identifier)
     if not user or not verify_password(payload.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Incorrect username/email or password.")
-    if not user["email_verified"]:
-        raise HTTPException(status_code=403, detail=UNVERIFIED_LOGIN_MSG)
     if user["status"] != "active":
         raise HTTPException(status_code=403, detail="This account is inactive. Contact your administrator.")
 
-    return _start_session(response, user)
+    expires_at = datetime.now(timezone.utc) + timedelta(seconds=SESSION_SECONDS)
+    token = secrets.token_urlsafe(32)
+    db.create_session(token=token, user_id=user["id"], expires_at=expires_at.isoformat())
+
+    response.set_cookie(
+        key=SESSION_COOKIE,
+        value=token,
+        httponly=True,
+        samesite="lax",
+        max_age=SESSION_SECONDS,
+        path="/",
+    )
+    return _public_user(user)
 
 
 @router.post("/auth/logout")
@@ -256,57 +198,6 @@ def logout(request: Request, response: Response):
 @router.get("/auth/session")
 def session(user: dict = Depends(require_user)):
     return _public_user(user)
-
-
-@router.post("/auth/verify-otp")
-def verify_otp(payload: VerifyOtpRequest, response: Response):
-    email = _norm_email(payload.email)
-    user = db.get_user_by_email(email)
-    if not user:
-        raise HTTPException(status_code=404, detail="No account found for that email.")
-    if user["email_verified"]:
-        raise HTTPException(status_code=400, detail="This account is already verified.")
-
-    if not user["otp_code_hash"] or not user["otp_expires_at"]:
-        raise HTTPException(status_code=400, detail="No code is pending. Request a new one.")
-    if user["otp_attempts"] >= OTP_MAX_ATTEMPTS:
-        raise HTTPException(status_code=400, detail="Too many attempts. Request a new code.")
-
-    expires_at = datetime.fromisoformat(user["otp_expires_at"])
-    if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
-    if expires_at < datetime.now(timezone.utc):
-        raise HTTPException(status_code=400, detail="That code has expired. Request a new one.")
-
-    code = (payload.code or "").strip()
-    if _hash_otp(code) != user["otp_code_hash"]:
-        db.update_user(user["id"], otp_attempts=user["otp_attempts"] + 1)
-        raise HTTPException(status_code=400, detail="Incorrect code.")
-
-    user = db.update_user(
-        user["id"],
-        email_verified=1,
-        otp_code_hash=None,
-        otp_expires_at=None,
-        otp_attempts=0,
-    )
-
-    if user["status"] != "active":
-        return {"verified": True, "session": None}
-    return {"verified": True, "session": _start_session(response, user)}
-
-
-@router.post("/auth/resend-otp")
-def resend_otp(payload: ResendOtpRequest):
-    email = _norm_email(payload.email)
-    user = db.get_user_by_email(email)
-    if not user:
-        raise HTTPException(status_code=404, detail="No account found for that email.")
-    if user["email_verified"]:
-        raise HTTPException(status_code=400, detail="This account is already verified.")
-
-    _issue_otp(user)
-    return {"ok": True}
 
 
 # ============================================================
@@ -336,11 +227,6 @@ def admin_create_user(payload: AdminUserCreate, _: dict = Depends(require_admin)
         role="admin" if payload.role == "admin" else "user",
         status="inactive" if payload.status == "inactive" else "active",
     )
-    try:
-        _issue_otp(user)
-    except HTTPException:
-        db.delete_user(email)
-        raise
     return _public_user(user)
 
 
