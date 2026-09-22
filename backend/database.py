@@ -65,6 +65,7 @@ def init_db():
                 title TEXT NOT NULL,
                 transcript TEXT NOT NULL,
                 summary_json TEXT,
+                mindmap_json TEXT,
                 created_at TEXT NOT NULL
             )
         """)
@@ -72,6 +73,7 @@ def init_db():
             "CREATE INDEX IF NOT EXISTS idx_meetings_user "
             "ON meetings(user_id, created_at DESC)"
         )
+        _migrate_meetings_mindmap_column(conn)
 
 
 def _migrate_users_otp_columns(conn):
@@ -91,6 +93,15 @@ def _migrate_users_otp_columns(conn):
     conn.execute("ALTER TABLE users ADD COLUMN otp_expires_at TEXT")
     conn.execute("ALTER TABLE users ADD COLUMN otp_attempts INTEGER NOT NULL DEFAULT 0")
     conn.execute("UPDATE users SET email_verified = 1")
+
+
+def _migrate_meetings_mindmap_column(conn):
+    """Adds mindmap_json to a `meetings` table created before it existed."""
+    existing = {row["name"] for row in conn.execute("PRAGMA table_info(meetings)")}
+    if "mindmap_json" in existing:
+        return
+
+    conn.execute("ALTER TABLE meetings ADD COLUMN mindmap_json TEXT")
 
 
 # ============================================================
@@ -205,13 +216,13 @@ def delete_session(token):
 # MEETINGS
 # ============================================================
 
-def create_meeting(user_id, title, transcript, summary_json):
+def create_meeting(user_id, title, transcript, summary_json, mindmap_json=None):
     created_at = datetime.now(timezone.utc).isoformat()
     with _connect() as conn:
         cur = conn.execute(
-            "INSERT INTO meetings (user_id, title, transcript, summary_json, created_at) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (user_id, title, transcript, summary_json, created_at),
+            "INSERT INTO meetings (user_id, title, transcript, summary_json, mindmap_json, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (user_id, title, transcript, summary_json, mindmap_json, created_at),
         )
         meeting_id = cur.lastrowid
     return get_meeting(meeting_id)
@@ -249,6 +260,7 @@ def list_meetings(user_id=None):
     query = (
         "SELECT meetings.id, meetings.title, meetings.created_at, meetings.user_id, "
         "meetings.summary_json IS NOT NULL AS has_summary, "
+        "meetings.mindmap_json IS NOT NULL AS has_mindmap, "
         "LENGTH(meetings.transcript) AS transcript_chars, "
         "users.username AS username, users.email AS email "
         "FROM meetings JOIN users ON users.id = meetings.user_id "

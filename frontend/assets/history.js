@@ -172,7 +172,15 @@
                 var meta = el("div", "history-item-meta");
                 meta.appendChild(el("span", null, fmtDate(m.createdAt)));
                 meta.appendChild(el("span", "dot"));
-                meta.appendChild(el("span", null, m.hasSummary ? "Summary" : "Transcript only"));
+                var badgeLabel = "Transcript only";
+                if (m.hasSummary && m.hasMindmap) {
+                    badgeLabel = "Summary + Mind map";
+                } else if (m.hasSummary) {
+                    badgeLabel = "Summary";
+                } else if (m.hasMindmap) {
+                    badgeLabel = "Mind map";
+                }
+                meta.appendChild(el("span", null, badgeLabel));
                 item.appendChild(meta);
 
                 item.addEventListener("click", function () { openMeeting(m.id); });

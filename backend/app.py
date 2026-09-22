@@ -144,6 +144,7 @@ class SummaryRequest(BaseModel):
 
 class MindMapRequest(BaseModel):
     transcript: str
+    meeting_id: Optional[int] = None
 
 
 # Fields the meeting-intelligence editor
@@ -158,6 +159,7 @@ class MeetingUpdateRequest(BaseModel):
     decision_points: Optional[List[Any]] = None
     objections: Optional[List[Any]] = None
     action_items: Optional[List[Any]] = None
+    mindmap: Optional[Any] = None
 
 
 # ============================================================
@@ -437,6 +439,9 @@ def _meeting_row(
         "hasSummary": bool(
             row["has_summary"]
         ),
+        "hasMindmap": bool(
+            row["has_mindmap"]
+        ),
         "transcriptChars": (
             row["transcript_chars"]
             or 0
@@ -535,12 +540,27 @@ async def get_meeting(
 
             summary = None
 
+    mindmap = None
+
+    if meeting["mindmap_json"]:
+
+        try:
+
+            mindmap = json.loads(
+                meeting["mindmap_json"]
+            )
+
+        except ValueError:
+
+            mindmap = None
+
     return {
         "id": meeting["id"],
         "title": meeting["title"],
         "createdAt": meeting["created_at"],
         "transcript": meeting["transcript"],
         "summary": summary,
+        "mindmap": mindmap,
         "username": meeting["username"],
         "email": meeting["email"],
     }
@@ -600,34 +620,49 @@ async def update_meeting(
         exclude_unset=True
     )
 
-    summary = {}
+    # Mind maps are a nested tree, not a flat set of fields — persist them
+    # to their own column instead of merging into the summary dict.
+    mindmap_included = "mindmap" in updates
+    mindmap = updates.pop("mindmap", None)
 
-    if meeting["summary_json"]:
+    fields = {}
 
-        try:
+    if updates:
 
-            summary = json.loads(
-                meeting["summary_json"]
-            )
+        summary = {}
 
-        except ValueError:
+        if meeting["summary_json"]:
 
-            summary = {}
+            try:
 
-    summary.update(
-        updates
-    )
+                summary = json.loads(
+                    meeting["summary_json"]
+                )
 
-    fields = {
-        "summary_json": json.dumps(
+            except ValueError:
+
+                summary = {}
+
+        summary.update(
+            updates
+        )
+
+        fields["summary_json"] = json.dumps(
             summary
         )
-    }
 
-    if updates.get("title"):
+        if updates.get("title"):
 
-        fields["title"] = (
-            updates["title"]
+            fields["title"] = (
+                updates["title"]
+            )
+
+    if mindmap_included:
+
+        fields["mindmap_json"] = (
+            json.dumps(mindmap)
+            if mindmap is not None
+            else None
         )
 
     updated = db.update_meeting(
@@ -645,6 +680,13 @@ async def update_meeting(
                 updated["summary_json"]
             )
             if updated["summary_json"]
+            else None
+        ),
+        "mindmap": (
+            json.loads(
+                updated["mindmap_json"]
+            )
+            if updated["mindmap_json"]
             else None
         ),
         "username": updated["username"],
@@ -838,6 +880,7 @@ async def create_summary(
 )
 async def create_mindmap(
     request: MindMapRequest,
+    http_request: Request,
 ):
 
     transcript = (
@@ -884,10 +927,65 @@ async def create_mindmap(
             "Mind map generated successfully."
         )
 
-        return {
+        payload = {
             "success": True,
             "mindmap": mindmap,
         }
+
+        # ----------------------------------------------------
+        # SAVE MIND MAP TO DATABASE (best-effort)
+        # ----------------------------------------------------
+
+        user = auth.get_current_user(
+            http_request
+        )
+
+        if user:
+
+            try:
+
+                if request.meeting_id:
+
+                    existing = db.get_meeting(
+                        request.meeting_id
+                    )
+
+                    if existing and (
+                        existing["user_id"] == user["id"]
+                        or user["role"] == "admin"
+                    ):
+
+                        db.update_meeting(
+                            request.meeting_id,
+                            mindmap_json=json.dumps(
+                                mindmap
+                            ),
+                        )
+
+                else:
+
+                    meeting = db.create_meeting(
+                        user_id=user["id"],
+                        title="Untitled Meeting",
+                        transcript=transcript,
+                        summary_json=None,
+                        mindmap_json=json.dumps(
+                            mindmap
+                        ),
+                    )
+
+                    payload[
+                        "meeting_id"
+                    ] = meeting["id"]
+
+            except Exception as exc:
+
+                logger.exception(
+                    "Could not save mind map to history: %s",
+                    exc,
+                )
+
+        return payload
 
     except Exception as exc:
 

@@ -5071,7 +5071,7 @@ function collectEditedMindMap() {
    SAVE MIND MAP EDITS
 ============================================================ */
 
-function saveMindMapEdits() {
+async function saveMindMapEdits() {
 
     const edited =
         collectEditedMindMap();
@@ -5106,6 +5106,81 @@ function saveMindMapEdits() {
         );
 
 
+    /* ------------------------------------------------
+       Persist to the server, when this mind map is
+       actually a saved meeting (backend/database.py's
+       meetings table). Mirrors the summary editor's
+       save handler so edits survive a reopen from
+       history instead of only living in local JS state.
+    ------------------------------------------------ */
+
+    if (
+        currentMeetingId
+    ) {
+
+        try {
+
+            const response =
+                await fetch(
+                    `/api/meetings/${currentMeetingId}`,
+                    {
+                        method:
+                            "PATCH",
+
+                        credentials:
+                            "same-origin",
+
+                        headers: {
+
+                            "Content-Type":
+                                "application/json"
+                        },
+
+                        body:
+                            JSON.stringify(
+                                {
+                                    mindmap:
+                                        savedMindMapData
+                                }
+                            )
+                    }
+                );
+
+            if (
+                !response.ok
+            ) {
+
+                const errBody =
+                    await response
+                        .json()
+                        .catch(
+                            () => ({})
+                        );
+
+                throw new Error(
+                    errBody.detail
+                    ||
+                    "The server rejected the mind-map changes."
+                );
+            }
+
+        } catch (
+            error
+        ) {
+
+            log(
+                `Mind-map save error: ${error.message}`
+            );
+
+            setStatus(
+                `Mind-map save failed: ${error.message}`
+            );
+
+            return;
+        }
+    }
+
+
     mindMapActions.classList.remove(
         "visible"
     );
@@ -5119,7 +5194,7 @@ function saveMindMapEdits() {
 
 
     setStatus(
-        "Mind map changes saved for this session."
+        "Mind map changes saved."
     );
 
     log(
@@ -5521,7 +5596,9 @@ async function createMindMap() {
                         JSON.stringify(
                             {
                                 transcript:
-                                    transcript
+                                    transcript,
+                                meeting_id:
+                                    currentMeetingId
                             }
                         )
                 }
@@ -5555,6 +5632,17 @@ async function createMindMap() {
                 ||
                 "Mind-map generation failed."
             );
+        }
+
+
+        if (
+            data.meeting_id
+            &&
+            !currentMeetingId
+        ) {
+
+            currentMeetingId =
+                data.meeting_id;
         }
 
 
@@ -6318,6 +6406,10 @@ window.meetmindHistory = {
             intelligenceEl.innerHTML =
                 pristineIntelligenceHTML;
         }
+
+        renderMindMap(
+            meeting.mindmap || null
+        );
 
         setStatus(
             "Viewing a saved meeting."
