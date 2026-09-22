@@ -329,6 +329,23 @@ async def sign_up_view(
 
 
 # ============================================================
+# VERIFY EMAIL (OTP)
+# ============================================================
+
+@app.get("/verify-otp")
+async def verify_otp_view(
+    request: Request,
+):
+
+    return (
+        _redirect_if_already_signed_in(
+            request
+        )
+        or _serve(AUTH_FILE)
+    )
+
+
+# ============================================================
 # ADMIN
 # ============================================================
 

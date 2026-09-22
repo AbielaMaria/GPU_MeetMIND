@@ -1138,6 +1138,7 @@ mark.transcript-match.current {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 20px;
     margin-top: 20px;
+    margin-bottom: 20px;
     align-items: stretch;
 }
 
@@ -4890,6 +4891,26 @@ function renderMindMap(
             false;
 
         setupMindMapEditor();
+
+        /* The generated tree is almost always wider than the panel
+           (columns are sized in fixed px, not to fit the card), so
+           without this the view opens scrolled to the left edge and
+           the centered root/right-hand branches render clipped past
+           the card border instead of just being reachable by
+           scrolling. Center the scroll position once layout settles. */
+        requestAnimationFrame(
+            () => {
+
+                mindMapContainer.scrollLeft =
+                    (
+                        mindMapContainer.scrollWidth
+                        -
+                        mindMapContainer.clientWidth
+                    )
+                    / 2;
+
+            }
+        );
 
     } else {
 
