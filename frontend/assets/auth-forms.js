@@ -232,8 +232,14 @@
             setLoading(suBtn, true);
 
             A.signUp({ username: username, email: email, password: password, role: "user" })
-                .then(function () {
-                    goToVerify(email);
+                .then(function (res) {
+                    // Server decides whether OTP is required (REQUIRE_EMAIL_VERIFICATION
+                    // in backend/auth.py) — go straight to the app when it's off.
+                    if (res && res.pendingVerification === false && res.session) {
+                        redirectAfterAuth(res.session.role);
+                    } else {
+                        goToVerify(email);
+                    }
                 })
                 .catch(function (err) {
                     setLoading(suBtn, false);

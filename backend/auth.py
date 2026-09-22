@@ -18,6 +18,7 @@ Login accepts either a username or an email in the same field; see
 
 import hashlib
 import logging
+import os
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -37,6 +38,15 @@ SESSION_SECONDS = 30 * 24 * 60 * 60   # 30 days
 OTP_TTL_SECONDS = 10 * 60   # 10 minutes
 OTP_MAX_ATTEMPTS = 5
 UNVERIFIED_LOGIN_MSG = "Please verify your email before signing in."
+
+# Master switch for the email-OTP gate (see .env / .env.example). Set to
+# false while outbound SMTP isn't available — new accounts are verified
+# immediately and sign-up/sign-in behave like a plain form. Every OTP code
+# path below (_issue_otp, verify_otp, resend_otp, mailer.py) stays intact
+# and just goes unused; flip this back to true once SMTP works again, no
+# other changes needed. (Relies on mailer's load_dotenv() above having
+# already loaded .env before this line runs.)
+REQUIRE_EMAIL_VERIFICATION = os.getenv("REQUIRE_EMAIL_VERIFICATION", "true").strip().lower() not in ("0", "false", "no")
 
 router = APIRouter(prefix="/api", tags=["auth"])
 
@@ -141,6 +151,18 @@ def _issue_otp(user: dict) -> None:
         )
 
 
+def _finish_registration(user: dict) -> dict:
+    """
+    Verifies `user` immediately when the OTP gate is off, or issues an OTP
+    (existing behaviour) when it's on. Callers that just created `user`
+    should roll the row back if this raises.
+    """
+    if not REQUIRE_EMAIL_VERIFICATION:
+        return db.update_user(user["id"], email_verified=1)
+    _issue_otp(user)
+    return user
+
+
 EMAIL_RE_MSG = "Enter a valid email address."
 
 
@@ -206,7 +228,7 @@ class AdminUserUpdate(BaseModel):
 # ============================================================
 
 @router.post("/auth/register")
-def register(payload: RegisterRequest):
+def register(payload: RegisterRequest, response: Response):
     email = _norm_email(payload.email)
     username = payload.username.strip()
     if not username:
@@ -224,11 +246,14 @@ def register(payload: RegisterRequest):
         status="active",
     )
     try:
-        _issue_otp(user)
+        user = _finish_registration(user)
     except HTTPException:
         db.delete_user(email)
         raise
-    return {"pendingVerification": True, "email": email}
+
+    if REQUIRE_EMAIL_VERIFICATION:
+        return {"pendingVerification": True, "email": email}
+    return {"pendingVerification": False, "session": _start_session(response, user)}
 
 
 @router.post("/auth/login")
@@ -236,7 +261,7 @@ def login(payload: LoginRequest, response: Response):
     user = _find_user_by_identifier(payload.identifier)
     if not user or not verify_password(payload.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Incorrect username/email or password.")
-    if not user["email_verified"]:
+    if REQUIRE_EMAIL_VERIFICATION and not user["email_verified"]:
         raise HTTPException(status_code=403, detail=UNVERIFIED_LOGIN_MSG)
     if user["status"] != "active":
         raise HTTPException(status_code=403, detail="This account is inactive. Contact your administrator.")
@@ -337,7 +362,7 @@ def admin_create_user(payload: AdminUserCreate, _: dict = Depends(require_admin)
         status="inactive" if payload.status == "inactive" else "active",
     )
     try:
-        _issue_otp(user)
+        user = _finish_registration(user)
     except HTTPException:
         db.delete_user(email)
         raise

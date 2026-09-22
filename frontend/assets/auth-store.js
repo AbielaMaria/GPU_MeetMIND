@@ -64,12 +64,16 @@
 
         /* ---- sign up (self-service = always role "user") ------ */
 
+        // Resolves with either {pendingVerification:true, email} (OTP gate
+        // on) or {pendingVerification:false, session} (OTP gate off —
+        // see backend/auth.py's REQUIRE_EMAIL_VERIFICATION) — the caller
+        // branches on `pendingVerification`, not on any client-side flag.
         signUp: function (payload) {
             return request("POST", "/auth/register", {
                 username: payload.username,
                 email: payload.email,
                 password: payload.password
-            }).then(function (user) { return { user: user }; });
+            });
         },
 
         /* ---- sign in ----------------------------------------- */
