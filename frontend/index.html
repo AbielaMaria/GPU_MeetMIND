@@ -4587,6 +4587,18 @@ async function createSummary() {
         }
 
 
+        if (
+            !data.success
+        ) {
+
+            throw new Error(
+                data.error
+                ||
+                "Summary generation failed."
+            );
+        }
+
+
         currentMeetingId =
             data.meeting_id
             ||
