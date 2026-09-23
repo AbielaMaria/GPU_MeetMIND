@@ -2026,6 +2026,16 @@ let currentIntelligenceData = null;
 // the same row, or restored when a saved meeting is opened from history.
 let currentMeetingId = null;
 
+// Which of the two generators is currently waiting on the model:
+// "summary", "mindmap", or null when neither is. They have to take
+// turns: both of them open this meeting's row on the server, and each
+// one only knows to reuse the existing row when currentMeetingId is
+// already set. If they overlap, both post meeting_id: null and the
+// recording gets logged twice -- the second row showing up in the
+// history as a stray "Untitled Meeting". Waiting for the first to
+// come back means the second request carries the id it created.
+let generationInFlight = null;
+
 // Mind-map state (independent from Meeting Intelligence)
 let currentMindMapData = null;
 let savedMindMapData = null;
@@ -2659,7 +2669,7 @@ function handleServerMessage(
             );
 
             log(
-                "Llama 3.1 8B analysis started."
+                "Mistral 128B analysis started."
             );
 
             break;
@@ -4044,6 +4054,11 @@ async function startRecording() {
     currentMeetingId =
         null;
 
+    // A generation still running belongs to the recording being
+    // replaced — it must not keep the new one's buttons locked.
+    generationInFlight =
+        null;
+
 
     setStatus(
         "Requesting microphone..."
@@ -4499,6 +4514,78 @@ function stopRecording() {
 
 
 /* ============================================================
+   GENERATION TURN-TAKING
+   ------------------------------------------------------------
+   Create Summary and Create Mind Map both write to the same
+   meeting row, and the row is only created by whichever of them
+   runs first — so the second one has to start after the first
+   has come back with its id. These two keep the buttons in step
+   with that rule.
+============================================================ */
+
+function beginGeneration(
+    kind
+) {
+
+    generationInFlight =
+        kind;
+
+    // Both go down for the duration, not just the one that was
+    // clicked: the other would otherwise be sent while
+    // currentMeetingId is still null and log the same recording a
+    // second time.
+    summaryBtn.disabled =
+        true;
+
+    mindMapBtn.disabled =
+        true;
+}
+
+
+function endGeneration() {
+
+    generationInFlight =
+        null;
+
+    // Re-open only the piece that still doesn't exist. Regenerating
+    // one that does would silently replace it with different model
+    // output — the same rule the history bridge applies when a saved
+    // meeting is opened; edits go through Save Changes instead.
+    summaryBtn.disabled =
+        !transcript
+        ||
+        !!currentIntelligenceData;
+
+    mindMapBtn.disabled =
+        !transcript
+        ||
+        !!currentMindMapData;
+}
+
+
+/* True, with the user told why, when the other generator is still
+   running. Both entry points check this: their buttons are already
+   disabled, but a stray programmatic call must not slip past. */
+function blockedByGenerationInFlight() {
+
+    if (
+        !generationInFlight
+    ) {
+
+        return false;
+    }
+
+    setStatus(
+        generationInFlight === "summary"
+            ? "The summary is still being generated — the mind map can be created as soon as it finishes."
+            : "The mind map is still being generated — the summary can be created as soon as it finishes."
+    );
+
+    return true;
+}
+
+
+/* ============================================================
    CREATE SUMMARY
 ============================================================ */
 
@@ -4518,12 +4605,21 @@ async function createSummary() {
     }
 
 
-    summaryBtn.disabled =
-        true;
+    if (
+        blockedByGenerationInFlight()
+    ) {
+
+        return;
+    }
+
+
+    beginGeneration(
+        "summary"
+    );
 
 
     setStatus(
-        "Generating meeting intelligence with Llama 3.1 8B..."
+        "Generating meeting intelligence with Mistral 128B..."
     );
 
 
@@ -4630,8 +4726,11 @@ async function createSummary() {
             `Summary generation failed: ${error.message}`
         );
 
-        summaryBtn.disabled =
-            false;
+    } finally {
+
+        // Always releases the turn, so a render that throws can't
+        // leave both buttons stuck down.
+        endGeneration();
     }
 }
 
@@ -5566,8 +5665,17 @@ async function createMindMap() {
     }
 
 
-    mindMapBtn.disabled =
-        true;
+    if (
+        blockedByGenerationInFlight()
+    ) {
+
+        return;
+    }
+
+
+    beginGeneration(
+        "mindmap"
+    );
 
 
     setStatus(
@@ -5695,12 +5803,14 @@ async function createMindMap() {
             `Mind-map generation failed: ${error.message}`
         );
 
-        // Only re-enable on failure — once a mind map exists, generating
-        // a new one would silently replace it with different model
-        // output. Further changes should go through manual field edits
-        // (Save Changes), not regeneration.
-        mindMapBtn.disabled =
-            false;
+    } finally {
+
+        // Releases the turn. endGeneration() re-opens the button only
+        // when there is still no mind map — once one exists,
+        // regenerating it would silently replace it with different
+        // model output, so changes go through manual field edits
+        // (Save Changes) instead.
+        endGeneration();
     }
 }
 
@@ -6428,6 +6538,13 @@ window.meetmindHistory = {
 
         } else {
 
+            // Clear it alongside the panel — endGeneration() reads this
+            // to decide whether Create Summary may re-open, and the
+            // previously viewed meeting's summary must not stand in for
+            // this one's.
+            currentIntelligenceData =
+                null;
+
             intelligenceEl.innerHTML =
                 pristineIntelligenceHTML;
         }
@@ -6450,10 +6567,16 @@ window.meetmindHistory = {
         currentMeetingId =
             null;
 
+        currentIntelligenceData =
+            null;
+
         currentMindMapData =
             null;
 
         savedMindMapData =
+            null;
+
+        generationInFlight =
             null;
 
         transcriptEl.innerHTML =
@@ -6495,12 +6618,21 @@ window.meetmindHistory = {
     isBusy: function () {
 
         return isRecording;
+    },
+
+    /* True while a summary or mind map is still being generated.
+       Opening a saved meeting mid-generation would swap
+       currentMeetingId out from under the request still in flight, so
+       the drawer asks first. */
+    isGenerating: function () {
+
+        return generationInFlight !== null;
     }
 };
 
 
 </script>
 
-<script src="/assets/history.js?v=3"></script>
+<script src="/assets/history.js?v=4"></script>
 </body>
 </html>

@@ -203,6 +203,15 @@
             if (!confirm("A recording is in progress. Open the saved meeting anyway?")) return;
         }
 
+        // Same for a summary/mind map still being generated: loading
+        // another meeting here re-points the panels (and the meeting id
+        // the result gets saved under) while that request is in flight.
+        if (bridge.isGenerating && bridge.isGenerating()) {
+            if (!confirm(
+                "A summary or mind map is still being generated. Open the saved meeting anyway?"
+            )) return;
+        }
+
         api("/api/meetings/" + encodeURIComponent(id)).then(function (meeting) {
             bridge.load(meeting);
             openMeetingId = meeting.id;

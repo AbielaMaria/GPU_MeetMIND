@@ -907,18 +907,48 @@ async def create_summary(
 
             else:
 
-                meeting = db.create_meeting(
-                    user_id=user["id"],
-                    title=title,
-                    transcript=transcript,
-                    summary_json=json.dumps(
-                        payload
-                    ),
+                # No id from the client. That normally means this
+                # recording has no row yet -- but a mind map for the
+                # same recording may still be in flight (or may have
+                # landed after this request was sent), in which case
+                # the row already exists and the client just doesn't
+                # know its id yet. Join that row instead of logging
+                # the same meeting a second time.
+                existing_id = (
+                    db.find_recent_meeting_by_transcript(
+                        user["id"],
+                        transcript,
+                    )
                 )
 
-                payload[
-                    "meeting_id"
-                ] = meeting["id"]
+                if existing_id:
+
+                    db.update_meeting(
+                        existing_id,
+                        title=title,
+                        summary_json=json.dumps(
+                            payload
+                        ),
+                    )
+
+                    payload[
+                        "meeting_id"
+                    ] = existing_id
+
+                else:
+
+                    meeting = db.create_meeting(
+                        user_id=user["id"],
+                        title=title,
+                        transcript=transcript,
+                        summary_json=json.dumps(
+                            payload
+                        ),
+                    )
+
+                    payload[
+                        "meeting_id"
+                    ] = meeting["id"]
 
         except Exception as exc:
 
@@ -1021,21 +1051,55 @@ async def create_mindmap(
                             ),
                         )
 
+                        # Echo it back the way create_summary() does,
+                        # so the client can trust this field rather
+                        # than having to remember what it sent.
+                        payload[
+                            "meeting_id"
+                        ] = request.meeting_id
+
                 else:
 
-                    meeting = db.create_meeting(
-                        user_id=user["id"],
-                        title="Untitled Meeting",
-                        transcript=transcript,
-                        summary_json=None,
-                        mindmap_json=json.dumps(
-                            mindmap
-                        ),
+                    # No id from the client -- but a summary for the
+                    # same recording may still be in flight, or may
+                    # have landed after this request was sent. Join
+                    # the row it opened instead of logging the same
+                    # meeting again as a stray "Untitled Meeting".
+                    existing_id = (
+                        db.find_recent_meeting_by_transcript(
+                            user["id"],
+                            transcript,
+                        )
                     )
 
-                    payload[
-                        "meeting_id"
-                    ] = meeting["id"]
+                    if existing_id:
+
+                        db.update_meeting(
+                            existing_id,
+                            mindmap_json=json.dumps(
+                                mindmap
+                            ),
+                        )
+
+                        payload[
+                            "meeting_id"
+                        ] = existing_id
+
+                    else:
+
+                        meeting = db.create_meeting(
+                            user_id=user["id"],
+                            title="Untitled Meeting",
+                            transcript=transcript,
+                            summary_json=None,
+                            mindmap_json=json.dumps(
+                                mindmap
+                            ),
+                        )
+
+                        payload[
+                            "meeting_id"
+                        ] = meeting["id"]
 
             except Exception as exc:
 

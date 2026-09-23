@@ -14,7 +14,7 @@ this backend instance.
 
 import sqlite3
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 DB_PATH = Path(__file__).resolve().parent / "meetmind.db"
@@ -226,6 +226,36 @@ def create_meeting(user_id, title, transcript, summary_json, mindmap_json=None):
         )
         meeting_id = cur.lastrowid
     return get_meeting(meeting_id)
+
+
+def find_recent_meeting_by_transcript(user_id, transcript, within_hours=6):
+    """
+    The id of this user's most recent meeting holding exactly this
+    transcript, or None.
+
+    Both /api/meeting/summarize and /api/meeting/mindmap open the meeting
+    row lazily, so when they run against the same recording at the same
+    time neither one knows about the row the other has just inserted.
+    Looking the recording up by its own transcript lets the second one
+    join that row instead of logging the same meeting twice. The time
+    window keeps an unrelated old meeting that happens to share a very
+    short transcript out of it.
+    """
+    if not transcript:
+        return None
+
+    cutoff = (
+        datetime.now(timezone.utc) - timedelta(hours=within_hours)
+    ).isoformat()
+
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT id FROM meetings "
+            "WHERE user_id = ? AND transcript = ? AND created_at >= ? "
+            "ORDER BY created_at DESC LIMIT 1",
+            (user_id, transcript, cutoff),
+        ).fetchone()
+        return row["id"] if row else None
 
 
 def get_meeting(meeting_id):
