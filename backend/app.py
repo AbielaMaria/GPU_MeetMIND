@@ -627,23 +627,35 @@ async def update_meeting(
     mindmap = updates.pop("mindmap", None)
 
     # The title is its own column (used for the history list) and may be
-    # edited from either the summary editor or the mind-map editor — the
-    # latter often has no summary yet, so it's handled separately from the
-    # summary-field merge below instead of always requiring one.
+    # edited from either the summary editor or the mind-map editor. The
+    # summary's title always takes priority once a summary exists — the
+    # mind-map editor's title only gets to set the log title while the
+    # meeting has no summary yet. `updates` still holding real summary
+    # fields after popping mindmap/title (below) is how we tell which
+    # editor this request came from.
     title = updates.pop("title", None)
+
+    has_summary_fields = bool(updates)
+    has_existing_summary = bool(meeting["summary_json"])
+
+    apply_title = bool(title) and (
+        has_summary_fields
+        or not has_existing_summary
+    )
 
     fields = {}
 
-    if title:
+    if apply_title:
 
         fields["title"] = title
 
     # Only touch summary_json when there are real summary fields to merge,
-    # or an existing summary whose title needs to stay in sync — a bare
-    # title edit from the mind-map editor shouldn't fabricate a stub
-    # summary out of thin air.
+    # or an applied title whose copy inside summary_json needs to stay in
+    # sync — a bare title edit from the mind-map editor (when it isn't
+    # even being applied, or there's no summary yet) shouldn't fabricate
+    # a stub summary out of thin air.
     if updates or (
-        title and meeting["summary_json"]
+        apply_title and has_existing_summary
     ):
 
         summary = {}
@@ -664,7 +676,7 @@ async def update_meeting(
             updates
         )
 
-        if title:
+        if apply_title:
 
             summary["title"] = title
 

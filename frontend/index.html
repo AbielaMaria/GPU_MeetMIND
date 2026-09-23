@@ -5681,9 +5681,10 @@ async function createMindMap() {
             `Mind-map generation failed: ${error.message}`
         );
 
-
-    } finally {
-
+        // Only re-enable on failure — once a mind map exists, generating
+        // a new one would silently replace it with different model
+        // output. Further changes should go through manual field edits
+        // (Save Changes), not regeneration.
         mindMapBtn.disabled =
             false;
     }
@@ -6382,11 +6383,20 @@ window.meetmindHistory = {
 
         resetTranscriptSearch();
 
+        // Once a meeting has a summary and/or mind map, its Create
+        // button stays disabled for that piece — regeneration would
+        // silently replace existing content with different model
+        // output. Only the piece that's still missing stays available
+        // to generate; anything already there can only be hand-edited.
         summaryBtn.disabled =
-            !transcript;
+            !transcript
+            ||
+            !!meeting.summary;
 
         mindMapBtn.disabled =
-            !transcript;
+            !transcript
+            ||
+            !!meeting.mindmap;
 
         if (meeting.summary) {
 
