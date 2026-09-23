@@ -169,6 +169,8 @@
                     </table>
                 </div>
 
+                <div class="pagination" id="userPagination"></div>
+
             </div>
 
         </section>
@@ -223,6 +225,8 @@
                         <tbody id="meetingRows"></tbody>
                     </table>
                 </div>
+
+                <div class="pagination" id="meetingPagination"></div>
 
             </div>
 
@@ -304,10 +308,12 @@
 
         <div class="meeting-tabs" role="tablist">
             <button class="meeting-tab is-active" type="button" data-tab="summary" role="tab">Summary</button>
+            <button class="meeting-tab" type="button" data-tab="mindmap" role="tab">Mind Map</button>
             <button class="meeting-tab" type="button" data-tab="transcript" role="tab">Transcript</button>
         </div>
 
         <div class="meeting-pane" id="meetingSummaryPane"></div>
+        <div class="meeting-pane" id="meetingMindmapPane" hidden></div>
         <div class="meeting-pane" id="meetingTranscriptPane" hidden></div>
 
         <div class="dialog-actions">
@@ -318,7 +324,7 @@
 </dialog>
 
 <script src="assets/theme.js?v=3"></script>
-<script src="assets/admin.js?v=4"></script>
+<script src="assets/admin.js?v=5"></script>
 
 </body>
 </html>

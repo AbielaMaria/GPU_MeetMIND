@@ -140,6 +140,7 @@ app.include_router(
 
 class SummaryRequest(BaseModel):
     transcript: str
+    meeting_id: Optional[int] = None
 
 
 class MindMapRequest(BaseModel):
@@ -625,9 +626,25 @@ async def update_meeting(
     mindmap_included = "mindmap" in updates
     mindmap = updates.pop("mindmap", None)
 
+    # The title is its own column (used for the history list) and may be
+    # edited from either the summary editor or the mind-map editor — the
+    # latter often has no summary yet, so it's handled separately from the
+    # summary-field merge below instead of always requiring one.
+    title = updates.pop("title", None)
+
     fields = {}
 
-    if updates:
+    if title:
+
+        fields["title"] = title
+
+    # Only touch summary_json when there are real summary fields to merge,
+    # or an existing summary whose title needs to stay in sync — a bare
+    # title edit from the mind-map editor shouldn't fabricate a stub
+    # summary out of thin air.
+    if updates or (
+        title and meeting["summary_json"]
+    ):
 
         summary = {}
 
@@ -647,15 +664,13 @@ async def update_meeting(
             updates
         )
 
+        if title:
+
+            summary["title"] = title
+
         fields["summary_json"] = json.dumps(
             summary
         )
-
-        if updates.get("title"):
-
-            fields["title"] = (
-                updates["title"]
-            )
 
     if mindmap_included:
 
@@ -845,21 +860,48 @@ async def create_summary(
 
         try:
 
-            meeting = db.create_meeting(
-                user_id=user["id"],
-                title=(
-                    payload["title"]
-                    or "Untitled Meeting"
-                ),
-                transcript=transcript,
-                summary_json=json.dumps(
-                    payload
-                ),
+            title = (
+                payload["title"]
+                or "Untitled Meeting"
             )
 
-            payload[
-                "meeting_id"
-            ] = meeting["id"]
+            if request.meeting_id:
+
+                existing = db.get_meeting(
+                    request.meeting_id
+                )
+
+                if existing and (
+                    existing["user_id"] == user["id"]
+                    or user["role"] == "admin"
+                ):
+
+                    db.update_meeting(
+                        request.meeting_id,
+                        title=title,
+                        summary_json=json.dumps(
+                            payload
+                        ),
+                    )
+
+                    payload[
+                        "meeting_id"
+                    ] = request.meeting_id
+
+            if not payload.get("meeting_id"):
+
+                meeting = db.create_meeting(
+                    user_id=user["id"],
+                    title=title,
+                    transcript=transcript,
+                    summary_json=json.dumps(
+                        payload
+                    ),
+                )
+
+                payload[
+                    "meeting_id"
+                ] = meeting["id"]
 
         except Exception as exc:
 

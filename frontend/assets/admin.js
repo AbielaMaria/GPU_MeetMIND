@@ -47,7 +47,62 @@
     var allUsers = [];
     var session = null;
 
+    var userPagination = document.getElementById("userPagination");
+    var userPage = 1;
+    var USERS_PER_PAGE = 5;
+
     /* ---- helpers ------------------------------------- */
+
+    // Shared by the users and meetings tables: prev/next arrows plus
+    // clickable page numbers (with an ellipsis once there are many pages).
+    function renderPagination(container, page, totalPages, onChange) {
+        container.innerHTML = "";
+        if (totalPages <= 1) return;
+
+        function makeBtn(label, targetPage, opts) {
+            opts = opts || {};
+            var b = document.createElement("button");
+            b.type = "button";
+            b.className = opts.arrow ? "page-arrow" : "page-btn";
+            if (opts.active) b.className += " is-active";
+            b.textContent = label;
+            if (opts.disabled) {
+                b.disabled = true;
+            } else {
+                b.addEventListener("click", function () { onChange(targetPage); });
+            }
+            return b;
+        }
+
+        container.appendChild(makeBtn("‹", page - 1, { arrow: true, disabled: page <= 1 }));
+
+        var shown;
+        if (totalPages <= 7) {
+            shown = [];
+            for (var i = 1; i <= totalPages; i++) shown.push(i);
+        } else {
+            shown = [1];
+            var start = Math.max(2, page - 1);
+            var end = Math.min(totalPages - 1, page + 1);
+            if (start > 2) shown.push("…");
+            for (var p = start; p <= end; p++) shown.push(p);
+            if (end < totalPages - 1) shown.push("…");
+            shown.push(totalPages);
+        }
+
+        shown.forEach(function (p) {
+            if (p === "…") {
+                var span = document.createElement("span");
+                span.className = "page-ellipsis";
+                span.textContent = "…";
+                container.appendChild(span);
+            } else {
+                container.appendChild(makeBtn(String(p), p, { active: p === page }));
+            }
+        });
+
+        container.appendChild(makeBtn("›", page + 1, { arrow: true, disabled: page >= totalPages }));
+    }
 
     function esc(s) {
         return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
@@ -84,46 +139,60 @@
 
     /* ---- render table ------------------------------- */
 
+    function renderUserRows() {
+        renderStats();
+
+        var q = searchEl.value.trim().toLowerCase();
+        var role = roleEl.value;
+        var status = statusEl.value;
+
+        var rows = allUsers.filter(function (u) {
+            if (role && u.role !== role) return false;
+            if (status && (u.status || "active") !== status) return false;
+            if (q && ((u.username || "") + " " + u.email).toLowerCase().indexOf(q) === -1) return false;
+            return true;
+        });
+
+        var totalPages = Math.max(1, Math.ceil(rows.length / USERS_PER_PAGE));
+        if (userPage > totalPages) userPage = totalPages;
+        if (userPage < 1) userPage = 1;
+        var pageRows = rows.slice((userPage - 1) * USERS_PER_PAGE, userPage * USERS_PER_PAGE);
+
+        if (!rows.length) {
+            tbody.innerHTML = '<tr><td colspan="6"><div class="table-empty">' +
+                (allUsers.length ? "No users match your filters." : "No users yet. Click “Add user”.") +
+                "</div></td></tr>";
+        } else {
+            tbody.innerHTML = pageRows.map(function (u) {
+                var isSelf = u.email === session.email;
+                return "<tr>" +
+                    "<td>" + esc(u.username) + (isSelf ? ' <span class="hint">(you)</span>' : "") + "</td>" +
+                    "<td>" + esc(u.email) + "</td>" +
+                    '<td><span class="pill role-' + esc(u.role) + '">' + esc(u.role) + "</span></td>" +
+                    "<td>" + fmtDate(u.createdAt) + "</td>" +
+                    '<td><span class="pill st-' + esc(u.status || "active") + '">' + esc(u.status || "active") + "</span>" +
+                        (u.emailVerified ? "" : ' <span class="pill st-inactive">unverified</span>') +
+                    "</td>" +
+                    '<td class="cell-actions">' +
+                        '<button class="row-btn" data-edit="' + esc(u.email) + '">Edit</button>' +
+                        (isSelf ? "" : '<button class="row-btn danger" data-del="' + esc(u.email) + '">Delete</button>') +
+                    "</td>" +
+                "</tr>";
+            }).join("");
+        }
+
+        rowCount.textContent = rows.length + " of " + allUsers.length + " user" + (allUsers.length === 1 ? "" : "s");
+
+        renderPagination(userPagination, userPage, totalPages, function (p) {
+            userPage = p;
+            renderUserRows();
+        });
+    }
+
     function render() {
         return A.listUsers().then(function (all) {
             allUsers = all;
-            renderStats();
-
-            var q = searchEl.value.trim().toLowerCase();
-            var role = roleEl.value;
-            var status = statusEl.value;
-
-            var rows = all.filter(function (u) {
-                if (role && u.role !== role) return false;
-                if (status && (u.status || "active") !== status) return false;
-                if (q && ((u.username || "") + " " + u.email).toLowerCase().indexOf(q) === -1) return false;
-                return true;
-            });
-
-            if (!rows.length) {
-                tbody.innerHTML = '<tr><td colspan="6"><div class="table-empty">' +
-                    (all.length ? "No users match your filters." : "No users yet. Click “Add user”.") +
-                    "</div></td></tr>";
-            } else {
-                tbody.innerHTML = rows.map(function (u) {
-                    var isSelf = u.email === session.email;
-                    return "<tr>" +
-                        "<td>" + esc(u.username) + (isSelf ? ' <span class="hint">(you)</span>' : "") + "</td>" +
-                        "<td>" + esc(u.email) + "</td>" +
-                        '<td><span class="pill role-' + esc(u.role) + '">' + esc(u.role) + "</span></td>" +
-                        "<td>" + fmtDate(u.createdAt) + "</td>" +
-                        '<td><span class="pill st-' + esc(u.status || "active") + '">' + esc(u.status || "active") + "</span>" +
-                            (u.emailVerified ? "" : ' <span class="pill st-inactive">unverified</span>') +
-                        "</td>" +
-                        '<td class="cell-actions">' +
-                            '<button class="row-btn" data-edit="' + esc(u.email) + '">Edit</button>' +
-                            (isSelf ? "" : '<button class="row-btn danger" data-del="' + esc(u.email) + '">Delete</button>') +
-                        "</td>" +
-                    "</tr>";
-                }).join("");
-            }
-
-            rowCount.textContent = rows.length + " of " + all.length + " user" + (all.length === 1 ? "" : "s");
+            renderUserRows();
         }).catch(function () {
             tbody.innerHTML = '<tr><td colspan="6"><div class="table-empty">Could not load users.</div></td></tr>';
         });
@@ -234,9 +303,9 @@
 
     /* ---- filters ---------------------------------- */
 
-    searchEl.addEventListener("input", render);
-    roleEl.addEventListener("change", render);
-    statusEl.addEventListener("change", render);
+    searchEl.addEventListener("input", function () { userPage = 1; renderUserRows(); });
+    roleEl.addEventListener("change", function () { userPage = 1; renderUserRows(); });
+    statusEl.addEventListener("change", function () { userPage = 1; renderUserRows(); });
 
     /* ============================================================
        MEETINGS — every user's transcripts + summaries
@@ -259,7 +328,12 @@
     var mtTitle = document.getElementById("meetingDialogTitle");
     var mtMeta = document.getElementById("meetingDialogMeta");
     var mtSummaryPane = document.getElementById("meetingSummaryPane");
+    var mtMindmapPane = document.getElementById("meetingMindmapPane");
     var mtTranscriptPane = document.getElementById("meetingTranscriptPane");
+
+    var meetingPagination = document.getElementById("meetingPagination");
+    var meetingPage = 1;
+    var MEETINGS_PER_PAGE = 10;
 
     var allMeetings = [];
 
@@ -325,6 +399,11 @@
             return true;
         });
 
+        var totalPages = Math.max(1, Math.ceil(rows.length / MEETINGS_PER_PAGE));
+        if (meetingPage > totalPages) meetingPage = totalPages;
+        if (meetingPage < 1) meetingPage = 1;
+        var pageRows = rows.slice((meetingPage - 1) * MEETINGS_PER_PAGE, meetingPage * MEETINGS_PER_PAGE);
+
         if (!rows.length) {
             mtBody.innerHTML = '<tr><td colspan="5"><div class="table-empty">' +
                 (allMeetings.length
@@ -332,14 +411,26 @@
                     : "No meetings have been recorded yet.") +
                 "</div></td></tr>";
         } else {
-            mtBody.innerHTML = rows.map(function (m) {
+            mtBody.innerHTML = pageRows.map(function (m) {
+                var badgeLabel = "Transcript only";
+                var badgeClass = "role-user";
+                if (m.hasSummary && m.hasMindmap) {
+                    badgeLabel = "Summary + Mind map";
+                    badgeClass = "st-active";
+                } else if (m.hasSummary) {
+                    badgeLabel = "Summary";
+                    badgeClass = "st-active";
+                } else if (m.hasMindmap) {
+                    badgeLabel = "Mind map";
+                    badgeClass = "st-active";
+                }
+
                 return "<tr>" +
                     "<td>" + esc(m.title || "Untitled meeting") + "</td>" +
                     "<td>" + esc(m.username || "") +
                         ' <span class="hint">' + esc(m.email || "") + "</span></td>" +
                     "<td>" + fmtDateTime(m.createdAt) + "</td>" +
-                    '<td><span class="pill ' + (m.hasSummary ? "st-active" : "role-user") + '">' +
-                        (m.hasSummary ? "Summary" : "Transcript only") + "</span></td>" +
+                    '<td><span class="pill ' + badgeClass + '">' + badgeLabel + "</span></td>" +
                     '<td class="cell-actions">' +
                         '<button class="row-btn" data-view="' + esc(m.id) + '">View</button>' +
                     "</td>" +
@@ -349,6 +440,11 @@
 
         mtCount.textContent = rows.length + " of " + allMeetings.length +
             " meeting" + (allMeetings.length === 1 ? "" : "s");
+
+        renderPagination(meetingPagination, meetingPage, totalPages, function (p) {
+            meetingPage = p;
+            renderMeetings();
+        });
     }
 
     function loadMeetings() {
@@ -436,10 +532,54 @@
         }
     }
 
+    function buildMindmapNode(node) {
+        var li = document.createElement("li");
+        var label = document.createElement("div");
+        label.className = "mindmap-node-label";
+        label.textContent = node.title || "";
+        li.appendChild(label);
+
+        if (Array.isArray(node.children) && node.children.length) {
+            var ul = document.createElement("ul");
+            node.children.forEach(function (child) {
+                ul.appendChild(buildMindmapNode(child));
+            });
+            li.appendChild(ul);
+        }
+
+        return li;
+    }
+
+    function renderMindmapPane(mindmap) {
+        mtMindmapPane.innerHTML = "";
+
+        if (!mindmap || !mindmap.title) {
+            var none = document.createElement("div");
+            none.className = "meeting-none";
+            none.textContent = "No mind map was generated for this meeting.";
+            mtMindmapPane.appendChild(none);
+            return;
+        }
+
+        var root = document.createElement("div");
+        root.className = "mindmap-root-label";
+        root.textContent = mindmap.title;
+        mtMindmapPane.appendChild(root);
+
+        if (Array.isArray(mindmap.children) && mindmap.children.length) {
+            var ul = document.createElement("ul");
+            ul.className = "mindmap-tree";
+            mindmap.children.forEach(function (child) {
+                ul.appendChild(buildMindmapNode(child));
+            });
+            mtMindmapPane.appendChild(ul);
+        }
+    }
+
     function showTab(which) {
-        var isSummary = which === "summary";
-        mtSummaryPane.hidden = !isSummary;
-        mtTranscriptPane.hidden = isSummary;
+        mtSummaryPane.hidden = which !== "summary";
+        mtMindmapPane.hidden = which !== "mindmap";
+        mtTranscriptPane.hidden = which !== "transcript";
         mtDialog.querySelectorAll(".meeting-tab").forEach(function (t) {
             t.classList.toggle("is-active", t.getAttribute("data-tab") === which);
         });
@@ -458,6 +598,7 @@
                 " · " + fmtDateTime(m.createdAt);
 
             renderSummaryPane(m.summary);
+            renderMindmapPane(m.mindmap);
 
             mtTranscriptPane.innerHTML = "";
             var pre = document.createElement("pre");
@@ -485,11 +626,13 @@
         if (e.target === mtDialog) mtDialog.close();
     });
 
-    mtSearch.addEventListener("input", renderMeetings);
-    mtUserFilter.addEventListener("change", renderMeetings);
-    mtStatusFilter.addEventListener("change", renderMeetings);
-    mtDateFrom.addEventListener("change", renderMeetings);
-    mtDateTo.addEventListener("change", renderMeetings);
+    function onMeetingFilterChange() { meetingPage = 1; renderMeetings(); }
+
+    mtSearch.addEventListener("input", onMeetingFilterChange);
+    mtUserFilter.addEventListener("change", onMeetingFilterChange);
+    mtStatusFilter.addEventListener("change", onMeetingFilterChange);
+    mtDateFrom.addEventListener("change", onMeetingFilterChange);
+    mtDateTo.addEventListener("change", onMeetingFilterChange);
 
     mtFilterReset.addEventListener("click", function () {
         mtSearch.value = "";
@@ -497,6 +640,7 @@
         mtStatusFilter.value = "";
         mtDateFrom.value = "";
         mtDateTo.value = "";
+        meetingPage = 1;
         renderMeetings();
     });
 

@@ -1051,23 +1051,26 @@ mark.transcript-match.current {
 }
 
 #saveSummaryBtn {
-    background: var(--success);
+    background: var(--accent);
     color: #fff;
+    border: 1px solid var(--accent);
 }
 
 #saveSummaryBtn:hover {
-    filter: brightness(.92);
+    background: var(--accent-hover);
+    border-color: var(--accent-hover);
 }
 
 #cancelSummaryBtn {
     background: var(--bg-surface);
-    color: var(--text-secondary);
-    border: 1px solid var(--border);
+    color: var(--accent);
+    border: 1px solid var(--accent);
 }
 
 #cancelSummaryBtn:hover {
-    color: var(--text-primary);
-    border-color: var(--border-strong);
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-color: var(--accent);
 }
 
 /* ---------- Summary export ---------- */
@@ -1404,32 +1407,6 @@ mark.transcript-match.current {
     text-align: center;
 }
 
-.mindmap-loading {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 280px;
-    gap: 14px;
-    color: var(--text-muted);
-}
-
-.mindmap-loading::before {
-    content: "";
-    width: 28px;
-    height: 28px;
-    border: 3px solid var(--border);
-    border-top-color: var(--accent);
-    border-radius: 50%;
-    animation: mindmap-spin .8s linear infinite;
-}
-
-@keyframes mindmap-spin {
-    to {
-        transform: rotate(360deg);
-    }
-}
-
 @media (max-width: 1100px) {
 
     #mindMapContainer {
@@ -1565,10 +1542,14 @@ mark.transcript-match.current {
 
 /* ============================================================
    FINAL BUTTON ALIGNMENT / COLOR OVERRIDES
-   Requested UI consistency:
-   - Create Summary and Create Mind Map use the same style.
-   - Mind-map Save Changes uses the same action layout as
-     Meeting Intelligence, with a black button.
+   Requested UI consistency: every action button across Complete
+   Transcript, Meeting Intelligence and Mind Map shares the same
+   accent color family (see --accent / --accent-hover / --accent-soft
+   above) instead of each panel inventing its own (green, black,
+   plain gray). "Primary" actions (Create Summary, Create Mind Map,
+   both Save Changes buttons) are accent-filled with white text;
+   secondary actions (both Cancel buttons) are accent-outlined,
+   matching Create Summary / Create Mind Map's own outline look.
 ============================================================ */
 
 /* Top action buttons: identical appearance */
@@ -1608,12 +1589,14 @@ mark.transcript-match.current {
     display: flex;
 }
 
-/* Mind-map Save Changes: black button */
+/* Mind-map Save Changes: same accent fill as Meeting Intelligence's
+   Save Changes, and the same accent outline as Create Summary /
+   Create Mind Map — one accent color family across all three panels. */
 #saveMindMapBtn {
     padding: 9px 15px;
-    background: #111111;
+    background: var(--accent);
     color: #ffffff;
-    border: 1px solid #111111;
+    border: 1px solid var(--accent);
     box-shadow: var(--shadow-sm);
 }
 
@@ -1622,8 +1605,8 @@ mark.transcript-match.current {
 }
 
 #saveMindMapBtn:hover:not(:disabled) {
-    background: #000000;
-    border-color: #000000;
+    background: var(--accent-hover);
+    border-color: var(--accent-hover);
     color: #ffffff;
 }
 
@@ -1631,8 +1614,8 @@ mark.transcript-match.current {
 #cancelMindMapBtn {
     padding: 9px 15px;
     background: var(--bg-surface);
-    color: var(--text-secondary);
-    border: 1px solid var(--border);
+    color: var(--accent);
+    border: 1px solid var(--accent);
     box-shadow: var(--shadow-sm);
 }
 
@@ -1641,9 +1624,9 @@ mark.transcript-match.current {
 }
 
 #cancelMindMapBtn:hover:not(:disabled) {
-    color: var(--text-primary);
-    border-color: var(--border-strong);
-    background: var(--bg-elevated);
+    color: var(--accent);
+    border-color: var(--accent);
+    background: var(--accent-soft);
 }
 
 /* Ensure the action row stays aligned at the bottom of the
@@ -2038,8 +2021,9 @@ let latestMeetingData = null;
 let currentIntelligenceData = null;
 
 // Id of the meeting row this data was saved as on the server (backend/database.py's
-// meetings table). Null until a summary has actually been persisted — either just
-// generated (see /api/meeting/summarize's meeting_id) or opened from history.
+// meetings table). Null until the row has actually been persisted — set by whichever
+// of summary or mind-map generation runs first, kept on the second so both write to
+// the same row, or restored when a saved meeting is opened from history.
 let currentMeetingId = null;
 
 // Mind-map state (independent from Meeting Intelligence)
@@ -4576,7 +4560,9 @@ async function createSummary() {
                         JSON.stringify(
                             {
                                 transcript:
-                                    transcript
+                                    transcript,
+                                meeting_id:
+                                    currentMeetingId
                             }
                         )
                 }
@@ -4604,7 +4590,7 @@ async function createSummary() {
         currentMeetingId =
             data.meeting_id
             ||
-            null;
+            currentMeetingId;
 
         renderIntelligence(
             data
@@ -5140,7 +5126,9 @@ async function saveMindMapEdits() {
                             JSON.stringify(
                                 {
                                     mindmap:
-                                        savedMindMapData
+                                        savedMindMapData,
+                                    title:
+                                        savedMindMapData.title
                                 }
                             )
                     }
@@ -5563,10 +5551,8 @@ async function createMindMap() {
 
     mindMapContainer.innerHTML =
         `
-        <div class="mindmap-loading">
-            <span>
-                Mistral 128B is analyzing the complete transcript...
-            </span>
+        <div class="placeholder">
+            Mistral 128B is analyzing the complete transcript...
         </div>
         `;
 
@@ -6385,6 +6371,9 @@ window.meetmindHistory = {
         resetTranscriptSearch();
 
         summaryBtn.disabled =
+            !transcript;
+
+        mindMapBtn.disabled =
             !transcript;
 
         if (meeting.summary) {
