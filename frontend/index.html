@@ -5089,6 +5089,13 @@ async function saveMindMapEdits() {
     }
 
 
+    // Guards against a double-click firing two concurrent saves —
+    // the summary editor's Save Changes already does this; this one
+    // was missing it.
+    saveMindMapBtn.disabled =
+        true;
+
+
     currentMindMapData =
         JSON.parse(
             JSON.stringify(
@@ -5176,9 +5183,16 @@ async function saveMindMapEdits() {
                 `Mind-map save failed: ${error.message}`
             );
 
+            saveMindMapBtn.disabled =
+                false;
+
             return;
         }
     }
+
+
+    saveMindMapBtn.disabled =
+        false;
 
 
     mindMapActions.classList.remove(

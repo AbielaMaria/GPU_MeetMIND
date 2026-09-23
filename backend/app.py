@@ -900,7 +900,12 @@ async def create_summary(
                         "meeting_id"
                     ] = request.meeting_id
 
-            if not payload.get("meeting_id"):
+                # else: the id was invalid/not owned — matches
+                # create_mindmap()'s behavior for the same case: drop
+                # the save rather than falling back to creating a new
+                # row, which would silently duplicate the meeting.
+
+            else:
 
                 meeting = db.create_meeting(
                     user_id=user["id"],
