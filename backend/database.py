@@ -46,6 +46,7 @@ def init_db():
             )
         """)
         _migrate_users_otp_columns(conn)
+        _migrate_users_otp_locked_column(conn)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS sessions (
                 token TEXT PRIMARY KEY,
@@ -95,6 +96,31 @@ def _migrate_users_otp_columns(conn):
     conn.execute("UPDATE users SET email_verified = 1")
 
 
+def _migrate_users_otp_locked_column(conn):
+    """
+    Adds `otp_locked`: 1 once an account's verification is in admin hands
+    (it has been verified at least once, or an admin created/unverified it).
+    From then on the self-service OTP endpoints refuse the account, so an
+    admin's "unverify" can't be undone by the user emailing themselves a
+    fresh code.
+
+    Also folds the retired active/inactive `status` into verification:
+    inactive accounts become unverified + locked, so they stay blocked
+    until an admin verifies them. The `status` column itself is left in
+    place (unused) rather than dropped.
+    """
+    existing = {row["name"] for row in conn.execute("PRAGMA table_info(users)")}
+    if "otp_locked" in existing:
+        return
+
+    conn.execute("ALTER TABLE users ADD COLUMN otp_locked INTEGER NOT NULL DEFAULT 0")
+    conn.execute("UPDATE users SET otp_locked = 1 WHERE email_verified = 1")
+    conn.execute(
+        "UPDATE users SET email_verified = 0, otp_locked = 1, status = 'active' "
+        "WHERE status = 'inactive'"
+    )
+
+
 def _migrate_meetings_mindmap_column(conn):
     """Adds mindmap_json to a `meetings` table created before it existed."""
     existing = {row["name"] for row in conn.execute("PRAGMA table_info(meetings)")}
@@ -132,13 +158,13 @@ def get_user_by_id(user_id):
         return dict(row) if row else None
 
 
-def create_user(username, email, password_hash, role="user", status="active"):
+def create_user(username, email, password_hash, role="user", email_verified=0, otp_locked=0):
     created_at = datetime.now(timezone.utc).isoformat()
     with _connect() as conn:
         cur = conn.execute(
-            "INSERT INTO users (username, email, password_hash, role, status, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            (username, email, password_hash, role, status, created_at),
+            "INSERT INTO users (username, email, password_hash, role, created_at, email_verified, otp_locked) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (username, email, password_hash, role, created_at, email_verified, otp_locked),
         )
         user_id = cur.lastrowid
     return get_user_by_id(user_id)
@@ -169,7 +195,8 @@ def ensure_seed_admin(password_hash):
         email="admin@gmail.com",
         password_hash=password_hash,
         role="admin",
-        status="active",
+        email_verified=1,
+        otp_locked=1,
     )
 
 
@@ -210,6 +237,11 @@ def get_session_user(token):
 def delete_session(token):
     with _connect() as conn:
         conn.execute("DELETE FROM sessions WHERE token = ?", (token,))
+
+
+def delete_sessions_for_user(user_id):
+    with _connect() as conn:
+        conn.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
 
 
 # ============================================================

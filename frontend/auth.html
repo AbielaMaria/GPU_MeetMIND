@@ -40,20 +40,21 @@
 
     <link rel="stylesheet" href="assets/theme.css?v=2">
     <link rel="stylesheet" href="assets/mock-widget.css?v=2">
-    <link rel="stylesheet" href="assets/auth.css?v=2">
+    <link rel="stylesheet" href="assets/auth.css?v=3">
 
 </head>
 
 <body data-auth-mode="signin">
 
 <!-- Pick the initial panel from the URL BEFORE first paint (no flash).
-     ?mode=... wins, then the path (/verify-otp, /sign-up), else sign in. -->
+     ?mode=... wins, then the path (/verify-otp, /account-pending, /sign-up), else sign in. -->
 <script>
     (function () {
         var sp = new URLSearchParams(location.search).get("mode");
-        var mode = (sp === "signup" || sp === "signin" || sp === "verify")
+        var mode = (sp === "signup" || sp === "signin" || sp === "verify" || sp === "pending")
             ? sp
             : (location.pathname.indexOf("verify-otp") !== -1 ? "verify"
+                : location.pathname.indexOf("account-pending") !== -1 ? "pending"
                 : location.pathname.indexOf("sign-up") !== -1 ? "signup" : "signin");
         document.body.setAttribute("data-auth-mode", mode);
     })();
@@ -296,6 +297,24 @@
 
             </div>
 
+            <!-- ============================================
+                 PANEL: ACCOUNT PENDING (unverified — only an
+                 admin can verify it). Title/message are swapped
+                 by auth-forms.js depending on why.
+            ============================================= -->
+            <div data-panel="pending">
+
+                <span class="pending-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                </span>
+
+                <h1 id="pendingTitle">Awaiting verification</h1>
+                <p class="sub" id="pendingMessage">Your account is waiting for an administrator to verify it. You'll be able to sign in as soon as that's done.</p>
+
+                <a class="btn btn-accent btn-lg btn-block" href="#" data-auth-switch="signin">Back to sign in</a>
+
+            </div>
+
         </div>
     </main>
 
@@ -303,8 +322,8 @@
 
 <script src="assets/theme.js?v=2"></script>
 <script src="assets/mock-widget.js?v=2"></script>
-<script src="assets/auth-store.js?v=3"></script>
-<script src="assets/auth-forms.js?v=3"></script>
+<script src="assets/auth-store.js?v=4"></script>
+<script src="assets/auth-forms.js?v=4"></script>
 
 </body>
 </html>

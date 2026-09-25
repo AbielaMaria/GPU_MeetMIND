@@ -37,15 +37,21 @@ SESSION_SECONDS = 30 * 24 * 60 * 60   # 30 days
 
 OTP_TTL_SECONDS = 10 * 60   # 10 minutes
 OTP_MAX_ATTEMPTS = 5
-UNVERIFIED_LOGIN_MSG = "Please verify your email before signing in."
 
-# Master switch for the email-OTP gate (see .env / .env.example). Set to
-# false while outbound SMTP isn't available — new accounts are verified
-# immediately and sign-up/sign-in behave like a plain form. Every OTP code
-# path below (_issue_otp, verify_otp, resend_otp, mailer.py) stays intact
-# and just goes unused; flip this back to true once SMTP works again, no
-# other changes needed. (Relies on mailer's load_dotenv() above having
-# already loaded .env before this line runs.)
+# Sign-in refusals for unverified accounts. The frontend (auth-forms.js)
+# matches these exact strings to pick which page to show, so keep in sync.
+UNVERIFIED_LOGIN_MSG = "Please verify your email before signing in."
+AWAITING_ADMIN_MSG = "Your account is awaiting verification by an administrator."
+ADMIN_UNVERIFIED_MSG = "Your account is unverified. Contact your administrator."
+
+# Only verified accounts can sign in. This switch decides how a
+# self-registered account gets verified (see .env / .env.example):
+#   true  -> the user enters an emailed OTP (needs working SMTP).
+#   false -> no email is sent; the account waits for an admin to verify it.
+# Admin-created accounts are verified immediately either way. Once an
+# account has been verified (or an admin has unverified it), only an admin
+# can change its verification — see `otp_locked` in database.py.
+# (Relies on mailer's load_dotenv() above having already loaded .env.)
 REQUIRE_EMAIL_VERIFICATION = os.getenv("REQUIRE_EMAIL_VERIFICATION", "true").strip().lower() not in ("0", "false", "no")
 
 router = APIRouter(prefix="/api", tags=["auth"])
@@ -74,7 +80,12 @@ def get_current_user(request: Request) -> Optional[dict]:
     token = request.cookies.get(SESSION_COOKIE)
     if not token:
         return None
-    return db.get_session_user(token)
+    user = db.get_session_user(token)
+    # Checked on every request, not just at login, so an admin unverifying
+    # someone locks them out immediately rather than when their cookie expires.
+    if not user or not user["email_verified"]:
+        return None
+    return user
 
 
 def require_user(request: Request) -> dict:
@@ -101,7 +112,6 @@ def _public_user(user: dict) -> dict:
         "username": user["username"],
         "email": user["email"],
         "role": user["role"],
-        "status": user["status"],
         "createdAt": user["created_at"],
         "emailVerified": bool(user["email_verified"]),
     }
@@ -151,16 +161,24 @@ def _issue_otp(user: dict) -> None:
         )
 
 
-def _finish_registration(user: dict) -> dict:
+def _unverified_message(user: dict) -> str:
+    if user["otp_locked"]:
+        return ADMIN_UNVERIFIED_MSG
+    if REQUIRE_EMAIL_VERIFICATION:
+        return UNVERIFIED_LOGIN_MSG
+    return AWAITING_ADMIN_MSG
+
+
+def _ensure_self_service_otp_allowed(user: dict) -> None:
     """
-    Verifies `user` immediately when the OTP gate is off, or issues an OTP
-    (existing behaviour) when it's on. Callers that just created `user`
-    should roll the row back if this raises.
+    The OTP endpoints only serve a first-time verification with the email
+    gate on. Anything else is the admin's call — otherwise a user could
+    undo an admin's "unverify" by emailing themselves a new code.
     """
-    if not REQUIRE_EMAIL_VERIFICATION:
-        return db.update_user(user["id"], email_verified=1)
-    _issue_otp(user)
-    return user
+    if user["email_verified"]:
+        raise HTTPException(status_code=400, detail="This account is already verified.")
+    if user["otp_locked"] or not REQUIRE_EMAIL_VERIFICATION:
+        raise HTTPException(status_code=403, detail=_unverified_message(user))
 
 
 EMAIL_RE_MSG = "Enter a valid email address."
@@ -212,7 +230,6 @@ class AdminUserCreate(BaseModel):
     email: str
     password: str
     role: str = "user"
-    status: str = "active"
 
 
 class AdminUserUpdate(BaseModel):
@@ -220,7 +237,7 @@ class AdminUserUpdate(BaseModel):
     email: Optional[str] = None
     password: Optional[str] = None
     role: Optional[str] = None
-    status: Optional[str] = None
+    emailVerified: Optional[bool] = None
 
 
 # ============================================================
@@ -228,7 +245,7 @@ class AdminUserUpdate(BaseModel):
 # ============================================================
 
 @router.post("/auth/register")
-def register(payload: RegisterRequest, response: Response):
+def register(payload: RegisterRequest):
     email = _norm_email(payload.email)
     username = payload.username.strip()
     if not username:
@@ -243,17 +260,17 @@ def register(payload: RegisterRequest, response: Response):
         email=email,
         password_hash=hash_password(payload.password),
         role="user",
-        status="active",
     )
+
+    if not REQUIRE_EMAIL_VERIFICATION:
+        return {"pendingVerification": True, "awaitingAdmin": True, "email": email}
+
     try:
-        user = _finish_registration(user)
+        _issue_otp(user)
     except HTTPException:
         db.delete_user(email)
         raise
-
-    if REQUIRE_EMAIL_VERIFICATION:
-        return {"pendingVerification": True, "email": email}
-    return {"pendingVerification": False, "session": _start_session(response, user)}
+    return {"pendingVerification": True, "awaitingAdmin": False, "email": email}
 
 
 @router.post("/auth/login")
@@ -261,10 +278,8 @@ def login(payload: LoginRequest, response: Response):
     user = _find_user_by_identifier(payload.identifier)
     if not user or not verify_password(payload.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Incorrect username/email or password.")
-    if REQUIRE_EMAIL_VERIFICATION and not user["email_verified"]:
-        raise HTTPException(status_code=403, detail=UNVERIFIED_LOGIN_MSG)
-    if user["status"] != "active":
-        raise HTTPException(status_code=403, detail="This account is inactive. Contact your administrator.")
+    if not user["email_verified"]:
+        raise HTTPException(status_code=403, detail=_unverified_message(user))
 
     return _start_session(response, user)
 
@@ -289,8 +304,7 @@ def verify_otp(payload: VerifyOtpRequest, response: Response):
     user = db.get_user_by_email(email)
     if not user:
         raise HTTPException(status_code=404, detail="No account found for that email.")
-    if user["email_verified"]:
-        raise HTTPException(status_code=400, detail="This account is already verified.")
+    _ensure_self_service_otp_allowed(user)
 
     if not user["otp_code_hash"] or not user["otp_expires_at"]:
         raise HTTPException(status_code=400, detail="No code is pending. Request a new one.")
@@ -311,13 +325,11 @@ def verify_otp(payload: VerifyOtpRequest, response: Response):
     user = db.update_user(
         user["id"],
         email_verified=1,
+        otp_locked=1,
         otp_code_hash=None,
         otp_expires_at=None,
         otp_attempts=0,
     )
-
-    if user["status"] != "active":
-        return {"verified": True, "session": None}
     return {"verified": True, "session": _start_session(response, user)}
 
 
@@ -327,8 +339,7 @@ def resend_otp(payload: ResendOtpRequest):
     user = db.get_user_by_email(email)
     if not user:
         raise HTTPException(status_code=404, detail="No account found for that email.")
-    if user["email_verified"]:
-        raise HTTPException(status_code=400, detail="This account is already verified.")
+    _ensure_self_service_otp_allowed(user)
 
     _issue_otp(user)
     return {"ok": True}
@@ -354,26 +365,31 @@ def admin_create_user(payload: AdminUserCreate, _: dict = Depends(require_admin)
     if db.get_user_by_email(email):
         raise HTTPException(status_code=400, detail="A user with that email already exists.")
 
+    # The admin vouches for the account, so it's verified with no OTP.
     user = db.create_user(
         username=username,
         email=email,
         password_hash=hash_password(payload.password),
         role="admin" if payload.role == "admin" else "user",
-        status="inactive" if payload.status == "inactive" else "active",
+        email_verified=1,
+        otp_locked=1,
     )
-    try:
-        user = _finish_registration(user)
-    except HTTPException:
-        db.delete_user(email)
-        raise
     return _public_user(user)
 
 
 @router.patch("/users/{email}")
-def admin_update_user(email: str, payload: AdminUserUpdate, _: dict = Depends(require_admin)):
+def admin_update_user(email: str, payload: AdminUserUpdate, admin_user: dict = Depends(require_admin)):
     existing = db.get_user_by_email(_norm_email(email))
     if not existing:
         raise HTTPException(status_code=404, detail="User not found.")
+
+    # Same idea as the self-delete guard: an admin can't lock themselves
+    # out, which also means there's always at least one working admin.
+    is_self = existing["id"] == admin_user["id"]
+    if is_self and payload.role is not None and payload.role != "admin":
+        raise HTTPException(status_code=400, detail="You can't remove your own admin role.")
+    if is_self and payload.emailVerified is False:
+        raise HTTPException(status_code=400, detail="You can't unverify your own account.")
 
     fields = {}
     if payload.username is not None:
@@ -390,10 +406,20 @@ def admin_update_user(email: str, payload: AdminUserUpdate, _: dict = Depends(re
         fields["password_hash"] = hash_password(payload.password)
     if payload.role is not None:
         fields["role"] = "admin" if payload.role == "admin" else "user"
-    if payload.status is not None:
-        fields["status"] = "inactive" if payload.status == "inactive" else "active"
+    if payload.emailVerified is not None:
+        # Either way verification is now the admin's call: lock out the
+        # self-service OTP path and drop any code still pending.
+        fields.update(
+            email_verified=1 if payload.emailVerified else 0,
+            otp_locked=1,
+            otp_code_hash=None,
+            otp_expires_at=None,
+            otp_attempts=0,
+        )
 
     user = db.update_user(existing["id"], **fields)
+    if payload.emailVerified is False:
+        db.delete_sessions_for_user(existing["id"])
     return _public_user(user)
 
 

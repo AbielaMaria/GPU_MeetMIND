@@ -349,6 +349,23 @@ async def verify_otp_view(
 
 
 # ============================================================
+# ACCOUNT PENDING (unverified, waiting on an admin)
+# ============================================================
+
+@app.get("/account-pending")
+async def account_pending_view(
+    request: Request,
+):
+
+    return (
+        _redirect_if_already_signed_in(
+            request
+        )
+        or _serve(AUTH_FILE)
+    )
+
+
+# ============================================================
 # ADMIN
 # ============================================================
 

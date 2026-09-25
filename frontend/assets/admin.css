@@ -59,7 +59,7 @@
 
 .stats-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     gap: 16px;
 }
 
@@ -100,6 +100,15 @@
     background: rgba(167, 139, 250, .14);
 }
 
+.stat-icon-teal {
+    color: #0d9488;
+    background: rgba(13, 148, 136, .12);
+}
+:root[data-theme="dark"] .stat-icon-teal {
+    color: #2dd4bf;
+    background: rgba(45, 212, 191, .12);
+}
+
 .stat-info {
     display: flex;
     flex-direction: column;
@@ -119,6 +128,10 @@
     font-size: 12px;
     color: var(--text-muted);
     font-weight: 500;
+}
+
+@media (max-width: 1200px) {
+    .stats-grid { grid-template-columns: repeat(3, 1fr); }
 }
 
 @media (max-width: 900px) {
@@ -342,7 +355,12 @@ td.cell-actions {
 .pill.role-admin { color: var(--accent); background: var(--accent-soft); border-color: transparent; }
 .pill.role-user { color: var(--text-secondary); }
 .pill.st-active { color: var(--success); background: var(--success-soft); border-color: transparent; }
-.pill.st-inactive { color: var(--text-muted); }
+.pill.st-verified { color: var(--success); background: var(--success-soft); border-color: transparent; }
+.pill.st-unverified { color: var(--warning); background: var(--warning-soft); border-color: transparent; }
+
+#dialogVerifyNote {
+    margin: 4px 0 0;
+}
 
 .table-empty {
     padding: 32px;

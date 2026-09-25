@@ -64,10 +64,10 @@
 
         /* ---- sign up (self-service = always role "user") ------ */
 
-        // Resolves with either {pendingVerification:true, email} (OTP gate
-        // on) or {pendingVerification:false, session} (OTP gate off —
-        // see backend/auth.py's REQUIRE_EMAIL_VERIFICATION) — the caller
-        // branches on `pendingVerification`, not on any client-side flag.
+        // Resolves with {pendingVerification:true, awaitingAdmin, email}.
+        // New accounts never get a session straight away: awaitingAdmin is
+        // false when the user must enter an emailed OTP, true when an admin
+        // has to verify them (see REQUIRE_EMAIL_VERIFICATION in backend/auth.py).
         signUp: function (payload) {
             return request("POST", "/auth/register", {
                 username: payload.username,
@@ -87,8 +87,8 @@
         },
 
         /* ---- email verification (OTP) ------------------------ */
-        // Every new account (self-signup or admin-created) starts
-        // unverified; these back the /verify-otp panel in auth-forms.js.
+        // Only for a self-signup's first verification with the OTP gate on;
+        // these back the /verify-otp panel in auth-forms.js.
 
         verifyOtp: function (email, code) {
             return request("POST", "/auth/verify-otp", { email: email, code: code });
@@ -119,6 +119,11 @@
         // `originalEmail` identifies the row; patch may include a new email.
         updateUser: function (originalEmail, patch) {
             return request("PATCH", "/users/" + encodeURIComponent(originalEmail), patch);
+        },
+
+        // Unverifying also signs the user out everywhere (server-side).
+        setUserVerified: function (email, verified) {
+            return this.updateUser(email, { emailVerified: !!verified });
         },
 
         deleteUser: function (email) {

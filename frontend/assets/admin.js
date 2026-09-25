@@ -11,19 +11,21 @@
     "use strict";
 
     var A = window.MeetMindAuth;
+    var D = window.MeetMindDialog;
 
     /* ---- refs ------------------------------------------ */
 
     var tbody = document.getElementById("userRows");
     var searchEl = document.getElementById("userSearch");
     var roleEl = document.getElementById("roleFilter");
-    var statusEl = document.getElementById("statusFilter");
+    var verifiedEl = document.getElementById("verifiedFilter");
     var rowCount = document.getElementById("rowCount");
 
     var statTotalUsers = document.getElementById("statTotalUsers");
-    var statActiveUsers = document.getElementById("statActiveUsers");
-    var statTotalMeetings = document.getElementById("statTotalMeetings");
+    var statVerifiedUsers = document.getElementById("statVerifiedUsers");
+    var statUnverifiedUsers = document.getElementById("statUnverifiedUsers");
     var statSummarized = document.getElementById("statSummarized");
+    var statMindmapped = document.getElementById("statMindmapped");
 
     var dialog = document.getElementById("userDialog");
     var form = document.getElementById("userForm");
@@ -35,9 +37,9 @@
         username: form.querySelector('[name="username"]'),
         email: form.querySelector('[name="email"]'),
         password: form.querySelector('[name="password"]'),
-        role: form.querySelector('[name="role"]'),
-        status: form.querySelector('[name="status"]')
+        role: form.querySelector('[name="role"]')
     };
+    var verifyNote = document.getElementById("dialogVerifyNote");
 
     // null = adding; string = editing this (original) email
     var editingEmail = null;
@@ -127,13 +129,15 @@
     /* ---- overview stats ------------------------------ */
 
     function renderStats() {
+        var verified = allUsers.filter(function (u) { return u.emailVerified; }).length;
         statTotalUsers.textContent = allUsers.length;
-        statActiveUsers.textContent = allUsers.filter(function (u) {
-            return (u.status || "active") === "active";
-        }).length;
-        statTotalMeetings.textContent = allMeetings.length;
+        statVerifiedUsers.textContent = verified;
+        statUnverifiedUsers.textContent = allUsers.length - verified;
         statSummarized.textContent = allMeetings.filter(function (m) {
             return m.hasSummary;
+        }).length;
+        statMindmapped.textContent = allMeetings.filter(function (m) {
+            return m.hasMindmap;
         }).length;
     }
 
@@ -144,11 +148,12 @@
 
         var q = searchEl.value.trim().toLowerCase();
         var role = roleEl.value;
-        var status = statusEl.value;
+        var verification = verifiedEl.value;
 
         var rows = allUsers.filter(function (u) {
             if (role && u.role !== role) return false;
-            if (status && (u.status || "active") !== status) return false;
+            if (verification === "verified" && !u.emailVerified) return false;
+            if (verification === "unverified" && u.emailVerified) return false;
             if (q && ((u.username || "") + " " + u.email).toLowerCase().indexOf(q) === -1) return false;
             return true;
         });
@@ -170,10 +175,14 @@
                     "<td>" + esc(u.email) + "</td>" +
                     '<td><span class="pill role-' + esc(u.role) + '">' + esc(u.role) + "</span></td>" +
                     "<td>" + fmtDate(u.createdAt) + "</td>" +
-                    '<td><span class="pill st-' + esc(u.status || "active") + '">' + esc(u.status || "active") + "</span>" +
-                        (u.emailVerified ? "" : ' <span class="pill st-inactive">unverified</span>') +
+                    '<td>' + (u.emailVerified
+                        ? '<span class="pill st-verified">verified</span>'
+                        : '<span class="pill st-unverified">unverified</span>') +
                     "</td>" +
                     '<td class="cell-actions">' +
+                        (u.emailVerified
+                            ? (isSelf ? "" : '<button class="row-btn" data-unverify="' + esc(u.email) + '">Unverify</button>')
+                            : '<button class="row-btn" data-verify="' + esc(u.email) + '">Verify</button>') +
                         '<button class="row-btn" data-edit="' + esc(u.email) + '">Edit</button>' +
                         (isSelf ? "" : '<button class="row-btn danger" data-del="' + esc(u.email) + '">Delete</button>') +
                     "</td>" +
@@ -206,7 +215,8 @@
         pwLabelText.textContent = "Password";
         form.reset();
         f.role.value = "user";
-        f.status.value = "active";
+        f.role.disabled = false;
+        verifyNote.hidden = false;
         hideAlert();
         clearFieldErrors();
         dialog.showModal();
@@ -223,7 +233,9 @@
         f.email.value = u.email;
         f.password.value = "";
         f.role.value = u.role === "admin" ? "admin" : "user";
-        f.status.value = (u.status === "inactive") ? "inactive" : "active";
+        // The server refuses self-demotion; don't offer it.
+        f.role.disabled = u.email === session.email;
+        verifyNote.hidden = true;
         hideAlert();
         clearFieldErrors();
         dialog.showModal();
@@ -250,12 +262,50 @@
         var editBtn = e.target.closest("[data-edit]");
         if (editBtn) { openEdit(editBtn.getAttribute("data-edit")); return; }
 
+        var verifyBtn = e.target.closest("[data-verify]");
+        if (verifyBtn) {
+            A.setUserVerified(verifyBtn.getAttribute("data-verify"), true)
+                .then(render)
+                .catch(function (err) {
+                    D.alert({ title: "Couldn't verify user", message: err.message || "Could not verify that user." });
+                });
+            return;
+        }
+
+        var unverifyBtn = e.target.closest("[data-unverify]");
+        if (unverifyBtn) {
+            var target = unverifyBtn.getAttribute("data-unverify");
+            D.confirm({
+                title: "Unverify this user?",
+                message: target + " will be signed out and can't sign in again until an admin verifies them.",
+                confirmText: "Unverify",
+                danger: true
+            }).then(function (ok) {
+                if (!ok) return;
+                A.setUserVerified(target, false)
+                    .then(render)
+                    .catch(function (err) {
+                        D.alert({ title: "Couldn't unverify user", message: err.message || "Could not unverify that user." });
+                    });
+            });
+            return;
+        }
+
         var delBtn = e.target.closest("[data-del]");
         if (delBtn) {
             var email = delBtn.getAttribute("data-del");
-            if (confirm("Remove user " + email + "? This cannot be undone.")) {
-                A.deleteUser(email).then(render);
-            }
+            D.confirm({
+                title: "Delete this user?",
+                message: email + " and all of their meetings will be permanently removed. This cannot be undone.",
+                confirmText: "Delete user",
+                danger: true
+            }).then(function (ok) {
+                if (!ok) return;
+                A.deleteUser(email).then(function (deleted) {
+                    if (!deleted) D.alert({ title: "Couldn't delete user", message: "Could not delete " + email + ". Please try again." });
+                    return render();
+                });
+            });
         }
     });
 
@@ -270,8 +320,7 @@
             username: f.username.value.trim(),
             email: f.email.value.trim(),
             password: f.password.value,
-            role: f.role.value,
-            status: f.status.value
+            role: f.role.value
         };
 
         var bad = false;
@@ -284,7 +333,7 @@
         // Editing without a new password: don't send an empty one.
         var payload = data;
         if (editingEmail && !data.password) {
-            payload = { username: data.username, email: data.email, role: data.role, status: data.status };
+            payload = { username: data.username, email: data.email, role: data.role };
         }
 
         var op = editingEmail ? A.updateUser(editingEmail, payload) : A.addUser(payload);
@@ -305,7 +354,7 @@
 
     searchEl.addEventListener("input", function () { userPage = 1; renderUserRows(); });
     roleEl.addEventListener("change", function () { userPage = 1; renderUserRows(); });
-    statusEl.addEventListener("change", function () { userPage = 1; renderUserRows(); });
+    verifiedEl.addEventListener("change", function () { userPage = 1; renderUserRows(); });
 
     /* ============================================================
        MEETINGS — every user's transcripts + summaries
@@ -610,7 +659,7 @@
             mtDialog.showModal();
 
         }).catch(function () {
-            alert("Could not open that meeting.");
+            D.alert({ title: "Couldn't open meeting", message: "Could not open that meeting. Please try again." });
         });
     }
 

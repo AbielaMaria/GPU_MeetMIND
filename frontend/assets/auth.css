@@ -16,7 +16,8 @@
 
 body[data-auth-mode="signin"] [data-panel="signin"],
 body[data-auth-mode="signup"] [data-panel="signup"],
-body[data-auth-mode="verify"] [data-panel="verify"] {
+body[data-auth-mode="verify"] [data-panel="verify"],
+body[data-auth-mode="pending"] [data-panel="pending"] {
     display: block;
     animation: auth-fade .25s ease both;
 }
@@ -29,15 +30,41 @@ body[data-auth-mode="verify"] [data-panel="verify"] {
 @media (prefers-reduced-motion: reduce) {
     body[data-auth-mode="signin"] [data-panel="signin"],
     body[data-auth-mode="signup"] [data-panel="signup"],
-    body[data-auth-mode="verify"] [data-panel="verify"] { animation: none; }
+    body[data-auth-mode="verify"] [data-panel="verify"],
+    body[data-auth-mode="pending"] [data-panel="pending"] { animation: none; }
 }
 
 [data-copy] { display: none; }
 
 body[data-auth-mode="signin"] [data-copy="signin"],
 body[data-auth-mode="signup"] [data-copy="signup"],
-body[data-auth-mode="verify"] [data-copy="signin"] {
+body[data-auth-mode="verify"] [data-copy="signin"],
+body[data-auth-mode="pending"] [data-copy="signin"] {
     display: block;
+}
+
+/* ---------- Account pending panel ---------- */
+
+.pending-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    margin-bottom: 18px;
+    border-radius: 50%;
+    color: var(--warning);
+    background: var(--warning-soft);
+}
+
+.pending-icon svg {
+    width: 24px;
+    height: 24px;
+}
+
+body[data-pending-kind="revoked"] .pending-icon {
+    color: var(--danger);
+    background: var(--danger-soft);
 }
 
 /* ---------- Left : brand panel ---------- */

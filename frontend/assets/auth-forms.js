@@ -69,15 +69,48 @@
         location.assign(A ? A.landingPathForRole(role) : "/app");
     }
 
-    // Matches the fixed string auth.py's login endpoint sends for a
-    // not-yet-verified account (see UNVERIFIED_LOGIN_MSG), so sign-in can
-    // route the user into the verify panel instead of just showing an alert.
+    // Must match the fixed strings in backend/auth.py, so a refused sign-in
+    // (or OTP attempt) can route to the right panel instead of an alert.
     var UNVERIFIED_LOGIN_MSG = "Please verify your email before signing in.";
+    var AWAITING_ADMIN_MSG = "Your account is awaiting verification by an administrator.";
+    var ADMIN_UNVERIFIED_MSG = "Your account is unverified. Contact your administrator.";
+
+    var PENDING_COPY = {
+        awaiting: {
+            title: "Awaiting verification",
+            message: "Your account is waiting for an administrator to verify it. " +
+                "You'll be able to sign in as soon as that's done."
+        },
+        revoked: {
+            title: "Account unverified",
+            message: "Your account is currently unverified, so you can't sign in. " +
+                "Contact your administrator to restore access."
+        }
+    };
 
     function goToVerify(email) {
         var emailField = document.getElementById("vf_email");
         if (emailField) emailField.value = email || "";
         setMode("verify", true);
+    }
+
+    function goToPending(kind) {
+        var copy = PENDING_COPY[kind] || PENDING_COPY.awaiting;
+        var title = document.getElementById("pendingTitle");
+        var message = document.getElementById("pendingMessage");
+        if (title) title.textContent = copy.title;
+        if (message) message.textContent = copy.message;
+        document.body.setAttribute("data-pending-kind", kind === "revoked" ? "revoked" : "awaiting");
+        setMode("pending", true);
+    }
+
+    // Routes a refusal from the server to the matching panel. Returns true
+    // when it did, so callers only fall back to an inline alert otherwise.
+    function routeUnverified(message, email) {
+        if (message === UNVERIFIED_LOGIN_MSG) { goToVerify(email); return true; }
+        if (message === AWAITING_ADMIN_MSG) { goToPending("awaiting"); return true; }
+        if (message === ADMIN_UNVERIFIED_MSG) { goToPending("revoked"); return true; }
+        return false;
     }
 
     /* ---- password show / hide ------------------------- */
@@ -100,17 +133,18 @@
     var TITLES = {
         signin: "Sign In — MeetMind",
         signup: "Create your account — MeetMind",
-        verify: "Verify your email — MeetMind"
+        verify: "Verify your email — MeetMind",
+        pending: "Account pending — MeetMind"
     };
-    var PATHS = { signin: "/sign-in", signup: "/sign-up", verify: "/verify-otp" };
+    var PATHS = { signin: "/sign-in", signup: "/sign-up", verify: "/verify-otp", pending: "/account-pending" };
 
     function currentMode() {
         var mode = document.body.getAttribute("data-auth-mode");
-        return (mode === "signup" || mode === "verify") ? mode : "signin";
+        return TITLES.hasOwnProperty(mode) ? mode : "signin";
     }
 
     function setMode(mode, userInitiated) {
-        if (mode !== "signin" && mode !== "signup" && mode !== "verify") mode = "signin";
+        if (!TITLES.hasOwnProperty(mode)) mode = "signin";
         document.body.setAttribute("data-auth-mode", mode);   // CSS shows the right panel
         document.title = TITLES[mode];
 
@@ -169,10 +203,7 @@
                 redirectAfterAuth(res.session.role);
             }).catch(function (err) {
                 setLoading(siBtn, false);
-                if (err.message === UNVERIFIED_LOGIN_MSG) {
-                    goToVerify(identifier.indexOf("@") !== -1 ? identifier : "");
-                    return;
-                }
+                if (routeUnverified(err.message, identifier.indexOf("@") !== -1 ? identifier : "")) return;
                 showAlert(siPanel, "error", err.message || "Sign in failed. Try again.");
             });
         });
@@ -233,10 +264,13 @@
 
             A.signUp({ username: username, email: email, password: password, role: "user" })
                 .then(function (res) {
-                    // Server decides whether OTP is required (REQUIRE_EMAIL_VERIFICATION
-                    // in backend/auth.py) — go straight to the app when it's off.
-                    if (res && res.pendingVerification === false && res.session) {
-                        redirectAfterAuth(res.session.role);
+                    // New accounts always start unverified. The server says how
+                    // they get verified (REQUIRE_EMAIL_VERIFICATION in backend/auth.py):
+                    // an emailed OTP, or an administrator.
+                    setLoading(suBtn, false);
+                    signUpForm.reset();
+                    if (res && res.awaitingAdmin) {
+                        goToPending("awaiting");
                     } else {
                         goToVerify(email);
                     }
@@ -289,15 +323,11 @@
             setLoading(vfBtn, true);
 
             A.verifyOtp(email, code).then(function (res) {
-                if (res.session) {
-                    showAlert(vfPanel, "success", "Verified — taking you to the app…");
-                    setTimeout(function () { redirectAfterAuth(res.session.role); }, 500);
-                } else {
-                    setLoading(vfBtn, false);
-                    showAlert(vfPanel, "success", "Verified. Your administrator still needs to activate your account before you can sign in.");
-                }
+                showAlert(vfPanel, "success", "Verified — taking you to the app…");
+                setTimeout(function () { redirectAfterAuth(res.session.role); }, 500);
             }).catch(function (err) {
                 setLoading(vfBtn, false);
+                if (routeUnverified(err.message, email)) return;
                 showAlert(vfPanel, "error", err.message || "Could not verify that code.");
             });
         });
@@ -314,6 +344,7 @@
                 A.resendOtp(email).then(function () {
                     showAlert(vfPanel, "success", "A new code is on its way.");
                 }).catch(function (err) {
+                    if (routeUnverified(err.message, email)) return;
                     showAlert(vfPanel, "error", err.message || "Could not resend the code.");
                 });
             });

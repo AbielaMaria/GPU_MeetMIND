@@ -38,10 +38,10 @@
          backend/app.py's /admin route. No client-side guard here: a
          second opinion can only disagree with the server, and when it
          did, the two redirected the browser back and forth endlessly. -->
-    <script src="assets/auth-store.js?v=3"></script>
+    <script src="assets/auth-store.js?v=4"></script>
 
     <link rel="stylesheet" href="assets/theme.css">
-    <link rel="stylesheet" href="assets/admin.css">
+    <link rel="stylesheet" href="assets/admin.css?v=2">
 
 </head>
 
@@ -95,28 +95,38 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/></svg>
                 </span>
                 <span class="stat-info">
-                    <span class="stat-value" id="statActiveUsers">—</span>
-                    <span class="stat-label">Active users</span>
-                </span>
-            </div>
-
-            <div class="stat-card">
-                <span class="stat-icon stat-icon-violet" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/></svg>
-                </span>
-                <span class="stat-info">
-                    <span class="stat-value" id="statTotalMeetings">—</span>
-                    <span class="stat-label">Meetings transcribed</span>
+                    <span class="stat-value" id="statVerifiedUsers">—</span>
+                    <span class="stat-label">Verified users</span>
                 </span>
             </div>
 
             <div class="stat-card">
                 <span class="stat-icon stat-icon-warning" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                </span>
+                <span class="stat-info">
+                    <span class="stat-value" id="statUnverifiedUsers">—</span>
+                    <span class="stat-label">Unverified users</span>
+                </span>
+            </div>
+
+            <div class="stat-card">
+                <span class="stat-icon stat-icon-violet" aria-hidden="true">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.287 1.288L3 12l5.8 1.9a2 2 0 0 1 1.288 1.287L12 21l1.9-5.8a2 2 0 0 1 1.287-1.288L21 12l-5.8-1.9a2 2 0 0 1-1.288-1.287Z"/></svg>
                 </span>
                 <span class="stat-info">
                     <span class="stat-value" id="statSummarized">—</span>
                     <span class="stat-label">Meetings summarized</span>
+                </span>
+            </div>
+
+            <div class="stat-card">
+                <span class="stat-icon stat-icon-teal" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"/><path d="M12 12V8"/></svg>
+                </span>
+                <span class="stat-info">
+                    <span class="stat-value" id="statMindmapped">—</span>
+                    <span class="stat-label">Meetings mind-mapped</span>
                 </span>
             </div>
 
@@ -141,10 +151,10 @@
                         <option value="user">User</option>
                         <option value="admin">Admin</option>
                     </select>
-                    <select id="statusFilter" aria-label="Filter by status">
-                        <option value="">All statuses</option>
-                        <option value="active">Active</option>
-                        <option value="inactive">Inactive</option>
+                    <select id="verifiedFilter" aria-label="Filter by verification">
+                        <option value="">All users</option>
+                        <option value="verified">Verified</option>
+                        <option value="unverified">Unverified</option>
                     </select>
                     <span class="spacer"></span>
                     <button class="btn btn-accent" id="addUserBtn" type="button">
@@ -161,7 +171,7 @@
                                 <th>Email</th>
                                 <th>Role</th>
                                 <th>Created</th>
-                                <th>Status</th>
+                                <th>Verification</th>
                                 <th class="col-actions">Actions</th>
                             </tr>
                         </thead>
@@ -269,26 +279,17 @@
             <div class="field-error" data-error-for="password"></div>
         </div>
 
-        <div class="dialog-row">
-            <div class="field" data-field="role">
-                <label for="f_role">Role</label>
-                <div class="input-wrap">
-                    <select id="f_role" name="role">
-                        <option value="user">User</option>
-                        <option value="admin">Admin</option>
-                    </select>
-                </div>
-            </div>
-            <div class="field" data-field="status">
-                <label for="f_status">Status</label>
-                <div class="input-wrap">
-                    <select id="f_status" name="status">
-                        <option value="active">Active</option>
-                        <option value="inactive">Inactive</option>
-                    </select>
-                </div>
+        <div class="field" data-field="role">
+            <label for="f_role">Role</label>
+            <div class="input-wrap">
+                <select id="f_role" name="role">
+                    <option value="user">User</option>
+                    <option value="admin">Admin</option>
+                </select>
             </div>
         </div>
+
+        <p class="hint" id="dialogVerifyNote">Users you add here are verified automatically and can sign in right away.</p>
 
         <div class="dialog-actions">
             <button class="btn btn-ghost" type="button" id="dialogCancel">Cancel</button>
@@ -324,7 +325,8 @@
 </dialog>
 
 <script src="assets/theme.js?v=3"></script>
-<script src="assets/admin.js?v=5"></script>
+<script src="assets/dialog.js?v=1"></script>
+<script src="assets/admin.js?v=7"></script>
 
 </body>
 </html>

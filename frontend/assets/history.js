@@ -16,6 +16,8 @@
     var bridge = window.meetmindHistory;
     if (!bridge) return;
 
+    var D = window.MeetMindDialog;
+
     var openMeetingId = null;
 
     /* ---- helpers --------------------------------------- */
@@ -198,30 +200,45 @@
     /* ---- opening one meeting --------------------------- */
 
     function openMeeting(id) {
+        var proceed = Promise.resolve(true);
+
         // Never overwrite a recording that is still in progress.
         if (bridge.isBusy()) {
-            if (!confirm("A recording is in progress. Open the saved meeting anyway?")) return;
+            proceed = proceed.then(function (ok) {
+                return ok && D.confirm({
+                    title: "Recording in progress",
+                    message: "A recording is in progress. Open the saved meeting anyway?",
+                    confirmText: "Open meeting"
+                });
+            });
         }
 
         // Same for a summary/mind map still being generated: loading
         // another meeting here re-points the panels (and the meeting id
         // the result gets saved under) while that request is in flight.
         if (bridge.isGenerating && bridge.isGenerating()) {
-            if (!confirm(
-                "A summary or mind map is still being generated. Open the saved meeting anyway?"
-            )) return;
+            proceed = proceed.then(function (ok) {
+                return ok && D.confirm({
+                    title: "Still generating",
+                    message: "A summary or mind map is still being generated. Open the saved meeting anyway?",
+                    confirmText: "Open meeting"
+                });
+            });
         }
 
-        api("/api/meetings/" + encodeURIComponent(id)).then(function (meeting) {
-            bridge.load(meeting);
-            openMeetingId = meeting.id;
-            showViewingBar(meeting);
-            markActive();
-            closeDrawer();
-            window.scrollTo({ top: 0, behavior: "smooth" });
+        proceed.then(function (ok) {
+            if (!ok) return;
+            api("/api/meetings/" + encodeURIComponent(id)).then(function (meeting) {
+                bridge.load(meeting);
+                openMeetingId = meeting.id;
+                showViewingBar(meeting);
+                markActive();
+                closeDrawer();
+                window.scrollTo({ top: 0, behavior: "smooth" });
 
-        }).catch(function () {
-            alert("Could not open that meeting.");
+            }).catch(function () {
+                D.alert({ title: "Couldn't open meeting", message: "Could not open that meeting. Please try again." });
+            });
         });
     }
 
