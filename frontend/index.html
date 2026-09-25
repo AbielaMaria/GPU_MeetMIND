@@ -1644,6 +1644,107 @@ mark.transcript-match.current {
     flex: 0 0 auto;
 }
 
+/* ============================================================
+   NEW MEETING CONFIRMATION MODAL
+============================================================ */
+
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 15, 20, .5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transition:
+        opacity .18s ease,
+        visibility 0s linear .18s;
+}
+
+.modal-overlay.visible {
+    opacity: 1;
+    visibility: visible;
+    transition:
+        opacity .18s ease,
+        visibility 0s linear 0s;
+}
+
+.modal-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-lg);
+    padding: 24px;
+    width: 100%;
+    max-width: 380px;
+    transform: translateY(10px) scale(.96);
+    opacity: 0;
+    transition:
+        transform .22s cubic-bezier(.16, 1, .3, 1),
+        opacity .18s ease;
+}
+
+.modal-overlay.visible .modal-card {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+}
+
+.modal-card h3 {
+    margin: 0 0 10px;
+    font-size: 1.05rem;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    color: var(--text-primary);
+}
+
+.modal-card p {
+    margin: 0 0 22px;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--text-secondary);
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.modal-btn {
+    padding: 9px 15px;
+}
+
+.modal-btn::before {
+    content: none;
+}
+
+.modal-btn-secondary {
+    background: var(--bg-surface);
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    box-shadow: var(--shadow-sm);
+}
+
+.modal-btn-secondary:hover {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+}
+
+.modal-btn-primary {
+    background: var(--accent);
+    color: #ffffff;
+    border: 1px solid var(--accent);
+    box-shadow: var(--shadow-sm);
+}
+
+.modal-btn-primary:hover {
+    background: var(--accent-hover);
+    border-color: var(--accent-hover);
+}
+
 </style>
 
 </head>
@@ -1985,6 +2086,57 @@ mark.transcript-match.current {
 
     </div>
 
+
+</div>
+
+
+<!-- ======================================================
+     NEW MEETING CONFIRMATION MODAL
+======================================================= -->
+
+<div
+    class="modal-overlay"
+    id="newMeetingOverlay"
+    aria-hidden="true"
+>
+
+    <div
+        class="modal-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="newMeetingTitle"
+        aria-describedby="newMeetingDesc"
+    >
+
+        <h3 id="newMeetingTitle">
+            Start a new meeting?
+        </h3>
+
+        <p id="newMeetingDesc">
+            This transcript hasn't been saved yet. Generate a Summary or Mind Map first if you want to keep it for later &mdash; starting a new meeting now will discard it.
+        </p>
+
+        <div class="modal-actions">
+
+            <button
+                type="button"
+                id="newMeetingCancelBtn"
+                class="modal-btn modal-btn-secondary"
+            >
+                Cancel
+            </button>
+
+            <button
+                type="button"
+                id="newMeetingConfirmBtn"
+                class="modal-btn modal-btn-primary"
+            >
+                Start New Meeting
+            </button>
+
+        </div>
+
+    </div>
 
 </div>
 
@@ -2620,6 +2772,9 @@ function handleServerMessage(
             mindMapBtn.disabled =
                 !transcript;
 
+            recordBtn.disabled =
+                false;
+
             if (transcript) {
 
                 setStatus(
@@ -2701,6 +2856,9 @@ function handleServerMessage(
             );
 
             summaryBtn.disabled =
+                false;
+
+            recordBtn.disabled =
                 false;
 
             setStatus(
@@ -6300,6 +6458,109 @@ downloadPdfBtn.addEventListener(
    BUTTON EVENT
 ============================================================ */
 
+/* ============================================================
+   NEW MEETING CONFIRMATION MODAL
+============================================================ */
+
+const newMeetingOverlay =
+    document.getElementById(
+        "newMeetingOverlay"
+    );
+
+const newMeetingCancelBtn =
+    document.getElementById(
+        "newMeetingCancelBtn"
+    );
+
+const newMeetingConfirmBtn =
+    document.getElementById(
+        "newMeetingConfirmBtn"
+    );
+
+
+function openNewMeetingModal() {
+
+    newMeetingOverlay.classList.add(
+        "visible"
+    );
+
+    newMeetingOverlay.setAttribute(
+        "aria-hidden",
+        "false"
+    );
+
+    newMeetingConfirmBtn.focus();
+}
+
+
+function closeNewMeetingModal() {
+
+    newMeetingOverlay.classList.remove(
+        "visible"
+    );
+
+    newMeetingOverlay.setAttribute(
+        "aria-hidden",
+        "true"
+    );
+
+    recordBtn.focus();
+}
+
+
+newMeetingCancelBtn.addEventListener(
+    "click",
+    closeNewMeetingModal
+);
+
+
+newMeetingConfirmBtn.addEventListener(
+    "click",
+    function() {
+
+        closeNewMeetingModal();
+
+        startRecording();
+    }
+);
+
+
+newMeetingOverlay.addEventListener(
+    "click",
+    function(event) {
+
+        if (
+            event.target
+            ===
+            newMeetingOverlay
+        ) {
+
+            closeNewMeetingModal();
+        }
+    }
+);
+
+
+document.addEventListener(
+    "keydown",
+    function(event) {
+
+        if (
+            event.key
+            ===
+            "Escape"
+            &&
+            newMeetingOverlay.classList.contains(
+                "visible"
+            )
+        ) {
+
+            closeNewMeetingModal();
+        }
+    }
+);
+
+
 recordBtn.addEventListener(
     "click",
     function() {
@@ -6309,6 +6570,14 @@ recordBtn.addEventListener(
         ) {
 
             stopRecording();
+
+        } else if (
+            transcript
+            &&
+            !currentMeetingId
+        ) {
+
+            openNewMeetingModal();
 
         } else {
 
