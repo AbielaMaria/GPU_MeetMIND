@@ -11,8 +11,9 @@
    layer — above the admin page's own <dialog>s and the history
    drawer — and the rest of the page is inert while it's open.
 
-     MeetMindDialog.confirm({ title, message, confirmText, cancelText, danger })
+     MeetMindDialog.confirm({ title, message, items, confirmText, cancelText, danger })
          -> Promise<boolean>
+     (items: optional array of strings, shown as a bullet list under message)
      MeetMindDialog.alert({ title, message, okText })
          -> Promise<void>
 ============================================================ */
@@ -36,6 +37,11 @@
             "letter-spacing:-0.01em;color:var(--text-primary)}" +
         ".mm-dlg p{margin:0 0 22px;font-size:13px;line-height:1.55;" +
             "color:var(--text-secondary);overflow-wrap:anywhere}" +
+        ".mm-dlg.has-items{max-width:440px}" +
+        ".mm-dlg.has-items p{margin-bottom:10px}" +
+        ".mm-dlg ul{margin:0 0 22px;padding-left:18px;font-size:13px;line-height:1.55;" +
+            "color:var(--text-secondary)}" +
+        ".mm-dlg li{margin:0 0 4px}" +
         ".mm-dlg-actions{display:flex;justify-content:flex-end;gap:10px}" +
         ".mm-dlg-btn{font-family:inherit;font-size:13px;font-weight:600;letter-spacing:-0.005em;" +
             "padding:9px 15px;border-radius:var(--r-md);border:1px solid var(--accent);" +
@@ -116,6 +122,16 @@
 
             dlg.appendChild(title);
             dlg.appendChild(message);
+            if (Array.isArray(opts.items) && opts.items.length) {
+                dlg.classList.add("has-items");
+                var list = document.createElement("ul");
+                opts.items.forEach(function (text) {
+                    var li = document.createElement("li");
+                    li.textContent = text;
+                    list.appendChild(li);
+                });
+                dlg.appendChild(list);
+            }
             dlg.appendChild(actions);
             document.body.appendChild(dlg);
 

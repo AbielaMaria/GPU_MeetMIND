@@ -43,6 +43,17 @@
 
     // null = adding; string = editing this (original) email
     var editingEmail = null;
+    // Role select value before the latest change, so Cancel on the
+    // "grant admin" warning can put it back.
+    var roleBefore = "user";
+
+    var ADMIN_PRIVILEGES = [
+        "Open this admin dashboard",
+        "Add, edit and delete any account, including changing emails and passwords",
+        "Verify or unverify other accounts (unverified accounts are signed out immediately)",
+        "Give or remove the admin role on other accounts",
+        "View every user's meetings: transcripts, summaries and mind maps"
+    ];
 
     // Cache of the last fetched list, so opening the edit dialog
     // doesn't need a second round-trip.
@@ -215,6 +226,7 @@
         pwLabelText.textContent = "Password";
         form.reset();
         f.role.value = "user";
+        roleBefore = "user";
         f.role.disabled = false;
         verifyNote.hidden = false;
         hideAlert();
@@ -233,6 +245,7 @@
         f.email.value = u.email;
         f.password.value = "";
         f.role.value = u.role === "admin" ? "admin" : "user";
+        roleBefore = f.role.value;
         // The server refuses self-demotion; don't offer it.
         f.role.disabled = u.email === session.email;
         verifyNote.hidden = true;
@@ -253,6 +266,29 @@
         if (out) out.textContent = msg || "";
         if (field) field.classList.toggle("has-error", !!msg);
     }
+
+    f.role.addEventListener("change", function () {
+        var editingUser = editingEmail && allUsers.find(function (x) { return x.email === editingEmail; });
+        var alreadyAdmin = editingUser && editingUser.role === "admin";
+        if (f.role.value !== "admin" || alreadyAdmin) {
+            roleBefore = f.role.value;
+            return;
+        }
+        D.confirm({
+            title: "Grant admin privileges?",
+            message: "Setting this role to Admin gives this account full control of MeetMind. " +
+                "Admin accounts are always verified and skip email verification. An admin can:",
+            items: ADMIN_PRIVILEGES,
+            confirmText: "Proceed",
+            danger: true
+        }).then(function (ok) {
+            if (ok) {
+                roleBefore = "admin";
+            } else {
+                f.role.value = roleBefore;
+            }
+        });
+    });
 
     document.getElementById("addUserBtn").addEventListener("click", openAdd);
     document.getElementById("dialogCancel").addEventListener("click", function () { dialog.close(); });
@@ -275,12 +311,26 @@
         var unverifyBtn = e.target.closest("[data-unverify]");
         if (unverifyBtn) {
             var target = unverifyBtn.getAttribute("data-unverify");
-            D.confirm({
+            var targetUser = allUsers.find(function (x) { return x.email === target; });
+            var confirmOpts = (targetUser && targetUser.role === "admin") ? {
+                title: "Unverify an admin?",
+                message: target + " is an admin. If you proceed:",
+                items: [
+                    "They are signed out everywhere, immediately",
+                    "They can't sign in at all, including to this dashboard, until another admin verifies them",
+                    "They can't fix it themselves: emailed verification codes are disabled for their account",
+                    "They keep the admin role, so verifying them again restores full admin access",
+                    "To take away admin access for good, edit them and change their role to User instead"
+                ],
+                confirmText: "Unverify admin",
+                danger: true
+            } : {
                 title: "Unverify this user?",
                 message: target + " will be signed out and can't sign in again until an admin verifies them.",
                 confirmText: "Unverify",
                 danger: true
-            }).then(function (ok) {
+            };
+            D.confirm(confirmOpts).then(function (ok) {
                 if (!ok) return;
                 A.setUserVerified(target, false)
                     .then(render)

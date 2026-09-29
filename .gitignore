@@ -21,6 +21,11 @@ certs/
 *.crt
 CLAUDE.md
 
+# Databases (local/VM live data — never commit)
+*.db
+*.sqlite
+*.sqlite3
+
 # AI/ML model files
 *.pt
 *.pth

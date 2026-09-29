@@ -187,9 +187,15 @@ def delete_user(email):
 
 
 def ensure_seed_admin(password_hash):
-    """Bootstrap a single admin account on a brand-new database only."""
-    if list_users():
+    """On startup, make sure at least one admin can sign in; create or repair admin@gmail.com if not."""
+    if any(u["role"] == "admin" and u["email_verified"] for u in list_users()):
         return
+
+    existing = get_user_by_email("admin@gmail.com")
+    if existing:
+        update_user(existing["id"], role="admin", email_verified=1, otp_locked=1)
+        return
+
     create_user(
         username="admin",
         email="admin@gmail.com",

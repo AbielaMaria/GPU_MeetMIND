@@ -406,6 +406,17 @@ def admin_update_user(email: str, payload: AdminUserUpdate, admin_user: dict = D
         fields["password_hash"] = hash_password(payload.password)
     if payload.role is not None:
         fields["role"] = "admin" if payload.role == "admin" else "user"
+    # Matches admin_create_user: an account an admin makes an admin is
+    # verified, so a promoted user never lands on the unverified page.
+    promoted = fields.get("role") == "admin" and existing["role"] != "admin"
+    if promoted and payload.emailVerified is None:
+        fields.update(
+            email_verified=1,
+            otp_locked=1,
+            otp_code_hash=None,
+            otp_expires_at=None,
+            otp_attempts=0,
+        )
     if payload.emailVerified is not None:
         # Either way verification is now the admin's call: lock out the
         # self-service OTP path and drop any code still pending.
