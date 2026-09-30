@@ -126,6 +126,7 @@
     --icon-bulb: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5'/%3E%3Cpath d='M9 18h6'/%3E%3Cpath d='M10 22h4'/%3E%3C/svg%3E");
     --icon-audio: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 10v3'/%3E%3Cpath d='M6 6v11'/%3E%3Cpath d='M10 3v18'/%3E%3Cpath d='M14 8v7'/%3E%3Cpath d='M18 5v13'/%3E%3Cpath d='M22 10v3'/%3E%3C/svg%3E");
     --icon-terminal: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4 17 6-6-6-6'/%3E%3Cpath d='M12 19h8'/%3E%3C/svg%3E");
+    --icon-download: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/%3E%3Cpolyline points='7 10 12 15 17 10'/%3E%3Cline x1='12' y1='15' x2='12' y2='3'/%3E%3C/svg%3E");
 }
 
 /* ---------- Tokens : dark ---------- */
@@ -1134,6 +1135,49 @@ mark.transcript-match.current {
     background: var(--accent-soft);
 }
 
+/* ---------- Full report export strip ---------- */
+
+.report-strip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding: 16px 24px;
+}
+
+.report-strip .panel-head {
+    margin-bottom: 4px;
+}
+
+.report-strip-hint {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+#downloadFullReportBtn {
+    background: var(--btn-accent-bg);
+    color: #fff;
+    box-shadow: var(--shadow-sm);
+}
+
+#downloadFullReportBtn::before {
+    -webkit-mask-image: var(--icon-download);
+    mask-image: var(--icon-download);
+}
+
+#downloadFullReportBtn:hover {
+    background: var(--btn-accent-hover);
+}
+
+@media (max-width: 640px) {
+
+    #downloadFullReportBtn {
+        width: 100%;
+    }
+}
+
 /* ---------- Two output partitions ---------- */
 
 .output-grid {
@@ -1926,6 +1970,39 @@ mark.transcript-match.current {
 
 
     <!-- ==================================================
+         FULL REPORT EXPORT (summary + mind map in one PDF)
+    =================================================== -->
+
+    <div class="card report-strip">
+
+        <div>
+
+            <div class="panel-head">
+                <h2>
+                    Meeting Report
+                </h2>
+            </div>
+
+            <p
+                id="fullReportHint"
+                class="report-strip-hint"
+            >
+                Create both the summary and the mind map
+                to enable this download.
+            </p>
+
+        </div>
+
+        <button
+            id="downloadFullReportBtn"
+            type="button"
+            disabled
+        >Download Full Report</button>
+
+    </div>
+
+
+    <!-- ==================================================
          TWO OUTPUT PARTITIONS
     =================================================== -->
 
@@ -2324,6 +2401,16 @@ const downloadPdfBtn =
 const downloadMarkdownBtn =
     document.getElementById(
         "downloadMarkdownBtn"
+    );
+
+const downloadFullReportBtn =
+    document.getElementById(
+        "downloadFullReportBtn"
+    );
+
+const fullReportHint =
+    document.getElementById(
+        "fullReportHint"
     );
 
 
@@ -6300,35 +6387,12 @@ function pdfSection(
 }
 
 
-function downloadPdf() {
-
-    if (
-        !window.jspdf
-        ||
-        !window.jspdf.jsPDF
-    ) {
-
-        setStatus(
-            "PDF export is unavailable. Check your internet connection and try again."
-        );
-
-        log(
-            "PDF export failed: jsPDF could not be loaded."
-        );
-
-        return;
-    }
-
-    const data =
-        getExportData();
-
-    const doc =
-        new window.jspdf.jsPDF(
-            {
-                unit: "mm",
-                format: "a4"
-            }
-        );
+/* Writes the saved meeting intelligence into a jsPDF doc.
+   Shared by Download PDF and Download Full Report. */
+function writeSummaryPdf(
+    doc,
+    data
+) {
 
     let y = 20;
 
@@ -6428,6 +6492,45 @@ function downloadPdf() {
         );
     }
 
+    return y;
+}
+
+
+function downloadPdf() {
+
+    if (
+        !window.jspdf
+        ||
+        !window.jspdf.jsPDF
+    ) {
+
+        setStatus(
+            "PDF export is unavailable. Check your internet connection and try again."
+        );
+
+        log(
+            "PDF export failed: jsPDF could not be loaded."
+        );
+
+        return;
+    }
+
+    const data =
+        getExportData();
+
+    const doc =
+        new window.jspdf.jsPDF(
+            {
+                unit: "mm",
+                format: "a4"
+            }
+        );
+
+    writeSummaryPdf(
+        doc,
+        data
+    );
+
     doc.save(
         `${sanitizeFilename(data.title)}.pdf`
     );
@@ -6451,6 +6554,693 @@ downloadMarkdownBtn.addEventListener(
 downloadPdfBtn.addEventListener(
     "click",
     downloadPdf
+);
+
+
+/* ============================================================
+   DOWNLOAD FULL REPORT (SUMMARY + MIND MAP IN ONE PDF)
+   ------------------------------------------------------------
+   Exports only the SAVED versions — latestMeetingData for the
+   summary and savedMindMapData for the mind map — never text
+   still being typed into either panel. The mind map is rebuilt
+   off-screen from savedMindMapData, so unsaved node edits in
+   the live panel can't leak into the image.
+============================================================ */
+
+let fullReportBusy =
+    false;
+
+
+function isFullReportReady() {
+
+    return !!(
+        currentIntelligenceData
+        &&
+        latestMeetingData
+        &&
+        savedMindMapData
+        &&
+        savedMindMapData.title
+    );
+}
+
+
+function updateFullReportAvailability() {
+
+    const ready =
+        isFullReportReady();
+
+    downloadFullReportBtn.disabled =
+        !ready
+        ||
+        fullReportBusy;
+
+    fullReportHint.textContent =
+        ready
+            ? "Meeting intelligence followed by the mind map, in one PDF."
+            : "Create both the summary and the mind map to enable this download.";
+}
+
+
+/*
+ * Every change to either output (generate, open from history,
+ * new recording, reset) re-renders that panel's contents, so
+ * watching the panels' direct children keeps the button in step
+ * without hooking each of those code paths. Typing inside an
+ * editable field only changes deeper descendants, so it doesn't
+ * fire this.
+ */
+const fullReportObserver =
+    new MutationObserver(
+        updateFullReportAvailability
+    );
+
+[
+    intelligenceEl,
+    mindMapContainer
+].forEach(
+    element => {
+
+        fullReportObserver.observe(
+            element,
+            {
+                childList:
+                    true
+            }
+        );
+    }
+);
+
+updateFullReportAvailability();
+
+
+/* Which panels have edits typed in but not yet saved. */
+function getUnsavedEdits() {
+
+    const pending =
+        [];
+
+    const summaryActions =
+        document.getElementById(
+            "summaryActions"
+        );
+
+    if (
+        summaryActions
+        &&
+        summaryActions.classList.contains(
+            "visible"
+        )
+    ) {
+
+        pending.push(
+            "Meeting Intelligence (summary)"
+        );
+    }
+
+    if (
+        mindMapActions.classList.contains(
+            "visible"
+        )
+    ) {
+
+        pending.push(
+            "Mind Map"
+        );
+    }
+
+    return pending;
+}
+
+
+async function getSignedInUsername() {
+
+    try {
+
+        if (
+            !window.MeetMindAuth
+        ) {
+
+            return "";
+        }
+
+        const session =
+            await window.MeetMindAuth.getSession();
+
+        return (
+            session
+            &&
+            session.username
+        )
+            ? session.username
+            : "";
+
+    } catch (
+        error
+    ) {
+
+        return "";
+    }
+}
+
+
+/* Resolves true to continue with the saved versions. */
+async function confirmUnsavedEdits(
+    pending
+) {
+
+    const username =
+        await getSignedInUsername();
+
+    const message =
+        `${username ? `${username}, you` : "You"} have unsaved changes in the panel${pending.length > 1 ? "s" : ""} below. `
+        +
+        "Kindly save them and try again, or continue with the previously saved version of the summary and mind map.";
+
+    if (
+        window.MeetMindDialog
+    ) {
+
+        return window.MeetMindDialog.confirm(
+            {
+                title:
+                    "Unsaved changes",
+
+                message:
+                    message,
+
+                items:
+                    pending,
+
+                confirmText:
+                    "Use Saved Version",
+
+                cancelText:
+                    "Go Back & Save"
+            }
+        );
+    }
+
+    return window.confirm(
+        `${message}\n\n- ${pending.join("\n- ")}`
+    );
+}
+
+
+/* Renders savedMindMapData off-screen and captures it as a canvas. */
+async function renderSavedMindMapCanvas(
+    mindmap
+) {
+
+    const exportWrapper =
+        document.createElement(
+            "div"
+        );
+
+    exportWrapper.style.position =
+        "fixed";
+
+    exportWrapper.style.left =
+        "-100000px";
+
+    exportWrapper.style.top =
+        "0";
+
+    exportWrapper.style.width =
+        "max-content";
+
+    exportWrapper.style.padding =
+        "40px";
+
+    exportWrapper.style.background =
+        "#ffffff";
+
+    exportWrapper.style.boxSizing =
+        "border-box";
+
+
+    const box =
+        document.createElement(
+            "div"
+        );
+
+    box.className =
+        "mindmap-export-mode";
+
+    box.style.width =
+        "max-content";
+
+    box.style.padding =
+        "24px";
+
+    /* Same column rule renderMindMap() applies to the live panel. */
+    const topLevelCount =
+        Array.isArray(mindmap.children)
+            ? mindmap.children.length
+            : 0;
+
+    box.style.setProperty(
+        "--mindmap-columns",
+        Math.max(
+            1,
+            Math.min(
+                topLevelCount || 1,
+                5
+            )
+        )
+    );
+
+
+    const root =
+        createMindMapNode(
+            mindmap,
+            true,
+            []
+        );
+
+    if (
+        !root
+    ) {
+
+        throw new Error(
+            "The saved mind map is empty."
+        );
+    }
+
+    box.appendChild(
+        root
+    );
+
+    box.querySelectorAll(
+        "[contenteditable]"
+    ).forEach(
+        element => {
+
+            element.removeAttribute(
+                "contenteditable"
+            );
+
+            element.removeAttribute(
+                "data-edit-path"
+            );
+
+            element.removeAttribute(
+                "role"
+            );
+
+            element.removeAttribute(
+                "aria-label"
+            );
+        }
+    );
+
+    exportWrapper.appendChild(
+        box
+    );
+
+    document.body.appendChild(
+        exportWrapper
+    );
+
+
+    try {
+
+        await new Promise(
+            resolve =>
+                requestAnimationFrame(
+                    () =>
+                        requestAnimationFrame(
+                            resolve
+                        )
+                )
+        );
+
+        return await html2canvas(
+            exportWrapper,
+            {
+                backgroundColor:
+                    "#ffffff",
+
+                scale:
+                    2,
+
+                useCORS:
+                    true,
+
+                logging:
+                    false,
+
+                width:
+                    exportWrapper.scrollWidth,
+
+                height:
+                    exportWrapper.scrollHeight,
+
+                windowWidth:
+                    Math.max(
+                        document.documentElement.clientWidth,
+                        exportWrapper.scrollWidth
+                    ),
+
+                windowHeight:
+                    Math.max(
+                        document.documentElement.clientHeight,
+                        exportWrapper.scrollHeight
+                    )
+            }
+        );
+
+    } finally {
+
+        exportWrapper.remove();
+    }
+}
+
+
+/*
+ * Starts the mind map on a fresh page (landscape for wide maps).
+ * A map that fits legibly goes on that one page; a very tall one
+ * is scaled to the page width and continued onto further pages.
+ */
+function addMindMapPdfPages(
+    doc,
+    canvas
+) {
+
+    const orientation =
+        canvas.width >= canvas.height
+            ? "landscape"
+            : "portrait";
+
+    doc.addPage(
+        "a4",
+        orientation
+    );
+
+    const pageWidth =
+        doc.internal.pageSize.getWidth();
+
+    const pageHeight =
+        doc.internal.pageSize.getHeight();
+
+    const margin =
+        15;
+
+    doc.setFont(
+        "helvetica",
+        "bold"
+    );
+
+    doc.setFontSize(
+        16
+    );
+
+    doc.text(
+        "Mind Map",
+        margin,
+        20
+    );
+
+    const top =
+        28;
+
+    const maxWidth =
+        pageWidth - margin * 2;
+
+    const maxHeight =
+        pageHeight - top - margin;
+
+    const fitScale =
+        Math.min(
+            maxWidth / canvas.width,
+            maxHeight / canvas.height
+        );
+
+
+    if (
+        canvas.width * fitScale
+        >=
+        maxWidth * 0.6
+    ) {
+
+        const width =
+            canvas.width * fitScale;
+
+        const height =
+            canvas.height * fitScale;
+
+        doc.addImage(
+            canvas.toDataURL(
+                "image/png"
+            ),
+            "PNG",
+            (pageWidth - width) / 2,
+            top,
+            width,
+            height
+        );
+
+        return;
+    }
+
+
+    const mmPerPx =
+        maxWidth / canvas.width;
+
+    let offset =
+        0;
+
+    let y =
+        top;
+
+    while (
+        offset < canvas.height
+    ) {
+
+        const sliceHeight =
+            Math.min(
+                Math.floor(
+                    (pageHeight - y - margin) / mmPerPx
+                ),
+                canvas.height - offset
+            );
+
+        const slice =
+            document.createElement(
+                "canvas"
+            );
+
+        slice.width =
+            canvas.width;
+
+        slice.height =
+            sliceHeight;
+
+        slice.getContext(
+            "2d"
+        ).drawImage(
+            canvas,
+            0,
+            offset,
+            canvas.width,
+            sliceHeight,
+            0,
+            0,
+            canvas.width,
+            sliceHeight
+        );
+
+        doc.addImage(
+            slice.toDataURL(
+                "image/png"
+            ),
+            "PNG",
+            margin,
+            y,
+            maxWidth,
+            sliceHeight * mmPerPx
+        );
+
+        offset +=
+            sliceHeight;
+
+        if (
+            offset < canvas.height
+        ) {
+
+            doc.addPage(
+                "a4",
+                orientation
+            );
+
+            y =
+                margin;
+        }
+    }
+}
+
+
+async function downloadFullReport() {
+
+    if (
+        !isFullReportReady()
+    ) {
+
+        setStatus(
+            "Create both the summary and the mind map first."
+        );
+
+        return;
+    }
+
+    if (
+        !window.jspdf
+        ||
+        !window.jspdf.jsPDF
+        ||
+        typeof html2canvas !== "function"
+    ) {
+
+        setStatus(
+            "PDF export is unavailable. Check your internet connection and try again."
+        );
+
+        log(
+            "Full report export failed: jsPDF or html2canvas could not be loaded."
+        );
+
+        return;
+    }
+
+
+    const pending =
+        getUnsavedEdits();
+
+    if (
+        pending.length
+    ) {
+
+        const proceed =
+            await confirmUnsavedEdits(
+                pending
+            );
+
+        if (
+            !proceed
+        ) {
+
+            setStatus(
+                "Full report download cancelled. Save your changes and try again."
+            );
+
+            return;
+        }
+
+        /* Something may have been reset while the dialog was open. */
+        if (
+            !isFullReportReady()
+        ) {
+
+            return;
+        }
+    }
+
+
+    const data =
+        getExportData();
+
+    const mindmap =
+        JSON.parse(
+            JSON.stringify(
+                savedMindMapData
+            )
+        );
+
+    const originalText =
+        downloadFullReportBtn.textContent;
+
+    fullReportBusy =
+        true;
+
+    updateFullReportAvailability();
+
+    downloadFullReportBtn.textContent =
+        "Preparing Report...";
+
+    setStatus(
+        "Preparing full meeting report..."
+    );
+
+    log(
+        "Exporting summary and mind map as one PDF."
+    );
+
+
+    try {
+
+        const canvas =
+            await renderSavedMindMapCanvas(
+                mindmap
+            );
+
+        const doc =
+            new window.jspdf.jsPDF(
+                {
+                    unit: "mm",
+                    format: "a4"
+                }
+            );
+
+        writeSummaryPdf(
+            doc,
+            data
+        );
+
+        addMindMapPdfPages(
+            doc,
+            canvas
+        );
+
+        doc.save(
+            `${sanitizeFilename(data.title)}_full_report.pdf`
+        );
+
+        setStatus(
+            "Full meeting report downloaded."
+        );
+
+        log(
+            "Summary and mind map exported as one PDF."
+        );
+
+    } catch (
+        error
+    ) {
+
+        log(
+            `Full report export failed: ${error.message}`
+        );
+
+        setStatus(
+            `Full report export failed: ${error.message}`
+        );
+
+    } finally {
+
+        fullReportBusy =
+            false;
+
+        downloadFullReportBtn.textContent =
+            originalText;
+
+        updateFullReportAvailability();
+    }
+}
+
+
+downloadFullReportBtn.addEventListener(
+    "click",
+    downloadFullReport
 );
 
 
