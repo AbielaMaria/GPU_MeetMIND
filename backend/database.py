@@ -67,7 +67,8 @@ def init_db():
                 transcript TEXT NOT NULL,
                 summary_json TEXT,
                 mindmap_json TEXT,
-                created_at TEXT NOT NULL
+                created_at TEXT NOT NULL,
+                duration_seconds INTEGER
             )
         """)
         conn.execute(
@@ -75,6 +76,7 @@ def init_db():
             "ON meetings(user_id, created_at DESC)"
         )
         _migrate_meetings_mindmap_column(conn)
+        _migrate_meetings_duration_column(conn)
         _create_meeting_results_table(conn)
 
 
@@ -129,6 +131,19 @@ def _migrate_meetings_mindmap_column(conn):
         return
 
     conn.execute("ALTER TABLE meetings ADD COLUMN mindmap_json TEXT")
+
+
+def _migrate_meetings_duration_column(conn):
+    """
+    Adds duration_seconds — how long the recording ran — to a `meetings`
+    table created before it existed. Meetings saved before this have no
+    duration and stay NULL.
+    """
+    existing = {row["name"] for row in conn.execute("PRAGMA table_info(meetings)")}
+    if "duration_seconds" in existing:
+        return
+
+    conn.execute("ALTER TABLE meetings ADD COLUMN duration_seconds INTEGER")
 
 
 def _create_meeting_results_table(conn):
@@ -294,10 +309,12 @@ def delete_sessions_for_user(user_id):
 # MEETINGS
 # ============================================================
 
-def find_or_create_meeting(user_id, transcript, title="Untitled Meeting", within_hours=6):
+def find_or_create_meeting(user_id, transcript, title="Untitled Meeting", within_hours=6,
+                           duration_seconds=None):
     """
     The id of this user's most recent meeting holding exactly this
-    transcript, creating that meeting if there is none.
+    transcript, creating that meeting if there is none. A newly created
+    meeting records `duration_seconds`, the length of its recording.
 
     /api/meeting/summarize and /api/meeting/mindmap open the meeting row
     lazily, once per model, so a "generate with every model" click sends
@@ -325,8 +342,9 @@ def find_or_create_meeting(user_id, transcript, title="Untitled Meeting", within
             return row["id"]
 
         cur = conn.execute(
-            "INSERT INTO meetings (user_id, title, transcript, created_at) VALUES (?, ?, ?, ?)",
-            (user_id, title, transcript, datetime.now(timezone.utc).isoformat()),
+            "INSERT INTO meetings (user_id, title, transcript, created_at, duration_seconds) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (user_id, title, transcript, datetime.now(timezone.utc).isoformat(), duration_seconds),
         )
         return cur.lastrowid
 
@@ -362,6 +380,7 @@ def list_meetings(user_id=None):
     """
     query = (
         "SELECT meetings.id, meetings.title, meetings.created_at, meetings.user_id, "
+        "meetings.duration_seconds, "
         "EXISTS (SELECT 1 FROM meeting_results r WHERE r.meeting_id = meetings.id "
         "AND r.summary_json IS NOT NULL) AS has_summary, "
         "EXISTS (SELECT 1 FROM meeting_results r WHERE r.meeting_id = meetings.id "

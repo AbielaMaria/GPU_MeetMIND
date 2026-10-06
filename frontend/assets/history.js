@@ -46,6 +46,24 @@
         return fmtDay(d) + " · " + fmtTime(d);
     }
 
+    /* Recording length: "45 sec", "38 min", "1 h 12 min". Empty for
+       meetings saved before durations were recorded. */
+    function fmtDuration(seconds) {
+        var total = Math.round(Number(seconds));
+        if (!total || total < 0) return "";
+        var h = Math.floor(total / 3600);
+        var m = Math.floor((total % 3600) / 60);
+        if (h) return m ? h + " h " + m + " min" : h + " h";
+        return m ? m + " min" : total + " sec";
+    }
+
+    /* "<when> · <how long>", or just <when> without a known duration. */
+    function withDuration(when, seconds) {
+        var length = fmtDuration(seconds);
+        if (!length) return when;
+        return when ? when + " · " + length : length;
+    }
+
     /* "Today", "Yesterday", or the date — the list's group headings. */
     function dayLabel(d) {
         var today = new Date();
@@ -141,7 +159,8 @@
         viewingText.innerHTML = "";
         viewingText.appendChild(el("span", "history-viewing-label", "Viewing saved meeting"));
         viewingText.appendChild(el("strong", null, meeting.title || "Untitled meeting"));
-        viewingText.appendChild(el("span", "history-viewing-date", fmtDate(meeting.createdAt)));
+        viewingText.appendChild(el("span", "history-viewing-date",
+            withDuration(fmtDate(meeting.createdAt), meeting.durationSeconds)));
         viewingTags.innerHTML = "";
         viewingTags.appendChild(modelTags(meeting.models));
         viewing.classList.add("is-shown");
@@ -253,7 +272,8 @@
         item.appendChild(el("span", "history-item-title", m.title || "Untitled meeting"));
 
         var d = new Date(m.createdAt);
-        item.appendChild(el("span", "history-item-time", isNaN(d) ? "" : fmtTime(d)));
+        item.appendChild(el("span", "history-item-time",
+            withDuration(isNaN(d) ? "" : fmtTime(d), m.durationSeconds)));
         item.appendChild(modelTags(m.models));
 
         item.addEventListener("click", function () { openMeeting(m.id); });

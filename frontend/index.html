@@ -1042,25 +1042,687 @@ mark.transcript-match.current {
     flex-wrap: wrap;
 }
 
-/* ---------- Full report export strip ---------- */
+/* ---------- Report builder ----------
+   One tile per model per output; ticked tiles are listed, in page
+   order, in the footer outline next to the Download button. */
 
-.report-strip {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    flex-wrap: wrap;
-    padding: 16px 24px;
+.report-builder {
+    --ease-out: cubic-bezier(.2, .8, .2, 1);
+    --ease-spring: cubic-bezier(.34, 1.56, .64, 1);
+    position: relative;
+    overflow: hidden;
+    padding: 22px 24px 20px;
 }
 
-.report-strip .panel-head {
+/* Brand hairline along the top: grows in once something is ticked. */
+.report-builder::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto;
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent), #8b5cf6);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform .55s var(--ease-out);
+}
+
+.report-builder.has-selection::before {
+    transform: scaleX(1);
+}
+
+.report-builder-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px 16px;
+    flex-wrap: wrap;
+}
+
+.report-builder .panel-head {
     margin-bottom: 4px;
 }
 
-.report-strip-hint {
+#reportBuilderTitle::before {
+    -webkit-mask-image: var(--icon-download);
+    mask-image: var(--icon-download);
+}
+
+.report-builder-hint {
     margin: 0;
     color: var(--text-muted);
     font-size: 12px;
+}
+
+.report-quick {
+    display: inline-flex;
+    gap: 6px;
+}
+
+.report-quick-btn {
+    height: 28px;
+    padding: 0 12px;
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: var(--r-full);
+    border-color: var(--border);
+    background: transparent;
+    color: var(--text-secondary);
+}
+
+.report-quick-btn:hover {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--accent);
+}
+
+.report-quick-btn:disabled {
+    opacity: .4;
+}
+
+/* ---- Model rows ---- */
+
+.report-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 14px;
+    margin-top: 18px;
+}
+
+.report-model {
+    min-width: 0;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    background: var(--bg-surface);
+}
+
+.report-model.is-entering {
+    animation: report-rise .5s var(--ease-out) both;
+    animation-delay: calc(var(--i, 0) * 80ms);
+}
+
+.report-model-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 2px 10px;
+}
+
+.report-model-mark {
+    width: 22px;
+    height: 22px;
+    flex: none;
+    border-radius: 7px;
+    background: linear-gradient(140deg, var(--accent), #8b5cf6);
+    display: grid;
+    place-items: center;
+}
+
+.report-model-mark::after {
+    content: "";
+    width: 13px;
+    height: 13px;
+    background: #fff;
+    -webkit-mask: var(--icon-bot) center / contain no-repeat;
+    mask: var(--icon-bot) center / contain no-repeat;
+}
+
+.report-model-name {
+    font-size: 13px;
+    font-weight: 650;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ---- Tiles ---- */
+
+.report-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+}
+
+.report-tile {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    padding: 11px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    background: var(--bg-elevated);
+    cursor: pointer;
+    overflow: hidden;
+    -webkit-user-select: none;
+    user-select: none;
+    transition:
+        transform .25s var(--ease-out),
+        box-shadow .25s var(--ease-out),
+        border-color .2s ease,
+        background-color .2s ease,
+        opacity .25s ease;
+}
+
+.report-tile-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.report-tile:has(.report-tile-input:focus-visible) {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.report-tile[data-state="ready"]:hover {
+    transform: translateY(-2px);
+    border-color: var(--border-strong);
+    box-shadow: var(--shadow-md);
+}
+
+.report-tile[data-state="ready"]:active {
+    transform: translateY(0) scale(.98);
+    transition-duration: .09s;
+}
+
+.report-tile.is-selected,
+.report-tile.is-selected:hover {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    box-shadow:
+        0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent),
+        var(--shadow-sm);
+}
+
+.report-tile:not([data-state="ready"]) {
+    cursor: not-allowed;
+    border-style: dashed;
+    background: transparent;
+}
+
+.report-tile[data-state="missing"],
+.report-tile[data-state="error"] {
+    opacity: .6;
+}
+
+.report-tile-icon {
+    --tile-icon: var(--icon-bulb);
+    width: 32px;
+    height: 32px;
+    flex: none;
+    display: grid;
+    place-items: center;
+    border-radius: 9px;
+    color: var(--accent);
+    background: var(--accent-soft);
+    transition:
+        background-color .25s ease,
+        color .25s ease,
+        transform .4s var(--ease-spring);
+}
+
+.report-tile--mindmap .report-tile-icon {
+    --tile-icon: var(--icon-network);
+}
+
+.report-tile-icon::before {
+    content: "";
+    width: 16px;
+    height: 16px;
+    background: currentColor;
+    -webkit-mask: var(--tile-icon) center / contain no-repeat;
+    mask: var(--tile-icon) center / contain no-repeat;
+}
+
+.report-tile.is-selected .report-tile-icon {
+    color: #fff;
+    background: linear-gradient(140deg, var(--accent), #8b5cf6);
+    transform: scale(1.06) rotate(-4deg);
+}
+
+.report-tile:not([data-state="ready"]) .report-tile-icon {
+    color: var(--text-muted);
+    background: var(--bg-surface);
+}
+
+.report-tile-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    line-height: 1.3;
+}
+
+.report-tile-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.report-tile-meta {
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    transition: color .2s ease;
+}
+
+.report-tile.is-selected .report-tile-meta {
+    color: var(--accent);
+}
+
+.report-tile[data-state="generating"] .report-tile-meta {
+    color: var(--accent);
+    animation: breathe 1.2s ease-in-out infinite;
+}
+
+.report-tile[data-state="error"] .report-tile-meta {
+    color: var(--danger);
+}
+
+/* Light sweep across a tile whose output is being generated. */
+.report-tile[data-state="generating"]::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(100deg, transparent 30%, color-mix(in srgb, var(--accent) 10%, transparent) 50%, transparent 70%);
+    transform: translateX(-100%);
+    animation: report-sweep 1.6s ease-in-out infinite;
+    pointer-events: none;
+}
+
+/* Round check: the ring fills and the tick draws itself in. */
+.report-tile-check {
+    width: 20px;
+    height: 20px;
+    flex: none;
+    margin-left: auto;
+    display: grid;
+    place-items: center;
+    border: 1.5px solid var(--border-strong);
+    border-radius: 50%;
+    background: var(--bg-elevated);
+    transition:
+        background-color .2s ease,
+        border-color .2s ease,
+        transform .35s var(--ease-spring);
+}
+
+.report-tile-check svg {
+    width: 12px;
+    height: 12px;
+    fill: none;
+    stroke: #fff;
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.report-tile-check path {
+    stroke-dasharray: 22;
+    stroke-dashoffset: 22;
+    transition: stroke-dashoffset .3s var(--ease-out) .06s;
+}
+
+.report-tile.is-selected .report-tile-check {
+    border-color: var(--btn-accent-bg);
+    background: var(--btn-accent-bg);
+    transform: scale(1.1);
+}
+
+.report-tile.is-selected .report-tile-check path {
+    stroke-dashoffset: 0;
+}
+
+.report-tile:not([data-state="ready"]) .report-tile-check {
+    opacity: .5;
+    border-style: dashed;
+}
+
+/* An output that has just been generated pops in. */
+.report-tile.is-arriving {
+    animation: report-tile-arrive .7s var(--ease-out);
+}
+
+/* ---- Footer: outline + download ---- */
+
+.report-builder-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px 20px;
+    flex-wrap: wrap;
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+}
+
+.report-outline {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    flex: 1 1 320px;
+    min-width: 0;
+}
+
+.report-count {
+    width: 34px;
+    height: 34px;
+    flex: none;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    background: var(--bg-surface);
+    color: var(--text-muted);
+    font-size: 14px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    transition:
+        background-color .3s ease,
+        border-color .3s ease,
+        color .3s ease;
+}
+
+.report-builder.has-selection .report-count {
+    border-color: transparent;
+    background: linear-gradient(140deg, var(--accent), #8b5cf6);
+    color: #fff;
+}
+
+.report-count.is-bumping {
+    animation: report-bump .4s var(--ease-spring);
+}
+
+.report-outline-body {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+    padding-top: 7px;
+}
+
+.report-outline-label {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.report-outline-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.report-outline-list:empty {
+    display: none;
+}
+
+.report-chip {
+    --chip-icon: var(--icon-bulb);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 280px;
+    height: 26px;
+    padding: 0 10px 0 4px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-full);
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.report-chip--mindmap {
+    --chip-icon: var(--icon-network);
+}
+
+.report-chip-num {
+    width: 18px;
+    height: 18px;
+    flex: none;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 10.5px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.report-chip-icon {
+    width: 12px;
+    height: 12px;
+    flex: none;
+    background: var(--accent);
+    -webkit-mask: var(--chip-icon) center / contain no-repeat;
+    mask: var(--chip-icon) center / contain no-repeat;
+}
+
+.report-chip-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.report-chip.is-entering {
+    animation: report-chip-in .35s var(--ease-spring) both;
+}
+
+.report-chip.is-leaving {
+    animation: report-chip-out .25s var(--ease-out) forwards;
+    pointer-events: none;
+}
+
+.report-download-btn {
+    min-width: 190px;
+    position: relative;
+    overflow: hidden;
+    transition:
+        background-color .16s ease,
+        border-color .16s ease,
+        box-shadow .25s ease,
+        opacity .3s ease,
+        transform .09s ease;
+}
+
+.report-download-btn::before {
+    content: "";
+    -webkit-mask-image: var(--icon-download);
+    mask-image: var(--icon-download);
+}
+
+/* One sweep of light when the button first becomes available. */
+.report-download-btn::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, .35) 50%, transparent 70%);
+    transform: translateX(-100%);
+    pointer-events: none;
+}
+
+.report-download-btn.is-armed::after {
+    animation: report-sweep .9s var(--ease-out);
+}
+
+.report-download-btn:not(:disabled) {
+    box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--btn-accent-bg) 60%, transparent);
+}
+
+/* While building: full colour, with a spinner in place of the icon. */
+.report-builder.is-busy .report-download-btn:disabled {
+    opacity: 1;
+}
+
+.report-builder.is-busy .report-download-btn::before {
+    -webkit-mask: none;
+    mask: none;
+    width: 14px;
+    height: 14px;
+    background: transparent;
+    border: 2px solid rgba(255, 255, 255, .35);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: report-spin .7s linear infinite;
+}
+
+.report-builder.is-busy .report-tile {
+    pointer-events: none;
+}
+
+.report-builder.is-busy .report-quick-btn {
+    visibility: hidden;
+}
+
+/* Build progress along the bottom edge of the card. */
+.report-progress {
+    position: absolute;
+    inset: auto 0 0;
+    height: 3px;
+    opacity: 0;
+    transition: opacity .4s ease;
+}
+
+.report-builder.is-busy .report-progress {
+    opacity: 1;
+}
+
+.report-progress span {
+    display: block;
+    width: 0;
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), #8b5cf6);
+    transition: width .45s var(--ease-out);
+}
+
+@keyframes report-rise {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+@keyframes report-tile-arrive {
+    0% {
+        transform: scale(.96);
+        box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 40%, transparent);
+    }
+    55% {
+        transform: scale(1.02);
+    }
+    100% {
+        transform: none;
+        box-shadow: 0 0 0 10px transparent;
+    }
+}
+
+@keyframes report-sweep {
+    to {
+        transform: translateX(100%);
+    }
+}
+
+@keyframes report-bump {
+    0%, 100% {
+        transform: scale(1);
+    }
+    45% {
+        transform: scale(1.2);
+    }
+}
+
+@keyframes report-chip-in {
+    from {
+        opacity: 0;
+        transform: translateY(4px) scale(.85);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+@keyframes report-chip-out {
+    to {
+        opacity: 0;
+        transform: scale(.85);
+        max-width: 0;
+        padding-left: 0;
+        padding-right: 0;
+        border-width: 0;
+        margin-right: -6px;
+    }
+}
+
+@keyframes report-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (max-width: 640px) {
+
+    .report-builder {
+        padding: 18px 18px 16px;
+    }
+
+    .report-options {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .report-download-btn {
+        width: 100%;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+    .report-builder::before,
+    .report-tile,
+    .report-tile-icon,
+    .report-tile-check,
+    .report-tile-check path,
+    .report-count,
+    .report-progress,
+    .report-progress span {
+        transition: none;
+    }
+
+    .report-model.is-entering,
+    .report-tile.is-arriving,
+    .report-tile[data-state="generating"] .report-tile-meta,
+    .report-tile[data-state="generating"]::after,
+    .report-count.is-bumping,
+    .report-chip.is-entering,
+    .report-download-btn.is-armed::after {
+        animation: none;
+    }
+
+    .report-tile[data-state="ready"]:hover,
+    .report-tile.is-selected .report-tile-icon {
+        transform: none;
+    }
+
+    .report-builder.is-busy .report-download-btn::before {
+        animation-duration: 2s;
+    }
 }
 
 /* ---------- Mind Map ---------- */
@@ -2054,8 +2716,7 @@ body.mindmap-expanded {
     mask-image: var(--icon-sparkles);
 }
 
-.download-btn::before,
-#downloadFullReportBtn::before {
+.download-btn::before {
     -webkit-mask-image: var(--icon-download);
     mask-image: var(--icon-download);
 }
@@ -2250,7 +2911,11 @@ body.mindmap-expanded {
 
 .report-ready .btn-tool {
     max-width: 100%;
+    height: auto;
+    min-height: var(--control-h-sm);
+    padding-block: 6px;
     text-align: left;
+    overflow-wrap: anywhere;
 }
 
 /* ---------- Small screens ---------- */
@@ -2262,7 +2927,6 @@ body.mindmap-expanded {
     }
 
     .intelligence-actions .dropdown,
-    .report-strip .dropdown,
     .dropdown-trigger,
     #generateBtn {
         width: 100%;
@@ -2500,73 +3164,124 @@ body.mindmap-expanded {
 
 
     <!-- ==================================================
-         FULL REPORT EXPORT (summary + mind map in one PDF)
+         REPORT BUILDER (picked summaries + mind maps in one PDF)
+         One tile per model per output, built by the REPORT
+         BUILDER script. Only the ticked tiles go into the PDF:
+         every summary first, then every mind map.
     =================================================== -->
 
-    <div class="card report-strip">
+    <section
+        id="reportBuilder"
+        class="card report-builder"
+        aria-labelledby="reportBuilderTitle"
+    >
 
-        <div>
+        <div class="report-builder-head">
 
-            <div class="panel-head">
-                <h2>
-                    Meeting Report
-                </h2>
+            <div class="report-builder-intro">
+
+                <div class="panel-head">
+                    <h2 id="reportBuilderTitle">
+                        Build Your Report
+                    </h2>
+                </div>
+
+                <p
+                    id="fullReportHint"
+                    class="report-builder-hint"
+                >
+                    Generate a summary or a mind map to start
+                    building a report.
+                </p>
+
             </div>
 
-            <p
-                id="fullReportHint"
-                class="report-strip-hint"
-            >
-                Generate a summary and a mind map with at least
-                one model to enable this download.
-            </p>
-
-            <div
-                id="reportReady"
-                class="report-ready"
-                hidden
-            >
-                <span
-                    id="reportReadyText"
-                    class="report-ready-text"
-                ></span>
+            <div class="report-quick">
                 <button
-                    id="reportReadyBtn"
-                    class="btn-tool download-btn"
+                    id="reportSelectAllBtn"
+                    class="report-quick-btn"
                     type="button"
-                ></button>
+                    disabled
+                >Select all</button>
+                <button
+                    id="reportClearBtn"
+                    class="report-quick-btn"
+                    type="button"
+                    disabled
+                >Clear</button>
             </div>
 
         </div>
 
-        <div class="dropdown">
+        <div
+            id="reportOptions"
+            class="report-options"
+            role="group"
+            aria-labelledby="reportBuilderTitle"
+        ></div>
+
+        <div class="report-builder-foot">
+
+            <div class="report-outline">
+
+                <span
+                    id="reportCount"
+                    class="report-count"
+                    aria-hidden="true"
+                >0</span>
+
+                <div class="report-outline-body">
+                    <span
+                        id="reportOutlineLabel"
+                        class="report-outline-label"
+                        aria-live="polite"
+                    >Nothing selected yet</span>
+                    <ol
+                        id="reportOutline"
+                        class="report-outline-list"
+                        aria-label="Report contents, in page order"
+                    ></ol>
+                </div>
+
+            </div>
 
             <button
                 id="downloadFullReportBtn"
-                class="btn-secondary dropdown-trigger"
+                class="btn-primary report-download-btn"
                 type="button"
-                aria-haspopup="menu"
-                aria-expanded="false"
-                aria-controls="reportMenu"
                 disabled
             >
                 <span
                     id="reportTriggerLabel"
-                    class="dropdown-value"
-                >Download Full Report</span>
+                >Download Report</span>
             </button>
-
-            <div
-                id="reportMenu"
-                class="dropdown-menu dropdown-menu--end"
-                role="menu"
-                aria-label="Download a full meeting report"
-                hidden
-            ></div>
 
         </div>
 
-    </div>
+        <div
+            class="report-progress"
+            aria-hidden="true"
+        >
+            <span id="reportProgressBar"></span>
+        </div>
+
+        <div
+            id="reportReady"
+            class="report-ready"
+            hidden
+        >
+            <span
+                id="reportReadyText"
+                class="report-ready-text"
+            ></span>
+            <button
+                id="reportReadyBtn"
+                class="btn-tool download-btn"
+                type="button"
+            ></button>
+        </div>
+
+    </section>
 
 
     <!-- ======================================================
@@ -2683,6 +3398,11 @@ let transcript = "";
 // mind map live in that model's slot (see MODEL SLOTS).
 let currentMeetingId = null;
 
+// Length of the recording on screen, in seconds — measured by the backend from the audio it
+// received (final_transcript's `duration`), or restored from a saved meeting. Sent with the
+// generation requests so the meeting row records it. Null when unknown.
+let currentMeetingDuration = null;
+
 // Bumped whenever the panels switch to a different meeting (new recording, a meeting
 // opened from history, reset). A generation compares it before rendering, so a result
 // that comes back late can't land in another meeting's panels.
@@ -2782,9 +3502,44 @@ const downloadFullReportBtn =
         "downloadFullReportBtn"
     );
 
-const reportMenu =
+const reportBuilder =
     document.getElementById(
-        "reportMenu"
+        "reportBuilder"
+    );
+
+const reportOptionsEl =
+    document.getElementById(
+        "reportOptions"
+    );
+
+const reportSelectAllBtn =
+    document.getElementById(
+        "reportSelectAllBtn"
+    );
+
+const reportClearBtn =
+    document.getElementById(
+        "reportClearBtn"
+    );
+
+const reportCount =
+    document.getElementById(
+        "reportCount"
+    );
+
+const reportOutlineLabel =
+    document.getElementById(
+        "reportOutlineLabel"
+    );
+
+const reportOutline =
+    document.getElementById(
+        "reportOutline"
+    );
+
+const reportProgressBar =
+    document.getElementById(
+        "reportProgressBar"
     );
 
 const reportTriggerLabel =
@@ -2904,6 +3659,50 @@ function stopTimer() {
 
     timerInterval =
         null;
+}
+
+
+/* A meeting's length for display: "45 sec", "38 min", "1 h 12 min".
+   Empty when the length isn't known (meetings saved before durations
+   were recorded). */
+function formatDuration(
+    seconds
+) {
+
+    const total =
+        Math.round(
+            Number(seconds)
+        );
+
+    if (
+        !total
+        ||
+        total < 0
+    ) {
+
+        return "";
+    }
+
+    const hours =
+        Math.floor(
+            total / 3600
+        );
+
+    const minutes =
+        Math.floor(
+            (total % 3600) / 60
+        );
+
+    if (hours) {
+
+        return minutes
+            ? `${hours} h ${minutes} min`
+            : `${hours} h`;
+    }
+
+    return minutes
+        ? `${minutes} min`
+        : `${total} sec`;
 }
 
 
@@ -3271,6 +4070,13 @@ function handleServerMessage(
                     ||
                     ""
                 ).trim();
+
+            currentMeetingDuration =
+                Number(
+                    data.duration
+                )
+                ||
+                null;
 
             renderTranscript(
                 transcript
@@ -3706,8 +4512,8 @@ function createModelSlot(
     );
 
     // Every change to either output re-renders that panel's direct
-    // children, so watching them keeps the report menu in step
-    // without hooking each code path (see updateFullReportAvailability).
+    // children, so watching them keeps the report builder in step
+    // without hooking each code path (see refreshReportBuilder).
     fullReportObserver.observe(
         els.intelligence,
         { childList: true }
@@ -4666,7 +5472,7 @@ async function loadModelCatalog() {
 
     applyModelSelection();
 
-    updateFullReportAvailability();
+    refreshReportBuilder();
 }
 
 
@@ -4742,6 +5548,9 @@ function setGenerationStatus(
     }
 
     updateGenerateButton();
+
+    // The report builder's tiles show "Generating…" / "Failed" too.
+    refreshReportBuilder();
 }
 
 
@@ -6196,10 +7005,15 @@ async function startRecording() {
 
     clearReportReady();
 
+    clearReportSelection();
+
     transcript =
         "";
 
     currentMeetingId =
+        null;
+
+    currentMeetingDuration =
         null;
 
     updateGenerateButton();
@@ -6712,6 +7526,8 @@ async function postGeneration(
                                 transcript,
                             meeting_id:
                                 currentMeetingId,
+                            duration_seconds:
+                                currentMeetingDuration,
                             model:
                                 slot.model.key
                         }
@@ -8151,6 +8967,12 @@ function getExportData(
             ||
             "Untitled Meeting",
 
+        // "" when the recording's length isn't known.
+        duration:
+            formatDuration(
+                currentMeetingDuration
+            ),
+
         objective:
             data.objective
             ||
@@ -8301,10 +9123,15 @@ function buildMarkdownSummary(
             slot
         );
 
+    const durationLine =
+        data.duration
+            ? `\n**Duration:** ${data.duration}\n`
+            : "";
+
     return `# ${data.title}
 
 _Generated by ${slot.model.label} with MeetMind._
-
+${durationLine}
 ## Objective
 
 ${data.objective}
@@ -8526,7 +9353,12 @@ function writeSummaryPdf(
     y =
         pdfWrite(
             doc,
-            `MeetMind — AI Meeting Intelligence — generated by ${modelLabel}`,
+            `MeetMind — AI Meeting Intelligence — generated by ${modelLabel}` +
+            (
+                data.duration
+                    ? ` — Duration: ${data.duration}`
+                    : ""
+            ),
             15,
             y,
             doc.internal.pageSize.getWidth() - 30
@@ -8651,11 +9483,18 @@ function downloadPdf(
 
 
 /* ============================================================
-   DOWNLOAD FULL REPORT (SUMMARY + MIND MAP IN ONE PDF)
+   REPORT BUILDER (DOWNLOAD REPORT)
    ------------------------------------------------------------
-   The report button opens a menu: one report per model, plus one
-   combined report holding every model in turn. A model is ready
-   once it has both a summary and a mind map.
+   One tile per model per output — Summary (Mistral), Mind Map
+   (Mistral), Summary (Qwen), ... — so a report can take the
+   summary from one model and the mind map from another. Only
+   the ticked tiles go into the PDF: every ticked summary first,
+   then every ticked mind map, each group in model order.
+
+   Nothing is ticked to begin with, and Download stays disabled
+   until something is. A tile can be ticked once its output
+   exists; when the output goes away (new recording, another
+   meeting opened, reset) the tile is unticked.
 
    Exports only the SAVED versions — intelSaved for the summary
    and mindmapSaved for the mind map — never text still being
@@ -8664,19 +9503,56 @@ function downloadPdf(
    leak into the image.
 ============================================================ */
 
+// Report order: every summary, then every mind map.
+const REPORT_KINDS = [
+    {
+        kind: "summary",
+        label: "Summary"
+    },
+    {
+        kind: "mindmap",
+        label: "Mind Map"
+    }
+];
+
 let fullReportBusy =
     false;
 
+// Ticked tiles, as "<kind>:<model key>".
+const reportSelection =
+    new Set();
 
-function isSlotReportReady(
+// model key -> { row, name, tiles: { summary, mindmap } }
+const reportRows =
+    new Map();
+
+
+function reportItemId(
+    kind,
+    key
+) {
+
+    return `${kind}:${key}`;
+}
+
+
+function isReportItemReady(
+    kind,
     slot
 ) {
 
+    if (
+        kind === "summary"
+    ) {
+
+        return !!(
+            slot.intel
+            &&
+            slot.intelSaved
+        );
+    }
+
     return !!(
-        slot.intel
-        &&
-        slot.intelSaved
-        &&
         slot.mindmapSaved
         &&
         slot.mindmapSaved.title
@@ -8684,167 +9560,935 @@ function isSlotReportReady(
 }
 
 
-function reportOptions() {
-
-    const slots =
-        [
-            ...modelSlots.values()
-        ];
-
-    const options =
-        slots.map(
-            slot => ({
-                id: slot.model.key,
-                label: `Download ${slot.model.label} report`,
-                slots: [slot]
-            })
-        );
+/* "ready", "generating", "error" or "missing". */
+function reportItemState(
+    kind,
+    slot
+) {
 
     if (
-        slots.length > 1
+        isReportItemReady(
+            kind,
+            slot
+        )
     ) {
 
-        options.push(
-            {
-                id: ALL_MODELS,
-                label: `Download ${slots.map(slot => slot.model.label).join(" + ")} report`,
-                slots: slots
+        return "ready";
+    }
+
+    const status =
+        slot.status[kind];
+
+    return (
+        status === "generating"
+        ||
+        status === "error"
+    )
+        ? status
+        : "missing";
+}
+
+
+/* The ticked outputs, in the order they go into the report. */
+function selectedReportItems() {
+
+    const items =
+        [];
+
+    REPORT_KINDS.forEach(
+        def => {
+
+            modelSlots.forEach(
+                (
+                    slot,
+                    key
+                ) => {
+
+                    const id =
+                        reportItemId(
+                            def.kind,
+                            key
+                        );
+
+                    if (
+                        reportSelection.has(id)
+                        &&
+                        isReportItemReady(
+                            def.kind,
+                            slot
+                        )
+                    ) {
+
+                        items.push(
+                            {
+                                id: id,
+                                kind: def.kind,
+                                label: def.label,
+                                slot: slot
+                            }
+                        );
+                    }
+                }
+            );
+        }
+    );
+
+    return items;
+}
+
+
+/* "Summary (Mistral 128B) + Mind Map (Qwen3 27B)" */
+function describeReportItems(
+    items
+) {
+
+    return items
+        .map(
+            item => `${item.label} (${item.slot.model.label})`
+        )
+        .join(
+            " + "
+        );
+}
+
+
+/* Restarts a one-shot CSS animation class on an element. */
+function replayAnimation(
+    element,
+    className
+) {
+
+    element.classList.remove(
+        className
+    );
+
+    void element.offsetWidth;
+
+    element.classList.add(
+        className
+    );
+}
+
+
+function prefersReducedMotion() {
+
+    return window.matchMedia(
+        "(prefers-reduced-motion: reduce)"
+    ).matches;
+}
+
+
+function createReportTile(
+    key,
+    def
+) {
+
+    const tile =
+        document.createElement(
+            "label"
+        );
+
+    tile.className =
+        `report-tile report-tile--${def.kind}`;
+
+    tile.innerHTML =
+        `
+        <input type="checkbox" class="report-tile-input">
+        <span class="report-tile-icon" aria-hidden="true"></span>
+        <span class="report-tile-text">
+            <span class="report-tile-title">${def.label}</span>
+            <span class="report-tile-meta"></span>
+        </span>
+        <span class="report-tile-check" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+        </span>
+        `;
+
+    const input =
+        tile.querySelector(
+            ".report-tile-input"
+        );
+
+    input.addEventListener(
+        "change",
+        () => {
+
+            const id =
+                reportItemId(
+                    def.kind,
+                    key
+                );
+
+            if (
+                input.checked
+            ) {
+
+                reportSelection.add(
+                    id
+                );
+
+            } else {
+
+                reportSelection.delete(
+                    id
+                );
+            }
+
+            refreshReportBuilder();
+        }
+    );
+
+    tile.addEventListener(
+        "animationend",
+        event => {
+
+            if (
+                event.animationName === "report-tile-arrive"
+            ) {
+
+                tile.classList.remove(
+                    "is-arriving"
+                );
+            }
+        }
+    );
+
+    return {
+        tile: tile,
+        input: input,
+        meta: tile.querySelector(
+            ".report-tile-meta"
+        ),
+        state: null
+    };
+}
+
+
+function createReportRow(
+    key,
+    index
+) {
+
+    const row =
+        document.createElement(
+            "div"
+        );
+
+    row.className =
+        "report-model";
+
+    row.dataset.model =
+        key;
+
+    row.innerHTML =
+        `
+        <div class="report-model-head">
+            <span class="report-model-mark" aria-hidden="true"></span>
+            <span class="report-model-name"></span>
+        </div>
+        <div class="report-tiles"></div>
+        `;
+
+    if (
+        !prefersReducedMotion()
+    ) {
+
+        row.classList.add(
+            "is-entering"
+        );
+
+        row.style.setProperty(
+            "--i",
+            String(index)
+        );
+
+        row.addEventListener(
+            "animationend",
+            event => {
+
+                if (
+                    event.target === row
+                ) {
+
+                    row.classList.remove(
+                        "is-entering"
+                    );
+                }
             }
         );
     }
 
-    return options;
+    const tilesEl =
+        row.querySelector(
+            ".report-tiles"
+        );
+
+    const tiles =
+        {};
+
+    REPORT_KINDS.forEach(
+        def => {
+
+            tiles[def.kind] =
+                createReportTile(
+                    key,
+                    def
+                );
+
+            tilesEl.appendChild(
+                tiles[def.kind].tile
+            );
+        }
+    );
+
+    return {
+        row: row,
+        name: row.querySelector(
+            ".report-model-name"
+        ),
+        tiles: tiles
+    };
 }
 
 
-function updateFullReportAvailability() {
+function tileMetaText(
+    state,
+    position
+) {
 
-    const anyReady =
-        reportOptions().some(
-            option =>
-                option.slots.every(
-                    isSlotReportReady
-                )
+    if (
+        state === "ready"
+    ) {
+
+        return position
+            ? `Included · #${position} in report`
+            : "Ready to include";
+    }
+
+    if (
+        state === "generating"
+    ) {
+
+        return "Generating…";
+    }
+
+    if (
+        state === "error"
+    ) {
+
+        return "Generation failed";
+    }
+
+    return "Not generated yet";
+}
+
+
+/* The footer outline: one numbered chip per ticked output, in page
+   order. Chips are kept across refreshes, so only the ones that
+   were just ticked animate in and only the unticked ones animate
+   out. */
+function renderReportOutline(
+    items
+) {
+
+    const wanted =
+        new Set(
+            items.map(
+                item => item.id
+            )
         );
 
+    const chips =
+        new Map();
+
+    [
+        ...reportOutline.children
+    ].forEach(
+        chip => {
+
+            if (
+                chip.classList.contains(
+                    "is-leaving"
+                )
+            ) {
+
+                return;
+            }
+
+            if (
+                wanted.has(
+                    chip.dataset.id
+                )
+            ) {
+
+                chips.set(
+                    chip.dataset.id,
+                    chip
+                );
+
+                return;
+            }
+
+            if (
+                prefersReducedMotion()
+            ) {
+
+                chip.remove();
+
+                return;
+            }
+
+            chip.classList.remove(
+                "is-entering"
+            );
+
+            chip.classList.add(
+                "is-leaving"
+            );
+
+            chip.addEventListener(
+                "animationend",
+                () => chip.remove(),
+                { once: true }
+            );
+        }
+    );
+
+    let previous =
+        null;
+
+    items.forEach(
+        (
+            item,
+            index
+        ) => {
+
+            let chip =
+                chips.get(
+                    item.id
+                );
+
+            if (
+                !chip
+            ) {
+
+                chip =
+                    document.createElement(
+                        "li"
+                    );
+
+                chip.className =
+                    `report-chip report-chip--${item.kind}`;
+
+                chip.dataset.id =
+                    item.id;
+
+                chip.innerHTML =
+                    `
+                    <span class="report-chip-num"></span>
+                    <span class="report-chip-icon" aria-hidden="true"></span>
+                    <span class="report-chip-text"></span>
+                    `;
+
+                if (
+                    !prefersReducedMotion()
+                ) {
+
+                    chip.classList.add(
+                        "is-entering"
+                    );
+
+                    chip.addEventListener(
+                        "animationend",
+                        () => chip.classList.remove(
+                            "is-entering"
+                        ),
+                        { once: true }
+                    );
+                }
+            }
+
+            chip.querySelector(
+                ".report-chip-num"
+            ).textContent =
+                String(
+                    index + 1
+                );
+
+            chip.querySelector(
+                ".report-chip-text"
+            ).textContent =
+                `${item.label} · ${item.slot.model.label}`;
+
+            // Right after the previous item's chip (or first).
+            const target =
+                previous
+                    ? previous.nextSibling
+                    : reportOutline.firstChild;
+
+            if (
+                chip !== target
+            ) {
+
+                reportOutline.insertBefore(
+                    chip,
+                    target
+                );
+            }
+
+            previous =
+                chip;
+        }
+    );
+
+    if (
+        !items.length
+    ) {
+
+        reportOutlineLabel.textContent =
+            "Nothing selected yet — tick what should go into the report.";
+
+        return;
+    }
+
+    const summaries =
+        items.filter(
+            item => item.kind === "summary"
+        ).length;
+
+    const mindmaps =
+        items.length - summaries;
+
+    const parts =
+        [];
+
+    if (
+        summaries
+    ) {
+
+        parts.push(
+            `${summaries} ${summaries === 1 ? "summary" : "summaries"}`
+        );
+    }
+
+    if (
+        mindmaps
+    ) {
+
+        parts.push(
+            `${mindmaps} mind map${mindmaps === 1 ? "" : "s"}`
+        );
+    }
+
+    reportOutlineLabel.textContent =
+        `${items.length} section${items.length === 1 ? "" : "s"} in this report · ${parts.join(", ")}`;
+}
+
+
+/* Brings the whole builder in line with the model slots: one row per
+   model, each tile's state, the selection, the outline and the
+   buttons. Cheap and idempotent, so it runs on every change. */
+function refreshReportBuilder() {
+
+    const keys =
+        [
+            ...modelSlots.keys()
+        ];
+
+    // Rows: one per model, in model order.
+    reportRows.forEach(
+        (
+            entry,
+            key
+        ) => {
+
+            if (
+                !modelSlots.has(key)
+            ) {
+
+                entry.row.remove();
+
+                reportRows.delete(
+                    key
+                );
+            }
+        }
+    );
+
+    keys.forEach(
+        (
+            key,
+            index
+        ) => {
+
+            let entry =
+                reportRows.get(
+                    key
+                );
+
+            if (
+                !entry
+            ) {
+
+                entry =
+                    createReportRow(
+                        key,
+                        index
+                    );
+
+                reportRows.set(
+                    key,
+                    entry
+                );
+            }
+
+            if (
+                reportOptionsEl.children[index] !== entry.row
+            ) {
+
+                reportOptionsEl.insertBefore(
+                    entry.row,
+                    reportOptionsEl.children[index] || null
+                );
+            }
+
+            entry.name.textContent =
+                modelSlots.get(key).model.label;
+        }
+    );
+
+    // Tile states; untick anything that is no longer available.
+    const readyIds =
+        new Set();
+
+    modelSlots.forEach(
+        (
+            slot,
+            key
+        ) => {
+
+            const entry =
+                reportRows.get(
+                    key
+                );
+
+            REPORT_KINDS.forEach(
+                def => {
+
+                    const tile =
+                        entry.tiles[def.kind];
+
+                    const state =
+                        reportItemState(
+                            def.kind,
+                            slot
+                        );
+
+                    if (
+                        state === "ready"
+                    ) {
+
+                        readyIds.add(
+                            reportItemId(
+                                def.kind,
+                                key
+                            )
+                        );
+
+                        if (
+                            tile.state
+                            &&
+                            tile.state !== "ready"
+                            &&
+                            !prefersReducedMotion()
+                        ) {
+
+                            replayAnimation(
+                                tile.tile,
+                                "is-arriving"
+                            );
+                        }
+                    }
+
+                    tile.state =
+                        state;
+
+                    tile.tile.dataset.state =
+                        state;
+
+                    tile.input.setAttribute(
+                        "aria-label",
+                        `${def.label} (${slot.model.label})`
+                    );
+                }
+            );
+        }
+    );
+
+    [
+        ...reportSelection
+    ].forEach(
+        id => {
+
+            if (
+                !readyIds.has(id)
+            ) {
+
+                reportSelection.delete(
+                    id
+                );
+            }
+        }
+    );
+
+    const items =
+        selectedReportItems();
+
+    const positions =
+        new Map(
+            items.map(
+                (
+                    item,
+                    index
+                ) => [
+                    item.id,
+                    index + 1
+                ]
+            )
+        );
+
+    reportRows.forEach(
+        (
+            entry,
+            key
+        ) => {
+
+            REPORT_KINDS.forEach(
+                def => {
+
+                    const tile =
+                        entry.tiles[def.kind];
+
+                    const id =
+                        reportItemId(
+                            def.kind,
+                            key
+                        );
+
+                    const checked =
+                        reportSelection.has(
+                            id
+                        );
+
+                    tile.input.checked =
+                        checked;
+
+                    tile.input.disabled =
+                        tile.state !== "ready"
+                        ||
+                        fullReportBusy;
+
+                    tile.tile.classList.toggle(
+                        "is-selected",
+                        checked
+                    );
+
+                    tile.meta.textContent =
+                        tileMetaText(
+                            tile.state,
+                            positions.get(id)
+                        );
+                }
+            );
+        }
+    );
+
+    renderReportOutline(
+        items
+    );
+
+    // Count badge: bumps whenever the number changes.
+    const count =
+        String(
+            items.length
+        );
+
+    if (
+        reportCount.textContent !== count
+    ) {
+
+        reportCount.textContent =
+            count;
+
+        if (
+            !prefersReducedMotion()
+        ) {
+
+            replayAnimation(
+                reportCount,
+                "is-bumping"
+            );
+        }
+    }
+
+    reportBuilder.classList.toggle(
+        "has-selection",
+        items.length > 0
+    );
+
+    // Download: needs at least one ticked output.
+    const wasDisabled =
+        downloadFullReportBtn.disabled;
+
     downloadFullReportBtn.disabled =
-        !anyReady
+        !items.length
         ||
         fullReportBusy;
 
-    fullReportHint.textContent =
-        anyReady
-            ? "Each model's meeting intelligence followed by its mind map, in one PDF — per model, or all models combined."
-            : "Generate a summary and a mind map with at least one model to enable this download.";
-
     if (
-        downloadFullReportBtn.disabled
+        wasDisabled
+        &&
+        !downloadFullReportBtn.disabled
+        &&
+        !prefersReducedMotion()
     ) {
 
-        reportDropdown.close();
-
-    } else {
-
-        reportDropdown.refresh();
+        replayAnimation(
+            downloadFullReportBtn,
+            "is-armed"
+        );
     }
+
+    reportSelectAllBtn.disabled =
+        fullReportBusy
+        ||
+        readyIds.size === 0
+        ||
+        items.length === readyIds.size;
+
+    reportClearBtn.disabled =
+        fullReportBusy
+        ||
+        !items.length;
+
+    fullReportHint.textContent =
+        readyIds.size
+            ? "Pick what goes into your PDF — mix and match across models. Summaries come first, then mind maps."
+            : "Generate a summary or a mind map to start building a report.";
 }
+
+
+/* Unticks everything — the panels now hold a different meeting. */
+function clearReportSelection() {
+
+    reportSelection.clear();
+
+    refreshReportBuilder();
+}
+
+
+reportSelectAllBtn.addEventListener(
+    "click",
+    () => {
+
+        modelSlots.forEach(
+            (
+                slot,
+                key
+            ) => {
+
+                REPORT_KINDS.forEach(
+                    def => {
+
+                        if (
+                            isReportItemReady(
+                                def.kind,
+                                slot
+                            )
+                        ) {
+
+                            reportSelection.add(
+                                reportItemId(
+                                    def.kind,
+                                    key
+                                )
+                            );
+                        }
+                    }
+                );
+            }
+        );
+
+        refreshReportBuilder();
+    }
+);
+
+
+reportClearBtn.addEventListener(
+    "click",
+    clearReportSelection
+);
+
+
+downloadFullReportBtn.addEventListener(
+    "click",
+    () => downloadFullReport(
+        selectedReportItems()
+    )
+);
 
 
 /*
  * Each slot's panels are observed in createModelSlot(). Every change
  * to either output (generate, open from history, new recording,
  * reset) re-renders that panel's contents, so watching the panels'
- * direct children keeps the menu in step without hooking each of
+ * direct children keeps the builder in step without hooking each of
  * those code paths. Typing inside an editable field only changes
  * deeper descendants, so it doesn't fire this.
  */
 const fullReportObserver =
     new MutationObserver(
-        updateFullReportAvailability
+        refreshReportBuilder
     );
 
 
-function renderReportMenu(
-    menu
-) {
-
-    menu.innerHTML =
-        "";
-
-    reportOptions().forEach(
-        option => {
-
-            const ready =
-                option.slots.every(
-                    isSlotReportReady
-                );
-
-            const combined =
-                option.slots.length > 1;
-
-            menu.appendChild(
-                dropdownItem(
-                    {
-                        value: option.id,
-                        label: option.label,
-                        meta: ready
-                            ? (combined ? "One PDF, every model in turn" : "Summary + mind map")
-                            : (combined ? "Needs a summary and mind map from every model" : "Needs a summary and mind map"),
-                        disabled: !ready,
-                        onSelect: () => {
-
-                            reportDropdown.close();
-
-                            downloadFullReport(
-                                option.slots
-                            );
-                        }
-                    }
-                )
-            );
-        }
-    );
-}
-
-
-const reportDropdown =
-    createDropdown(
-        downloadFullReportBtn,
-        reportMenu,
-        renderReportMenu
-    );
-
-
-/* Which panels have edits typed in but not yet saved. */
+/* Which of these outputs have edits typed in but not yet saved. */
 function getUnsavedEdits(
-    slots
+    items
 ) {
 
     const pending =
         [];
 
-    slots.forEach(
-        slot => {
+    items.forEach(
+        item => {
 
-            const summaryActions =
-                slot.els.intelligence.querySelector(
-                    ".intel-actions"
-                );
+            const slot =
+                item.slot;
 
             if (
-                summaryActions
-                &&
-                summaryActions.classList.contains(
-                    "visible"
-                )
+                item.kind === "summary"
             ) {
 
-                pending.push(
-                    `Meeting Intelligence (${slot.model.label})`
-                );
-            }
+                const summaryActions =
+                    slot.els.intelligence.querySelector(
+                        ".intel-actions"
+                    );
 
-            if (
+                if (
+                    summaryActions
+                    &&
+                    summaryActions.classList.contains(
+                        "visible"
+                    )
+                ) {
+
+                    pending.push(
+                        `Meeting Intelligence (${slot.model.label})`
+                    );
+                }
+
+            } else if (
                 slot.els.mindMapActions.classList.contains(
                     "visible"
                 )
@@ -9407,24 +11051,150 @@ function offerReportDownload(
 }
 
 
+/* The meeting's title for the report file name: the first saved
+   summary's title, else the first saved mind map's. */
+function reportMeetingTitle() {
+
+    for (
+        const slot of modelSlots.values()
+    ) {
+
+        if (
+            slot.intelSaved
+            &&
+            slot.intelSaved.title
+        ) {
+
+            return slot.intelSaved.title;
+        }
+    }
+
+    for (
+        const slot of modelSlots.values()
+    ) {
+
+        if (
+            slot.mindmapSaved
+            &&
+            slot.mindmapSaved.title
+        ) {
+
+            return slot.mindmapSaved.title;
+        }
+    }
+
+    return "Untitled Meeting";
+}
+
+
+/* "<title>_<model>_full_report.pdf" when every section comes from one
+   model, "<title>_combined_..." when they come from several; the
+   ending says whether it holds summaries, mind maps or both. */
+function reportFileName(
+    items
+) {
+
+    const keys =
+        new Set(
+            items.map(
+                item => item.slot.model.key
+            )
+        );
+
+    const kinds =
+        new Set(
+            items.map(
+                item => item.kind
+            )
+        );
+
+    const contents =
+        kinds.size > 1
+            ? "full_report"
+            : kinds.has("summary")
+                ? "summary_report"
+                : "mindmap_report";
+
+    const title =
+        sanitizeFilename(
+            reportMeetingTitle()
+        );
+
+    return keys.size === 1
+        ? `${title}_${sanitizeFilename(items[0].slot.model.key)}_${contents}.pdf`
+        : `${title}_combined_${contents}.pdf`;
+}
+
+
+/* Fills the progress line along the bottom of the builder. */
+function setReportProgress(
+    done,
+    total
+) {
+
+    if (
+        done === 0
+    ) {
+
+        // Jump back to empty instead of sliding backwards.
+        reportProgressBar.style.transition =
+            "none";
+
+        reportProgressBar.style.width =
+            "0%";
+
+        void reportProgressBar.offsetWidth;
+
+        reportProgressBar.style.transition =
+            "";
+
+        return;
+    }
+
+    reportProgressBar.style.width =
+        `${Math.round(done / total * 100)}%`;
+}
+
+
+/* Lets the browser paint (progress, button label) between sections. */
+function nextFrame() {
+
+    return new Promise(
+        resolve => requestAnimationFrame(
+            () => resolve()
+        )
+    );
+}
+
+
 async function downloadFullReport(
-    slots
+    items
 ) {
 
     const ready =
         () =>
-            slots.length > 0
+            items.length > 0
             &&
-            slots.every(
-                isSlotReportReady
+            items.every(
+                item => isReportItemReady(
+                    item.kind,
+                    item.slot
+                )
             );
+
+    if (
+        fullReportBusy
+    ) {
+
+        return;
+    }
 
     if (
         !ready()
     ) {
 
         setStatus(
-            "Create both the summary and the mind map first."
+            "Pick at least one summary or mind map for the report."
         );
 
         return;
@@ -9452,7 +11222,7 @@ async function downloadFullReport(
 
     const pending =
         getUnsavedEdits(
-            slots
+            items
         );
 
     if (
@@ -9469,7 +11239,7 @@ async function downloadFullReport(
         ) {
 
             setStatus(
-                "Full report download cancelled. Save your changes and try again."
+                "Report download cancelled. Save your changes and try again."
             );
 
             return;
@@ -9488,23 +11258,27 @@ async function downloadFullReport(
     const startedAt =
         performance.now();
 
+    // Snapshot the saved versions now, so edits saved mid-build
+    // can't change a report that is already being assembled.
     const sections =
-        slots.map(
-            slot => ({
-                slot: slot,
-                data: getExportData(slot),
-                mindmap: deepClone(slot.mindmapSaved)
+        items.map(
+            item => ({
+                ...item,
+                data:
+                    item.kind === "summary"
+                        ? getExportData(item.slot)
+                        : null,
+                mindmap:
+                    item.kind === "mindmap"
+                        ? deepClone(item.slot.mindmapSaved)
+                        : null
             })
         );
 
     const labels =
-        slots
-            .map(
-                slot => slot.model.label
-            )
-            .join(
-                " + "
-            );
+        describeReportItems(
+            items
+        );
 
     const originalText =
         reportTriggerLabel.textContent;
@@ -9512,17 +11286,26 @@ async function downloadFullReport(
     fullReportBusy =
         true;
 
-    updateFullReportAvailability();
+    reportBuilder.classList.add(
+        "is-busy"
+    );
+
+    setReportProgress(
+        0,
+        sections.length
+    );
+
+    refreshReportBuilder();
 
     reportTriggerLabel.textContent =
         "Preparing Report...";
 
     setStatus(
-        `Preparing full meeting report (${labels})...`
+        `Preparing meeting report (${labels})...`
     );
 
     log(
-        `Exporting summary and mind map as one PDF (${labels}).`
+        `Exporting report as one PDF: ${labels}.`
     );
 
 
@@ -9539,6 +11322,12 @@ async function downloadFullReport(
                 }
             );
 
+        // Whether a section has been written yet: the first summary
+        // goes on the document's opening page, every later one on a
+        // fresh page. Mind maps always open their own page(s).
+        let pageUsed =
+            false;
+
         for (
             let i = 0;
             i < sections.length;
@@ -9548,39 +11337,69 @@ async function downloadFullReport(
             const section =
                 sections[i];
 
-            const canvas =
-                await renderSavedMindMapCanvas(
-                    section.mindmap
-                );
+            reportTriggerLabel.textContent =
+                `Building ${i + 1} of ${sections.length}...`;
 
-            // Each further model starts on a fresh portrait page.
+            await nextFrame();
+
             if (
-                i > 0
+                section.kind === "summary"
             ) {
 
-                doc.addPage(
-                    "a4",
-                    "portrait"
+                if (
+                    pageUsed
+                ) {
+
+                    doc.addPage(
+                        "a4",
+                        "portrait"
+                    );
+                }
+
+                writeSummaryPdf(
+                    doc,
+                    section.data,
+                    section.slot.model.label
+                );
+
+            } else {
+
+                const canvas =
+                    await renderSavedMindMapCanvas(
+                        section.mindmap
+                    );
+
+                addMindMapPdfPages(
+                    doc,
+                    canvas,
+                    `Mind Map — ${section.slot.model.label}`
                 );
             }
 
-            writeSummaryPdf(
-                doc,
-                section.data,
-                section.slot.model.label
-            );
+            pageUsed =
+                true;
 
-            addMindMapPdfPages(
-                doc,
-                canvas,
-                `Mind Map — ${section.slot.model.label}`
+            setReportProgress(
+                i + 1,
+                sections.length
+            );
+        }
+
+        // A report of only mind maps never wrote on the opening page
+        // (each mind map adds its own), so drop it.
+        if (
+            sections[0].kind === "mindmap"
+        ) {
+
+            doc.deletePage(
+                1
             );
         }
 
         const fileName =
-            sections.length > 1
-                ? `${sanitizeFilename(sections[0].data.title)}_combined_full_report.pdf`
-                : `${exportFileStem(sections[0].slot, sections[0].data)}_full_report.pdf`;
+            reportFileName(
+                sections
+            );
 
         const blob =
             doc.output(
@@ -9623,7 +11442,7 @@ async function downloadFullReport(
         ) {
 
             setStatus(
-                `Report ready (${labels}). Building took ${seconds.toFixed(0)} s, so the browser may have blocked the automatic download. Use the Open button under Meeting Report.`
+                `Report ready (${labels}). Building took ${seconds.toFixed(0)} s, so the browser may have blocked the automatic download. Use the Open button under Build Your Report.`
             );
 
             log(
@@ -9633,7 +11452,7 @@ async function downloadFullReport(
         } else {
 
             setStatus(
-                `Report ready (${labels}). If nothing downloaded, use the Open button under Meeting Report.`
+                `Report ready (${labels}). If nothing downloaded, use the Open button under Build Your Report.`
             );
         }
 
@@ -9642,11 +11461,11 @@ async function downloadFullReport(
     ) {
 
         log(
-            `Full report export failed: ${error.message}`
+            `Report export failed: ${error.message}`
         );
 
         setStatus(
-            `Full report export failed: ${error.message}`
+            `Report export failed: ${error.message}`
         );
 
     } finally {
@@ -9654,10 +11473,14 @@ async function downloadFullReport(
         fullReportBusy =
             false;
 
+        reportBuilder.classList.remove(
+            "is-busy"
+        );
+
         reportTriggerLabel.textContent =
             originalText;
 
-        updateFullReportAvailability();
+        refreshReportBuilder();
     }
 }
 
@@ -9868,7 +11691,7 @@ renderModelPicker();
 
 applyModelSelection();
 
-updateFullReportAvailability();
+refreshReportBuilder();
 
 loadModelCatalog();
 
@@ -10042,11 +11865,16 @@ window.meetmindHistory = {
 
         clearReportReady();
 
+        clearReportSelection();
+
         transcript =
             (meeting.transcript || "").trim();
 
         currentMeetingId =
             meeting.id || null;
+
+        currentMeetingDuration =
+            meeting.durationSeconds || null;
 
         renderTranscript(
             transcript
@@ -10154,10 +11982,15 @@ window.meetmindHistory = {
 
         clearReportReady();
 
+        clearReportSelection();
+
         transcript =
             "";
 
         currentMeetingId =
+            null;
+
+        currentMeetingDuration =
             null;
 
         transcriptEl.innerHTML =

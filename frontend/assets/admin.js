@@ -647,6 +647,17 @@
             ", " + d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
     }
 
+    /* Recording length: "45 sec", "38 min", "1 h 12 min". Empty for
+       meetings saved before durations were recorded. */
+    function fmtDuration(seconds) {
+        var total = Math.round(Number(seconds));
+        if (!total || total < 0) return "";
+        var h = Math.floor(total / 3600);
+        var m = Math.floor((total % 3600) / 60);
+        if (h) return m ? h + " h " + m + " min" : h + " h";
+        return m ? m + " min" : total + " sec";
+    }
+
     function api(path) {
         return fetch(path, { credentials: "same-origin" }).then(function (res) {
             if (!res.ok) throw new Error("Request failed.");
@@ -736,7 +747,7 @@
         var pageRows = rows.slice((meetingPage - 1) * MEETINGS_PER_PAGE, meetingPage * MEETINGS_PER_PAGE);
 
         if (!rows.length) {
-            mtBody.innerHTML = '<tr><td colspan="5"><div class="table-empty">' +
+            mtBody.innerHTML = '<tr><td colspan="6"><div class="table-empty">' +
                 (allMeetings.length
                     ? "No meetings match your filters."
                     : "No meetings have been recorded yet.") +
@@ -748,6 +759,7 @@
                     "<td>" + esc(m.username || "") +
                         ' <span class="hint">' + esc(m.email || "") + "</span></td>" +
                     "<td>" + fmtDateTime(m.createdAt) + "</td>" +
+                    "<td>" + (fmtDuration(m.durationSeconds) || '<span class="hint">—</span>') + "</td>" +
                     '<td><div class="model-tags">' + modelTagsHtml(m.models) + "</div></td>" +
                     '<td class="cell-actions">' +
                         '<button class="row-btn" data-view="' + esc(m.id) + '">View</button>' +
@@ -773,7 +785,7 @@
             renderMeetings();
             renderStats();
         }).catch(function () {
-            mtBody.innerHTML = '<tr><td colspan="5"><div class="table-empty">' +
+            mtBody.innerHTML = '<tr><td colspan="6"><div class="table-empty">' +
                 "Could not load meetings.</div></td></tr>";
         });
     }
@@ -1073,8 +1085,9 @@
             viewedMeeting = m;
 
             mtTitle.textContent = m.title || "Untitled meeting";
+            var length = fmtDuration(m.durationSeconds);
             mtMeta.textContent = (m.username || "") + " · " + (m.email || "") +
-                " · " + fmtDateTime(m.createdAt);
+                " · " + fmtDateTime(m.createdAt) + (length ? " · " + length : "");
 
             mtTranscriptSearch.value = "";
             renderTranscript();

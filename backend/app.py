@@ -226,6 +226,12 @@ class SummaryRequest(BaseModel):
 
     meeting_id: Optional[int] = None
 
+    # Length of the recording in seconds (from the websocket's
+
+    # final_transcript). Stored on the meeting when this request creates it.
+
+    duration_seconds: Optional[float] = None
+
     # Select the LLM used for meeting intelligence.
 
     # Supported values: the keys of LLM_MODELS ("mistral", "qwen").
@@ -237,6 +243,10 @@ class MindMapRequest(BaseModel):
     transcript: str
 
     meeting_id: Optional[int] = None
+
+    # Length of the recording in seconds — see SummaryRequest.
+
+    duration_seconds: Optional[float] = None
 
     # Select the LLM used for mind-map generation.
 
@@ -888,6 +898,8 @@ def _meeting_row(
 
         "createdAt": row["created_at"],
 
+        "durationSeconds": row["duration_seconds"],
+
         "hasSummary": bool(
 
             row["has_summary"]
@@ -1147,6 +1159,8 @@ def _meeting_payload(
         "title": meeting["title"],
 
         "createdAt": meeting["created_at"],
+
+        "durationSeconds": meeting["duration_seconds"],
 
         "transcript": meeting["transcript"],
 
@@ -1504,13 +1518,17 @@ def _resolve_meeting_for_save(
 
     transcript: str,
 
+    duration_seconds: Optional[float] = None,
+
 ) -> Optional[int]:
 
     """
 
     The meeting row a freshly generated result is saved to, or None to
 
-    skip saving.
+    skip saving. `duration_seconds` (the recording's length) is stored
+
+    only when this call creates the row.
 
 
     An id sent by the client must belong to the user (or the user must be
@@ -1555,6 +1573,16 @@ def _resolve_meeting_for_save(
         user["id"],
 
         transcript,
+
+        duration_seconds=(
+
+            round(duration_seconds)
+
+            if duration_seconds and duration_seconds > 0
+
+            else None
+
+        ),
 
     )
 
@@ -1768,6 +1796,8 @@ async def create_summary(
 
                 transcript,
 
+                request.duration_seconds,
+
             )
 
             if meeting_id:
@@ -1957,6 +1987,8 @@ async def create_mindmap(
                 request.meeting_id,
 
                 transcript,
+
+                request.duration_seconds,
 
             )
 
