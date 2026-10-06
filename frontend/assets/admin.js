@@ -26,6 +26,8 @@
     var statUnverifiedUsers = document.getElementById("statUnverifiedUsers");
     var statSummarized = document.getElementById("statSummarized");
     var statMindmapped = document.getElementById("statMindmapped");
+    var statSummarizedBy = document.getElementById("statSummarizedBy");
+    var statMindmappedBy = document.getElementById("statMindmappedBy");
 
     var dialog = document.getElementById("userDialog");
     var form = document.getElementById("userForm");
@@ -137,6 +139,132 @@
         alertEl.classList.remove("is-shown");
     }
 
+    /* ---- filter dropdowns ------------------------------ */
+
+    // Every toolbar <select> is shown as the same dropdown the recorder
+    // page uses: a trigger button plus a menu of options with a check
+    // mark on the current one. The <select> stays in the page (hidden)
+    // as the source of truth, so the filters keep reading .value and
+    // listening for "change", and option lists rebuilt in code (the
+    // meetings' user and model filters) show up the next time the menu
+    // opens. A trigger turns accent-coloured while it is filtering.
+    var dropdowns = [];
+
+    function enhanceSelect(select) {
+        var label = select.getAttribute("aria-label") || "";
+
+        var wrap = document.createElement("div");
+        wrap.className = "dropdown";
+
+        var trigger = document.createElement("button");
+        trigger.type = "button";
+        trigger.className = "btn-filter dropdown-trigger";
+        trigger.setAttribute("aria-haspopup", "menu");
+        trigger.setAttribute("aria-expanded", "false");
+
+        var valueEl = document.createElement("span");
+        valueEl.className = "dropdown-value";
+        trigger.appendChild(valueEl);
+
+        var menu = document.createElement("div");
+        menu.className = "dropdown-menu";
+        menu.setAttribute("role", "menu");
+        if (label) menu.setAttribute("aria-label", label);
+        menu.hidden = true;
+
+        select.parentNode.insertBefore(wrap, select);
+        wrap.appendChild(select);
+        wrap.appendChild(trigger);
+        wrap.appendChild(menu);
+        select.hidden = true;
+        select.tabIndex = -1;
+
+        var dd = { wrap: wrap };
+
+        dd.sync = function () {
+            var opt = select.options[select.selectedIndex];
+            valueEl.textContent = opt ? opt.textContent : "";
+            trigger.setAttribute("aria-label", (label ? label + ": " : "") + valueEl.textContent);
+            trigger.classList.toggle("is-filtered", select.selectedIndex > 0);
+        };
+
+        dd.isOpen = function () { return !menu.hidden; };
+
+        dd.close = function (returnFocus) {
+            if (menu.hidden) return;
+            menu.hidden = true;
+            trigger.setAttribute("aria-expanded", "false");
+            if (returnFocus) trigger.focus();
+        };
+
+        dd.open = function () {
+            dropdowns.forEach(function (other) { if (other !== dd) other.close(); });
+
+            menu.innerHTML = "";
+            Array.prototype.forEach.call(select.options, function (opt) {
+                var item = document.createElement("button");
+                item.type = "button";
+                item.className = "dropdown-item";
+                item.setAttribute("role", "menuitemradio");
+                item.setAttribute("aria-checked", String(opt.value === select.value));
+
+                var text = document.createElement("span");
+                text.className = "dropdown-item-label";
+                text.textContent = opt.textContent;
+                item.appendChild(text);
+
+                item.addEventListener("click", function () {
+                    dd.close(true);
+                    if (select.value === opt.value) return;
+                    select.value = opt.value;
+                    dd.sync();
+                    select.dispatchEvent(new Event("change", { bubbles: true }));
+                });
+                menu.appendChild(item);
+            });
+
+            menu.hidden = false;
+            trigger.setAttribute("aria-expanded", "true");
+            var current = menu.querySelector('[aria-checked="true"]') || menu.firstChild;
+            if (current) current.focus();
+        };
+
+        trigger.addEventListener("click", function () {
+            if (dd.isOpen()) { dd.close(); } else { dd.open(); }
+        });
+
+        menu.addEventListener("keydown", function (e) {
+            var items = Array.prototype.slice.call(menu.querySelectorAll(".dropdown-item"));
+            var i = items.indexOf(document.activeElement);
+            var next = null;
+            if (e.key === "ArrowDown") next = items[(i + 1) % items.length];
+            else if (e.key === "ArrowUp") next = items[(i - 1 + items.length) % items.length];
+            else if (e.key === "Home") next = items[0];
+            else if (e.key === "End") next = items[items.length - 1];
+            else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); dd.close(true); }
+            else if (e.key === "Tab") dd.close();
+            if (next) { e.preventDefault(); next.focus(); }
+        });
+
+        // Option lists rebuilt in code, and values set by code.
+        new MutationObserver(dd.sync).observe(select, { childList: true });
+        select.addEventListener("change", dd.sync);
+
+        dd.sync();
+        dropdowns.push(dd);
+        return dd;
+    }
+
+    function syncDropdowns() {
+        dropdowns.forEach(function (dd) { dd.sync(); });
+    }
+
+    document.addEventListener("click", function (e) {
+        dropdowns.forEach(function (dd) {
+            if (dd.isOpen() && !dd.wrap.contains(e.target)) dd.close();
+        });
+    });
+
     /* ---- overview stats ------------------------------ */
 
     function renderStats() {
@@ -150,6 +278,21 @@
         statMindmapped.textContent = allMeetings.filter(function (m) {
             return m.hasMindmap;
         }).length;
+        statSummarizedBy.textContent = modelBreakdown("hasSummary");
+        statMindmappedBy.textContent = modelBreakdown("hasMindmap");
+    }
+
+    /* "Mistral 128B 17 · Qwen3 27B 3": meetings with that output, per model. */
+    function modelBreakdown(field) {
+        var counts = {};
+        allMeetings.forEach(function (m) {
+            (m.models || []).forEach(function (mm) {
+                if (mm[field]) counts[mm.key] = (counts[mm.key] || 0) + 1;
+            });
+        });
+        return knownModels().map(function (key) {
+            return modelLabel(key) + " " + (counts[key] || 0);
+        }).join(" · ");
     }
 
     /* ---- render table ------------------------------- */
@@ -406,6 +549,9 @@
     roleEl.addEventListener("change", function () { userPage = 1; renderUserRows(); });
     verifiedEl.addEventListener("change", function () { userPage = 1; renderUserRows(); });
 
+    enhanceSelect(roleEl);
+    enhanceSelect(verifiedEl);
+
     /* ============================================================
        MEETINGS — every user's transcripts + summaries
        ------------------------------------------------------------
@@ -419,6 +565,7 @@
     var mtCount = document.getElementById("meetingCount");
     var mtUserFilter = document.getElementById("meetingUserFilter");
     var mtStatusFilter = document.getElementById("meetingStatusFilter");
+    var mtModelFilter = document.getElementById("meetingModelFilter");
     var mtDateFrom = document.getElementById("meetingDateFrom");
     var mtDateTo = document.getElementById("meetingDateTo");
     var mtFilterReset = document.getElementById("meetingFilterReset");
@@ -435,6 +582,63 @@
     var MEETINGS_PER_PAGE = 10;
 
     var allMeetings = [];
+
+    // [{key, label, modelId}] from GET /api/models (backend LLM_MODELS).
+    var modelCatalog = [];
+
+    // Model-filter value: meetings with results from every model.
+    var EVERY_MODEL = "__every__";
+
+    /* Model keys in display order: the catalog's, then any model that
+       only appears in saved meetings (no longer offered). */
+    function knownModels() {
+        var keys = modelCatalog.map(function (mm) { return mm.key; });
+        allMeetings.forEach(function (m) {
+            (m.models || []).forEach(function (mm) {
+                if (keys.indexOf(mm.key) === -1) keys.push(mm.key);
+            });
+        });
+        return keys;
+    }
+
+    function modelLabel(key) {
+        var found = modelCatalog.filter(function (mm) { return mm.key === key; })[0];
+        if (found) return found.label || key;
+        for (var i = 0; i < allMeetings.length; i++) {
+            var tag = (allMeetings[i].models || []).filter(function (mm) { return mm.key === key; })[0];
+            if (tag) return tag.label || key;
+        }
+        return key;
+    }
+
+    function populateMeetingModelFilter() {
+        var current = mtModelFilter.value;
+        var keys = knownModels();
+        var options = [{ value: "", label: "Any model" }].concat(keys.map(function (key) {
+            return { value: key, label: modelLabel(key) };
+        }));
+        if (keys.length > 1) {
+            options.push({
+                value: EVERY_MODEL,
+                label: keys.length === 2 ? "Both models" : "All " + keys.length + " models"
+            });
+        }
+        mtModelFilter.innerHTML = options.map(function (o) {
+            return '<option value="' + esc(o.value) + '">' + esc(o.label) + "</option>";
+        }).join("");
+        if (options.some(function (o) { return o.value === current; })) mtModelFilter.value = current;
+    }
+
+    function loadModelCatalog() {
+        return api("/api/models").then(function (list) {
+            modelCatalog = Array.isArray(list) ? list : [];
+        }).catch(function () {
+            modelCatalog = [];
+        }).then(function () {
+            populateMeetingModelFilter();
+            renderStats();
+        });
+    }
 
     function fmtDateTime(iso) {
         var d = new Date(iso);
@@ -472,10 +676,29 @@
         if (current && seen[current]) mtUserFilter.value = current;
     }
 
+    /* One pill per model with results for the meeting (the `models`
+       field of /api/meetings), saying which outputs it has when it
+       only has one. Same tags as the history drawer on the app page. */
+    function modelTagsHtml(models) {
+        if (!models || !models.length) return '<span class="hint">—</span>';
+        return models.map(function (mm) {
+            var note = "";
+            if (mm.hasSummary && !mm.hasMindmap) note = "summary only";
+            if (mm.hasMindmap && !mm.hasSummary) note = "mind map only";
+            return '<span class="pill model-pill" title="' +
+                esc((mm.label || mm.key) + ": " + (note || "summary and mind map")) + '">' +
+                esc(mm.label || mm.key) +
+                (note ? ' <span class="pill-note">· ' + note + "</span>" : "") +
+                "</span>";
+        }).join("");
+    }
+
     function renderMeetings() {
         var q = mtSearch.value.trim().toLowerCase();
         var userVal = mtUserFilter.value;
         var statusVal = mtStatusFilter.value;
+        var modelVal = mtModelFilter.value;
+        var everyKey = knownModels();
         var fromVal = mtDateFrom.value;
         var toVal = mtDateTo.value;
 
@@ -487,6 +710,15 @@
 
             if (statusVal === "summarized" && !m.hasSummary) return false;
             if (statusVal === "transcript" && m.hasSummary) return false;
+
+            if (modelVal) {
+                var has = (m.models || []).map(function (mm) { return mm.key; });
+                if (modelVal === EVERY_MODEL) {
+                    if (!everyKey.every(function (k) { return has.indexOf(k) !== -1; })) return false;
+                } else if (has.indexOf(modelVal) === -1) {
+                    return false;
+                }
+            }
 
             if (fromVal || toVal) {
                 var d = new Date(m.createdAt);
@@ -511,25 +743,12 @@
                 "</div></td></tr>";
         } else {
             mtBody.innerHTML = pageRows.map(function (m) {
-                var badgeLabel = "Transcript only";
-                var badgeClass = "role-user";
-                if (m.hasSummary && m.hasMindmap) {
-                    badgeLabel = "Summary + Mind map";
-                    badgeClass = "st-active";
-                } else if (m.hasSummary) {
-                    badgeLabel = "Summary";
-                    badgeClass = "st-active";
-                } else if (m.hasMindmap) {
-                    badgeLabel = "Mind map";
-                    badgeClass = "st-active";
-                }
-
                 return "<tr>" +
                     "<td>" + esc(m.title || "Untitled meeting") + "</td>" +
                     "<td>" + esc(m.username || "") +
                         ' <span class="hint">' + esc(m.email || "") + "</span></td>" +
                     "<td>" + fmtDateTime(m.createdAt) + "</td>" +
-                    '<td><span class="pill ' + badgeClass + '">' + badgeLabel + "</span></td>" +
+                    '<td><div class="model-tags">' + modelTagsHtml(m.models) + "</div></td>" +
                     '<td class="cell-actions">' +
                         '<button class="row-btn" data-view="' + esc(m.id) + '">View</button>' +
                     "</td>" +
@@ -550,6 +769,7 @@
         return api("/api/meetings?scope=all").then(function (meetings) {
             allMeetings = meetings;
             populateMeetingUserFilter();
+            populateMeetingModelFilter();
             renderMeetings();
             renderStats();
         }).catch(function () {
@@ -558,130 +778,203 @@
         });
     }
 
-    /* ---- viewer dialog ----------------------------- */
+    /* ---- viewer dialog -----------------------------
+       Read-only view of one meeting, per model: a switch picks the
+       model, and the Summary / Mind Map tabs show that model's results
+       laid out like the recorder page (same sections, labels and icons;
+       the same mind-map tree). The transcript is shared by every model.
+    -------------------------------------------------- */
 
-    function section(heading, buildBody) {
+    var mtModelSwitch = document.getElementById("meetingModelSwitch");
+    var mtExpandBtn = document.getElementById("meetingExpandBtn");
+    var mtTranscriptText = document.getElementById("meetingTranscriptText");
+    var mtTranscriptSearch = document.getElementById("meetingTranscriptSearch");
+    var mtSearchPrev = document.getElementById("meetingSearchPrev");
+    var mtSearchNext = document.getElementById("meetingSearchNext");
+    var mtSearchCount = document.getElementById("meetingSearchCount");
+
+    var viewedMeeting = null;
+    var viewedModel = null;
+    var viewedTab = "summary";
+
+    function noneHtml(text) {
+        return '<div class="meeting-none">' + esc(text) + "</div>";
+    }
+
+    function sectionHtml(icon, heading, body) {
+        return '<div class="result-section">' +
+            '<div class="label"><span class="section-icon section-icon--' + icon + '" aria-hidden="true"></span>' +
+            esc(heading) + "</div>" + body + "</div>";
+    }
+
+    function textList(items) {
+        return (Array.isArray(items) ? items : []).filter(function (x) {
+            return x != null && String(x).trim();
+        });
+    }
+
+    function renderSummaryPane(summary, label) {
+        if (!summary) {
+            mtSummaryPane.innerHTML = noneHtml(label + " didn't generate a summary for this meeting.");
+            return;
+        }
+
+        var tasks = (Array.isArray(summary.tasks_assigned) ? summary.tasks_assigned : [])
+            .filter(function (t) { return t && (t.task || typeof t === "string"); });
+        var decisions = textList(summary.decision_points);
+        var objections = textList(summary.objections);
+        var actions = textList(summary.action_items);
+
+        var html = "";
+
+        html += sectionHtml("title", "Title",
+            '<div class="title-result">' + esc(summary.title || "Untitled Meeting") + "</div>");
+
+        html += sectionHtml("summary", "Meeting summary",
+            '<p class="summary">' + esc(summary.meeting_summary || "No summary available.") + "</p>");
+
+        html += sectionHtml("objective", "Objective",
+            '<p class="summary">' + esc(summary.objective || "Objective could not be generated.") + "</p>");
+
+        html += sectionHtml("tasks", "Tasks", tasks.length
+            ? tasks.map(function (t) {
+                if (typeof t === "string") return '<div class="item"><strong>' + esc(t) + "</strong></div>";
+                return '<div class="item"><strong>' + esc(t.task) + "</strong>" +
+                    (t.assignee && String(t.assignee).trim()
+                        ? '<div class="meta">Assignee: ' + esc(t.assignee) + "</div>" : "") +
+                    (t.deadline && String(t.deadline).trim()
+                        ? '<div class="meta">Deadline: ' + esc(t.deadline) + "</div>" : "") +
+                    "</div>";
+            }).join("")
+            : '<div class="meta">No tasks identified.</div>');
+
+        html += sectionHtml("decisions", "Decisions", decisions.length
+            ? decisions.map(function (d) { return '<div class="decision">' + esc(d) + "</div>"; }).join("")
+            : '<div class="meta">No decisions identified.</div>');
+
+        // Like the recorder page, these two only appear when present.
+        if (objections.length) {
+            html += sectionHtml("objections", "Objections", objections.map(function (o) {
+                return '<div class="item objection">' + esc(o) + "</div>";
+            }).join(""));
+        }
+        if (actions.length) {
+            html += sectionHtml("actions", "Action items", actions.map(function (a) {
+                return '<div class="item action">' + esc(a) + "</div>";
+            }).join(""));
+        }
+
+        mtSummaryPane.innerHTML = '<div class="intelligence">' + html + "</div>";
+    }
+
+    /* Same tree markup as the recorder page's mind map, minus editing. */
+    function buildMindmapNode(node, isRoot) {
+        if (!node || !node.title) return null;
+
         var wrap = document.createElement("div");
-        wrap.className = "meeting-section";
-        var h = document.createElement("h4");
-        h.textContent = heading;
-        wrap.appendChild(h);
-        buildBody(wrap);
+        wrap.className = isRoot ? "mindmap-root" : "mindmap-branch";
+
+        var label = document.createElement("div");
+        label.className = isRoot ? "mindmap-root-title" : "mindmap-node";
+        label.textContent = node.title;
+        wrap.appendChild(label);
+
+        var children = Array.isArray(node.children) ? node.children : [];
+        if (children.length) {
+            var box = document.createElement("div");
+            box.className = isRoot ? "mindmap-children" : "mindmap-node-children";
+            children.forEach(function (child) {
+                var built = buildMindmapNode(child, false);
+                if (built) box.appendChild(built);
+            });
+            wrap.appendChild(box);
+        }
         return wrap;
     }
 
-    function textSection(heading, text) {
-        return section(heading, function (wrap) {
-            var p = document.createElement("p");
-            p.textContent = text;
-            wrap.appendChild(p);
-        });
-    }
-
-    function listSection(heading, items) {
-        return section(heading, function (wrap) {
-            var ul = document.createElement("ul");
-            items.forEach(function (item) {
-                var li = document.createElement("li");
-                // Items may be plain strings or {task, owner, ...} objects.
-                if (item && typeof item === "object") {
-                    li.textContent = Object.keys(item).map(function (k) {
-                        return item[k];
-                    }).filter(Boolean).join(" — ");
-                } else {
-                    li.textContent = String(item);
-                }
-                ul.appendChild(li);
-            });
-            wrap.appendChild(ul);
-        });
-    }
-
-    function renderSummaryPane(summary) {
-        mtSummaryPane.innerHTML = "";
-
-        if (!summary) {
-            var none = document.createElement("div");
-            none.className = "meeting-none";
-            none.textContent = "No summary was generated for this meeting.";
-            mtSummaryPane.appendChild(none);
-            return;
-        }
-
-        if (summary.objective) {
-            mtSummaryPane.appendChild(textSection("Objective", summary.objective));
-        }
-        if (summary.meeting_summary) {
-            mtSummaryPane.appendChild(textSection("Summary", summary.meeting_summary));
-        }
-
-        [
-            ["Tasks assigned", summary.tasks_assigned],
-            ["Decision points", summary.decision_points],
-            ["Objections", summary.objections],
-            ["Action items", summary.action_items]
-        ].forEach(function (pair) {
-            if (Array.isArray(pair[1]) && pair[1].length) {
-                mtSummaryPane.appendChild(listSection(pair[0], pair[1]));
-            }
-        });
-
-        if (!mtSummaryPane.children.length) {
-            mtSummaryPane.appendChild(textSection("Summary", "This summary is empty."));
-        }
-    }
-
-    function buildMindmapNode(node) {
-        var li = document.createElement("li");
-        var label = document.createElement("div");
-        label.className = "mindmap-node-label";
-        label.textContent = node.title || "";
-        li.appendChild(label);
-
-        if (Array.isArray(node.children) && node.children.length) {
-            var ul = document.createElement("ul");
-            node.children.forEach(function (child) {
-                ul.appendChild(buildMindmapNode(child));
-            });
-            li.appendChild(ul);
-        }
-
-        return li;
-    }
-
-    function renderMindmapPane(mindmap) {
+    function renderMindmapPane(mindmap, label) {
         mtMindmapPane.innerHTML = "";
 
-        if (!mindmap || !mindmap.title) {
-            var none = document.createElement("div");
-            none.className = "meeting-none";
-            none.textContent = "No mind map was generated for this meeting.";
-            mtMindmapPane.appendChild(none);
+        var root = mindmap && buildMindmapNode(mindmap, true);
+        if (!root) {
+            mtMindmapPane.innerHTML = noneHtml(label + " didn't generate a mind map for this meeting.");
             return;
         }
 
-        var root = document.createElement("div");
-        root.className = "mindmap-root-label";
-        root.textContent = mindmap.title;
-        mtMindmapPane.appendChild(root);
+        var container = document.createElement("div");
+        container.className = "mindmap-container";
+        var top = Array.isArray(mindmap.children) ? mindmap.children.length : 0;
+        container.style.setProperty("--mindmap-columns", Math.max(1, Math.min(top || 1, 5)));
+        container.appendChild(root);
+        mtMindmapPane.appendChild(container);
+    }
 
-        if (Array.isArray(mindmap.children) && mindmap.children.length) {
-            var ul = document.createElement("ul");
-            ul.className = "mindmap-tree";
-            mindmap.children.forEach(function (child) {
-                ul.appendChild(buildMindmapNode(child));
-            });
-            mtMindmapPane.appendChild(ul);
-        }
+    /* The tree is wider than the pane: open it scrolled to its centre
+       (only possible once the pane is visible and laid out). */
+    function centerMindmap() {
+        var container = mtMindmapPane.querySelector(".mindmap-container");
+        if (!container || mtMindmapPane.hidden) return;
+        requestAnimationFrame(function () {
+            container.scrollLeft = (container.scrollWidth - container.clientWidth) / 2;
+        });
+    }
+
+    function renderModelSwitch() {
+        var models = viewedMeeting.models || [];
+        mtModelSwitch.innerHTML = "";
+        mtModelSwitch.hidden = !models.length;
+
+        models.forEach(function (mm) {
+            var b = document.createElement("button");
+            b.type = "button";
+            b.className = "model-switch-btn";
+            b.setAttribute("aria-pressed", String(mm.key === viewedModel));
+
+            var note = "";
+            if (mm.hasSummary && !mm.hasMindmap) note = "summary only";
+            if (mm.hasMindmap && !mm.hasSummary) note = "mind map only";
+
+            var name = document.createElement("span");
+            name.textContent = mm.label || mm.key;
+            b.appendChild(name);
+            if (note) {
+                var small = document.createElement("span");
+                small.className = "model-switch-note";
+                small.textContent = note;
+                b.appendChild(small);
+            }
+
+            b.addEventListener("click", function () { selectModel(mm.key); });
+            mtModelSwitch.appendChild(b);
+        });
+    }
+
+    function selectModel(key) {
+        viewedModel = key;
+        var results = (viewedMeeting && viewedMeeting.results) || {};
+        var result = results[key] || {};
+        var info = (viewedMeeting.models || []).filter(function (mm) { return mm.key === key; })[0];
+        var label = info ? (info.label || info.key) : "This model";
+
+        renderModelSwitch();
+        renderSummaryPane(result.summary || null, label);
+        renderMindmapPane(result.mindmap || null, label);
+        centerMindmap();
     }
 
     function showTab(which) {
+        viewedTab = which;
         mtSummaryPane.hidden = which !== "summary";
         mtMindmapPane.hidden = which !== "mindmap";
         mtTranscriptPane.hidden = which !== "transcript";
         mtDialog.querySelectorAll(".meeting-tab").forEach(function (t) {
-            t.classList.toggle("is-active", t.getAttribute("data-tab") === which);
+            var active = t.getAttribute("data-tab") === which;
+            t.classList.toggle("is-active", active);
+            t.setAttribute("aria-selected", String(active));
         });
+        // The transcript belongs to the meeting, not to a model.
+        mtModelSwitch.classList.toggle("is-muted", which === "transcript");
+        if (which === "mindmap") centerMindmap();
     }
 
     mtDialog.querySelectorAll(".meeting-tab").forEach(function (tab) {
@@ -690,21 +983,113 @@
         });
     });
 
+    /* ---- full view ---- */
+
+    function setExpanded(expanded) {
+        mtDialog.classList.toggle("is-expanded", expanded);
+        mtExpandBtn.setAttribute("aria-pressed", String(expanded));
+        mtExpandBtn.setAttribute("aria-label", expanded ? "Exit full view" : "Expand the viewer");
+        mtExpandBtn.title = expanded ? "Exit full view" : "Expand";
+        centerMindmap();
+    }
+
+    mtExpandBtn.addEventListener("click", function () {
+        setExpanded(!mtDialog.classList.contains("is-expanded"));
+    });
+
+    /* ---- transcript search (same behaviour as the recorder page) ---- */
+
+    var tsMatches = [];
+    var tsIndex = -1;
+
+    function updateSearchCount() {
+        var count = tsMatches.length;
+        if (!mtTranscriptSearch.value.trim()) mtSearchCount.textContent = "0 matches";
+        else if (!count) mtSearchCount.textContent = "No matches";
+        else mtSearchCount.textContent = (tsIndex + 1) + " / " + count;
+        mtSearchPrev.disabled = !count;
+        mtSearchNext.disabled = !count;
+    }
+
+    function setSearchMatch(i) {
+        if (!tsMatches.length) { tsIndex = -1; updateSearchCount(); return; }
+        tsIndex = (i + tsMatches.length) % tsMatches.length;
+        tsMatches.forEach(function (mark, n) { mark.classList.toggle("current", n === tsIndex); });
+        tsMatches[tsIndex].scrollIntoView({ block: "center" });
+        updateSearchCount();
+    }
+
+    function renderTranscript() {
+        var text = (viewedMeeting && viewedMeeting.transcript) || "";
+        var query = mtTranscriptSearch.value.trim();
+        tsMatches = [];
+        tsIndex = -1;
+        mtTranscriptText.textContent = "";
+
+        if (!text) {
+            mtTranscriptText.textContent = "No transcript was stored.";
+            updateSearchCount();
+            return;
+        }
+        if (!query) {
+            mtTranscriptText.textContent = text;
+            updateSearchCount();
+            return;
+        }
+
+        var re = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+        var last = 0;
+        var m;
+        while ((m = re.exec(text)) !== null) {
+            if (m.index > last) mtTranscriptText.appendChild(document.createTextNode(text.slice(last, m.index)));
+            var mark = document.createElement("mark");
+            mark.className = "transcript-match";
+            mark.textContent = m[0];
+            mtTranscriptText.appendChild(mark);
+            tsMatches.push(mark);
+            last = m.index + m[0].length;
+            if (!m[0].length) re.lastIndex++;
+        }
+        if (last < text.length) mtTranscriptText.appendChild(document.createTextNode(text.slice(last)));
+
+        if (tsMatches.length) setSearchMatch(0); else updateSearchCount();
+    }
+
+    mtTranscriptSearch.addEventListener("input", renderTranscript);
+    mtTranscriptSearch.addEventListener("keydown", function (e) {
+        // Enter would otherwise submit (and close) the dialog's form.
+        if (e.key === "Enter") {
+            e.preventDefault();
+            if (tsMatches.length) setSearchMatch(tsIndex + (e.shiftKey ? -1 : 1));
+        }
+    });
+    mtSearchPrev.addEventListener("click", function () { setSearchMatch(tsIndex - 1); });
+    mtSearchNext.addEventListener("click", function () { setSearchMatch(tsIndex + 1); });
+
+    /* ---- open ---- */
+
     function openMeeting(id) {
         api("/api/meetings/" + encodeURIComponent(id)).then(function (m) {
+            viewedMeeting = m;
+
             mtTitle.textContent = m.title || "Untitled meeting";
             mtMeta.textContent = (m.username || "") + " · " + (m.email || "") +
                 " · " + fmtDateTime(m.createdAt);
 
-            renderSummaryPane(m.summary);
-            renderMindmapPane(m.mindmap);
+            mtTranscriptSearch.value = "";
+            renderTranscript();
 
-            mtTranscriptPane.innerHTML = "";
-            var pre = document.createElement("pre");
-            pre.className = "meeting-transcript";
-            pre.textContent = m.transcript || "No transcript was stored.";
-            mtTranscriptPane.appendChild(pre);
+            var first = (m.models || [])[0];
+            if (first) {
+                selectModel(first.key);
+            } else {
+                viewedModel = null;
+                renderModelSwitch();
+                mtSummaryPane.innerHTML = noneHtml("No summary was generated for this meeting.");
+                mtMindmapPane.innerHTML = noneHtml("No mind map was generated for this meeting.");
+            }
 
+            setExpanded(false);
             showTab("summary");
             mtDialog.showModal();
 
@@ -712,6 +1097,10 @@
             D.alert({ title: "Couldn't open meeting", message: "Could not open that meeting. Please try again." });
         });
     }
+
+    mtDialog.addEventListener("close", function () {
+        setExpanded(false);
+    });
 
     mtBody.addEventListener("click", function (e) {
         var btn = e.target.closest("[data-view]");
@@ -730,6 +1119,7 @@
     mtSearch.addEventListener("input", onMeetingFilterChange);
     mtUserFilter.addEventListener("change", onMeetingFilterChange);
     mtStatusFilter.addEventListener("change", onMeetingFilterChange);
+    mtModelFilter.addEventListener("change", onMeetingFilterChange);
     mtDateFrom.addEventListener("change", onMeetingFilterChange);
     mtDateTo.addEventListener("change", onMeetingFilterChange);
 
@@ -737,11 +1127,17 @@
         mtSearch.value = "";
         mtUserFilter.value = "";
         mtStatusFilter.value = "";
+        mtModelFilter.value = "";
         mtDateFrom.value = "";
         mtDateTo.value = "";
         meetingPage = 1;
+        syncDropdowns();
         renderMeetings();
     });
+
+    enhanceSelect(mtUserFilter);
+    enhanceSelect(mtStatusFilter);
+    enhanceSelect(mtModelFilter);
 
     /* ---- boot -------------------------------------- */
 
@@ -754,7 +1150,7 @@
                 A.signOut().then(function () { location.assign("/sign-in"); });
             });
             render();
-            loadMeetings();
+            loadMeetings().then(loadModelCatalog);
         });
     }
 

@@ -41,7 +41,7 @@
     <script src="assets/auth-store.js?v=4"></script>
 
     <link rel="stylesheet" href="assets/theme.css">
-    <link rel="stylesheet" href="assets/admin.css?v=2">
+    <link rel="stylesheet" href="assets/admin.css?v=4">
 
 </head>
 
@@ -117,6 +117,7 @@
                 <span class="stat-info">
                     <span class="stat-value" id="statSummarized">—</span>
                     <span class="stat-label">Meetings summarized</span>
+                    <span class="stat-breakdown" id="statSummarizedBy"></span>
                 </span>
             </div>
 
@@ -127,6 +128,7 @@
                 <span class="stat-info">
                     <span class="stat-value" id="statMindmapped">—</span>
                     <span class="stat-label">Meetings mind-mapped</span>
+                    <span class="stat-breakdown" id="statMindmappedBy"></span>
                 </span>
             </div>
 
@@ -207,7 +209,10 @@
                     <select id="meetingStatusFilter" aria-label="Filter by summary status">
                         <option value="">All statuses</option>
                         <option value="summarized">Summarized</option>
-                        <option value="transcript">Transcript only</option>
+                        <option value="transcript">Mind map only</option>
+                    </select>
+                    <select id="meetingModelFilter" aria-label="Filter by model">
+                        <option value="">All models</option>
                     </select>
                     <label class="date-field">
                         <span class="date-field-label">From</span>
@@ -292,7 +297,7 @@
         <p class="hint" id="dialogVerifyNote">Users you add here are verified automatically and can sign in right away.</p>
 
         <div class="dialog-actions">
-            <button class="btn btn-ghost" type="button" id="dialogCancel">Cancel</button>
+            <button class="btn btn-secondary" type="button" id="dialogCancel">Cancel</button>
             <button class="btn btn-accent" type="submit" id="dialogSave">Save</button>
         </div>
 
@@ -301,32 +306,52 @@
 
 
 <!-- ---------- meeting transcript / summary viewer ---------- -->
-<dialog id="meetingDialog" class="user-dialog meeting-dialog">
+<dialog id="meetingDialog" class="user-dialog meeting-dialog" aria-labelledby="meetingDialogTitle">
     <form method="dialog">
 
-        <h3 id="meetingDialogTitle">Meeting</h3>
-        <p class="hint" id="meetingDialogMeta"></p>
+        <div class="meeting-head">
+            <div class="meeting-head-text">
+                <h3 id="meetingDialogTitle">Meeting</h3>
+                <p class="hint" id="meetingDialogMeta"></p>
+            </div>
+            <button class="btn-tool btn-icon meeting-expand" id="meetingExpandBtn" type="button"
+                aria-pressed="false" aria-label="Expand the viewer" title="Expand"></button>
+        </div>
+
+        <!-- one button per model with results for this meeting -->
+        <div class="model-switch" id="meetingModelSwitch" role="group" aria-label="Model"></div>
 
         <div class="meeting-tabs" role="tablist">
-            <button class="meeting-tab is-active" type="button" data-tab="summary" role="tab">Summary</button>
-            <button class="meeting-tab" type="button" data-tab="mindmap" role="tab">Mind Map</button>
-            <button class="meeting-tab" type="button" data-tab="transcript" role="tab">Transcript</button>
+            <button class="meeting-tab is-active" type="button" data-tab="summary" role="tab" aria-selected="true">Summary</button>
+            <button class="meeting-tab" type="button" data-tab="mindmap" role="tab" aria-selected="false">Mind Map</button>
+            <button class="meeting-tab" type="button" data-tab="transcript" role="tab" aria-selected="false">Transcript</button>
         </div>
 
         <div class="meeting-pane" id="meetingSummaryPane"></div>
-        <div class="meeting-pane" id="meetingMindmapPane" hidden></div>
-        <div class="meeting-pane" id="meetingTranscriptPane" hidden></div>
+        <div class="meeting-pane meeting-pane--mindmap" id="meetingMindmapPane" hidden></div>
+        <div class="meeting-pane meeting-pane--transcript" id="meetingTranscriptPane" hidden>
+            <div class="transcript-tools">
+                <div class="search-wrap">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                    <input type="search" id="meetingTranscriptSearch" placeholder="Search transcript…" autocomplete="off" aria-label="Search transcript">
+                </div>
+                <button class="btn-tool btn-icon search-prev" id="meetingSearchPrev" type="button" aria-label="Previous match" title="Previous match" disabled></button>
+                <button class="btn-tool btn-icon search-next" id="meetingSearchNext" type="button" aria-label="Next match" title="Next match" disabled></button>
+                <span class="search-count" id="meetingSearchCount" aria-live="polite">0 matches</span>
+            </div>
+            <pre class="meeting-transcript" id="meetingTranscriptText"></pre>
+        </div>
 
         <div class="dialog-actions">
-            <button class="btn btn-ghost" type="button" id="meetingDialogClose">Close</button>
+            <button class="btn btn-secondary" type="button" id="meetingDialogClose">Close</button>
         </div>
 
     </form>
 </dialog>
 
 <script src="assets/theme.js?v=3"></script>
-<script src="assets/dialog.js?v=2"></script>
-<script src="assets/admin.js?v=8"></script>
+<script src="assets/dialog.js?v=3"></script>
+<script src="assets/admin.js?v=10"></script>
 
 </body>
 </html>

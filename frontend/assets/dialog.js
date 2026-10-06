@@ -44,7 +44,8 @@
         ".mm-dlg li{margin:0 0 4px}" +
         ".mm-dlg-actions{display:flex;justify-content:flex-end;gap:10px}" +
         ".mm-dlg-btn{font-family:inherit;font-size:13px;font-weight:600;letter-spacing:-0.005em;" +
-            "padding:9px 15px;border-radius:var(--r-md);border:1px solid var(--accent);" +
+            /* same height as index.html's .btn-primary / .btn-secondary */
+            "height:var(--control-h,38px);padding:0 16px;border-radius:var(--r-md);border:1px solid var(--accent);" +
             "box-shadow:var(--shadow-sm);cursor:pointer;display:inline-flex;" +
             "align-items:center;justify-content:center;" +
             "transition:background-color .16s ease,border-color .16s ease,color .16s ease,transform .09s ease}" +
@@ -53,8 +54,12 @@
         ".mm-dlg-btn:active{transform:scale(.97)}" +
         ".mm-dlg-btn-secondary{background:var(--bg-surface);color:var(--accent)}" +
         ".mm-dlg-btn-secondary:hover{background:var(--accent-soft);border-color:var(--accent)}" +
-        ".mm-dlg-btn-primary{background:var(--accent);color:#fff}" +
-        ".mm-dlg-btn-primary:hover{background:var(--accent-hover);border-color:var(--accent-hover)}" +
+        /* Filled with the button accent where a page defines one: in dark
+           mode --accent is a light tint that white text can't sit on. */
+        ".mm-dlg-btn-primary{background:var(--btn-accent-bg,var(--accent));" +
+            "border-color:var(--btn-accent-bg,var(--accent));color:#fff}" +
+        ".mm-dlg-btn-primary:hover{background:var(--btn-accent-hover,var(--accent-hover));" +
+            "border-color:var(--btn-accent-hover,var(--accent-hover))}" +
         ".mm-dlg-btn-danger{background:var(--danger);border-color:var(--danger);color:#fff}" +
         ".mm-dlg-btn-danger:hover{background:var(--danger-hover);border-color:var(--danger-hover)}" +
         "@media (prefers-reduced-motion:reduce){.mm-dlg{transition:none}}";

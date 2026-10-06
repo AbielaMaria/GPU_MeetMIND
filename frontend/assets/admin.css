@@ -358,6 +358,12 @@ td.cell-actions {
 .pill.st-verified { color: var(--success); background: var(--success-soft); border-color: transparent; }
 .pill.st-unverified { color: var(--warning); background: var(--warning-soft); border-color: transparent; }
 
+/* Model tags in the meetings table: one per model with results. */
+.model-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.pill.model-pill { color: var(--accent); background: var(--accent-soft); border-color: transparent; white-space: nowrap; }
+.pill.model-pill::before { content: none; }
+.pill-note { font-weight: 500; opacity: .8; }
+
 #dialogVerifyNote {
     margin: 4px 0 0;
 }
@@ -511,53 +517,6 @@ td.cell-actions {
     color: var(--text-muted);
 }
 
-/* ---- read-only mind-map tree (admin viewer) ---- */
-
-.mindmap-root-label {
-    font: 700 14px/1.4 var(--font-sans);
-    color: var(--text-primary);
-    padding-bottom: 10px;
-    margin-bottom: 4px;
-    border-bottom: 1px solid var(--border);
-}
-
-.mindmap-tree,
-.mindmap-tree ul {
-    list-style: none;
-    margin: 0;
-    padding-left: 18px;
-}
-
-.mindmap-tree {
-    margin-top: 10px;
-}
-
-.mindmap-tree li {
-    position: relative;
-    padding: 5px 0 5px 16px;
-    border-left: 1px solid var(--border);
-}
-
-.mindmap-tree li:last-child {
-    border-left-color: transparent;
-}
-
-.mindmap-tree li::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    top: 17px;
-    width: 12px;
-    height: 1px;
-    background: var(--border);
-}
-
-.mindmap-node-label {
-    font-size: 13px;
-    line-height: 1.5;
-    color: var(--text-secondary);
-}
-
 /* ============================================================
    Pagination (users + meetings tables)
 ============================================================ */
@@ -603,4 +562,938 @@ td.cell-actions {
     padding: 6px 4px;
     font-size: 12px;
     color: var(--text-muted);
+}
+
+/* ============================================================
+   CONTROLS — matched to the recorder page (index.html)
+   ------------------------------------------------------------
+   Same control system as index.html's CONTROLS section, scoped to
+   this page so theme.css (shared with the sign-in and landing
+   pages) is left as it is:
+
+     regular controls   --control-h      buttons, search, filters
+     compact tools      --control-h-sm   row actions, pagination,
+                                         viewer tools
+     header row         --control-h-header
+
+     .btn-accent     primary   (accent fill)
+     .btn-secondary  secondary (accent outline): Cancel, Close
+     .btn-ghost      neutral:  Reset filters, top-bar links
+     .btn-filter     filter dropdowns: neutral, accent while filtering
+============================================================ */
+
+:root {
+    --control-h: 38px;
+    --control-h-sm: 32px;
+    --control-h-header: 34px;
+    --icon-file: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z'/%3E%3Cpath d='M14 2v4a2 2 0 0 0 2 2h4'/%3E%3Cpath d='M10 9H8'/%3E%3Cpath d='M16 13H8'/%3E%3Cpath d='M16 17H8'/%3E%3C/svg%3E");
+    --icon-heading: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='4 7 4 4 20 4 20 7'/%3E%3Cline x1='9' x2='15' y1='20' y2='20'/%3E%3Cline x1='12' x2='12' y1='4' y2='20'/%3E%3C/svg%3E");
+    --icon-target: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Ccircle cx='12' cy='12' r='6'/%3E%3Ccircle cx='12' cy='12' r='2'/%3E%3C/svg%3E");
+    --icon-clipboard: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect width='8' height='4' x='8' y='2' rx='1' ry='1'/%3E%3Cpath d='M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2'/%3E%3Cpath d='M12 11h4'/%3E%3Cpath d='M12 16h4'/%3E%3Cpath d='M8 11h.01'/%3E%3Cpath d='M8 16h.01'/%3E%3C/svg%3E");
+    --icon-circle-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='m9 12 2 2 4-4'/%3E%3C/svg%3E");
+    --icon-alert: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3'/%3E%3Cpath d='M12 9v4'/%3E%3Cpath d='M12 17h.01'/%3E%3C/svg%3E");
+    --icon-list-checks: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m3 17 2 2 4-4'/%3E%3Cpath d='m3 7 2 2 4-4'/%3E%3Cpath d='M13 6h8'/%3E%3Cpath d='M13 12h8'/%3E%3Cpath d='M13 18h8'/%3E%3C/svg%3E");
+    --icon-bot: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 8V4H8'/%3E%3Crect width='16' height='12' x='4' y='8' rx='2'/%3E%3Cpath d='M2 14h2'/%3E%3Cpath d='M20 14h2'/%3E%3Cpath d='M15 13v2'/%3E%3Cpath d='M9 13v2'/%3E%3C/svg%3E");
+    --icon-maximize: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='15 3 21 3 21 9'/%3E%3Cpolyline points='9 21 3 21 3 15'/%3E%3Cline x1='21' x2='14' y1='3' y2='10'/%3E%3Cline x1='3' x2='10' y1='21' y2='14'/%3E%3C/svg%3E");
+    --icon-minimize: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='4 14 10 14 10 20'/%3E%3Cpolyline points='20 10 14 10 14 4'/%3E%3Cline x1='14' x2='21' y1='10' y2='3'/%3E%3Cline x1='3' x2='10' y1='21' y2='14'/%3E%3C/svg%3E");
+    --icon-chevron-down: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    --icon-chevron-up: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m18 15-6-6-6 6'/%3E%3C/svg%3E");
+    --icon-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");
+}
+
+/* ---------- Top bar: one height for every control ---------- */
+
+.admin-top .btn,
+.admin-top .theme-toggle {
+    height: var(--control-h-header);
+}
+
+.admin-top .btn {
+    padding: 0 13px;
+    font-size: 12px;
+    gap: 7px;
+}
+
+.admin-top .btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+.admin-top .theme-toggle {
+    width: var(--control-h-header);
+}
+
+/* ---------- Regular buttons ---------- */
+
+.admin-body .btn,
+.user-dialog .btn {
+    height: var(--control-h);
+    padding: 0 16px;
+    font-size: 13px;
+    gap: 8px;
+}
+
+.admin-body .btn svg {
+    width: 15px;
+    height: 15px;
+}
+
+.btn-secondary {
+    background: var(--bg-surface);
+    border-color: var(--accent);
+    color: var(--accent);
+    box-shadow: var(--shadow-sm);
+}
+
+.btn-secondary:hover {
+    background: var(--accent-soft);
+}
+
+/* ---------- Search + date fields: regular height ---------- */
+
+.search-wrap input {
+    height: var(--control-h);
+    padding: 0 12px 0 32px;
+    font-size: 13px;
+}
+
+.date-field input[type="date"] {
+    height: var(--control-h);
+    padding: 0 10px;
+}
+
+/* ---------- Compact tools (row actions, pagination, viewer) ---------- */
+
+.row-btn,
+.page-arrow,
+.page-btn,
+.btn-tool {
+    height: var(--control-h-sm);
+    padding: 0 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font: 600 12.5px/1 var(--font-sans);
+    border-radius: var(--r-md);
+    border: 1px solid var(--border);
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background-color .16s ease, border-color .16s ease, color .16s ease;
+}
+
+.page-arrow,
+.page-btn {
+    min-width: var(--control-h-sm);
+    padding: 0 10px;
+}
+
+.row-btn:hover,
+.btn-tool:hover:not(:disabled) {
+    background: var(--bg-elevated);
+    border-color: var(--border-strong);
+    color: var(--text-primary);
+}
+
+.btn-tool:disabled {
+    opacity: .5;
+    cursor: not-allowed;
+}
+
+.btn-icon {
+    width: var(--control-h-sm);
+    padding: 0;
+    flex: none;
+}
+
+.btn-icon::before {
+    content: "";
+    width: 15px;
+    height: 15px;
+    background: currentColor;
+    -webkit-mask-position: center;
+    mask-position: center;
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+}
+
+/* ---------- Filter dropdowns (same component as the recorder page) ---------- */
+
+.dropdown {
+    position: relative;
+    display: inline-flex;
+    max-width: 100%;
+}
+
+.btn-filter {
+    height: var(--control-h);
+    padding: 0 12px 0 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    max-width: 100%;
+    font: 600 13px/1 var(--font-sans);
+    border-radius: var(--r-md);
+    border: 1px solid var(--border);
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: background-color .16s ease, border-color .16s ease, color .16s ease;
+}
+
+.btn-filter:hover {
+    border-color: var(--border-strong);
+    background: var(--bg-elevated);
+}
+
+.btn-filter.is-filtered {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-soft);
+}
+
+.btn-filter[aria-expanded="true"] {
+    border-color: var(--accent);
+}
+
+.dropdown-trigger::after {
+    content: "";
+    width: 14px;
+    height: 14px;
+    flex: none;
+    background: currentColor;
+    -webkit-mask: var(--icon-chevron-down) center / contain no-repeat;
+    mask: var(--icon-chevron-down) center / contain no-repeat;
+    transition: transform .16s ease;
+}
+
+.dropdown-trigger[aria-expanded="true"]::after {
+    transform: rotate(180deg);
+}
+
+.dropdown-value {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dropdown-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: max-content;
+    min-width: 100%;
+    max-width: min(420px, calc(100vw - 32px));
+    max-height: 320px;
+    overflow-y: auto;
+    padding: 6px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    box-shadow: var(--shadow-lg);
+}
+
+.dropdown-menu[hidden] {
+    display: none;
+}
+
+.dropdown-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 16px;
+    align-items: center;
+    column-gap: 16px;
+    width: 100%;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: var(--r-sm);
+    background: transparent;
+    color: var(--text-primary);
+    font: 600 13px/1.3 var(--font-sans);
+    text-align: left;
+    cursor: pointer;
+}
+
+.dropdown-item::after {
+    content: "";
+    width: 16px;
+    height: 16px;
+}
+
+.dropdown-item[aria-checked="true"] {
+    color: var(--accent);
+}
+
+.dropdown-item[aria-checked="true"]::after {
+    background: currentColor;
+    -webkit-mask: var(--icon-check) center / contain no-repeat;
+    mask: var(--icon-check) center / contain no-repeat;
+}
+
+.dropdown-item:hover,
+.dropdown-item:focus-visible {
+    background: var(--accent-soft);
+}
+
+.dropdown-item:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+}
+
+/* ---------- Stats: per-model breakdown ---------- */
+
+.stat-breakdown {
+    margin-top: 2px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+
+.stat-breakdown:empty {
+    display: none;
+}
+
+/* ============================================================
+   MEETING VIEWER — per model
+============================================================ */
+
+.meeting-dialog {
+    width: min(920px, calc(100vw - 32px));
+}
+
+.meeting-dialog form {
+    display: flex;
+    flex-direction: column;
+}
+
+.meeting-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.meeting-head-text {
+    min-width: 0;
+    flex: 1;
+}
+
+.meeting-head h3 {
+    margin-bottom: 4px;
+}
+
+.meeting-expand::before {
+    -webkit-mask-image: var(--icon-maximize);
+    mask-image: var(--icon-maximize);
+}
+
+.meeting-expand[aria-pressed="true"]::before {
+    -webkit-mask-image: var(--icon-minimize);
+    mask-image: var(--icon-minimize);
+}
+
+/* Model switch: one segment per model with results. */
+.model-switch {
+    display: inline-flex;
+    align-self: flex-start;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 16px;
+    padding: 4px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    transition: opacity .16s ease;
+}
+
+.model-switch[hidden] {
+    display: none;
+}
+
+/* The transcript tab is shared by every model. */
+.model-switch.is-muted {
+    opacity: .5;
+}
+
+.model-switch-btn {
+    height: var(--control-h-sm);
+    padding: 0 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid transparent;
+    border-radius: var(--r-sm);
+    background: transparent;
+    color: var(--text-secondary);
+    font: 600 13px/1 var(--font-sans);
+    cursor: pointer;
+}
+
+.model-switch-btn::before {
+    content: "";
+    width: 15px;
+    height: 15px;
+    flex: none;
+    background: currentColor;
+    -webkit-mask: var(--icon-bot) center / contain no-repeat;
+    mask: var(--icon-bot) center / contain no-repeat;
+}
+
+.model-switch-btn:hover {
+    color: var(--text-primary);
+}
+
+.model-switch-btn[aria-pressed="true"] {
+    background: var(--bg-elevated);
+    border-color: var(--border);
+    color: var(--accent);
+    box-shadow: var(--shadow-sm);
+}
+
+.model-switch-note {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+}
+
+.meeting-pane {
+    max-height: min(56vh, 520px);
+}
+
+.meeting-pane--mindmap {
+    overflow: hidden;
+    padding-right: 0;
+}
+
+.meeting-pane--transcript {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    overflow: hidden;
+    padding-right: 0;
+}
+
+.meeting-pane--transcript[hidden] {
+    display: none;
+}
+
+.meeting-pane--transcript .meeting-transcript {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.transcript-tools {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: none;
+}
+
+.transcript-tools .search-wrap {
+    min-width: 0;
+}
+
+.transcript-tools .btn-icon {
+    width: var(--control-h);
+    height: var(--control-h);
+}
+
+.search-prev::before {
+    -webkit-mask-image: var(--icon-chevron-up);
+    mask-image: var(--icon-chevron-up);
+}
+
+.search-next::before {
+    -webkit-mask-image: var(--icon-chevron-down);
+    mask-image: var(--icon-chevron-down);
+}
+
+.search-count {
+    min-width: 76px;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.meeting-dialog .dialog-actions {
+    margin-top: 18px;
+}
+
+/* Full view: the viewer fills almost the whole window. */
+.meeting-dialog.is-expanded {
+    width: calc(100vw - 48px);
+    max-width: none;
+    height: calc(100vh - 48px);
+    max-height: none;
+}
+
+.meeting-dialog.is-expanded form {
+    height: 100%;
+}
+
+.meeting-dialog.is-expanded .meeting-pane {
+    flex: 1;
+    min-height: 0;
+    max-height: none;
+}
+
+.meeting-dialog.is-expanded .meeting-pane--mindmap .mindmap-container {
+    height: 100%;
+}
+
+@media (max-width: 640px) {
+
+    .transcript-tools .search-count {
+        min-width: 0;
+    }
+
+    .meeting-dialog.is-expanded {
+        width: calc(100vw - 16px);
+        height: calc(100vh - 16px);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+    .dropdown-trigger::after,
+    .model-switch {
+        transition: none;
+    }
+}
+
+/* ---------- Summary + mind map: copied from index.html ----------
+   The rules below are index.html's own, scoped to the viewer, so a
+   meeting reads the same here as on the recorder page. */
+
+.meeting-dialog .intelligence {
+    padding: 16px 18px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+}
+
+.meeting-dialog .meeting-pane--mindmap .mindmap-container {
+    height: min(56vh, 520px);
+    min-height: 0;
+}
+
+.meeting-dialog .result-section {
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+}
+
+.meeting-dialog .result-section:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: 0;
+}
+
+.meeting-dialog .label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+}
+
+.meeting-dialog .title-result {
+    font-size: 20px;
+    font-weight: 650;
+    line-height: 1.3;
+    letter-spacing: -0.01em;
+    color: var(--text-primary);
+}
+
+.meeting-dialog .summary {
+    line-height: 1.7;
+    font-size: 13.5px;
+    color: var(--text-secondary);
+}
+
+.meeting-dialog .item {
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    margin-bottom: 8px;
+    background: var(--bg-surface);
+}
+
+.meeting-dialog .item:last-child {
+    margin-bottom: 0;
+}
+
+.meeting-dialog .item strong {
+    display: block;
+    margin-bottom: 4px;
+    font-weight: 600;
+    font-size: 13.5px;
+    color: var(--text-primary);
+}
+
+.meeting-dialog .meta {
+    color: var(--text-muted);
+    font-size: 12px;
+    margin-top: 3px;
+}
+
+.meeting-dialog .decision {
+    padding: 11px 13px;
+    border-left: 3px solid var(--accent);
+    background: var(--accent-soft);
+    margin-bottom: 8px;
+    border-radius: 0 var(--r-sm) var(--r-sm) 0;
+    line-height: 1.6;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.meeting-dialog .decision:last-child {
+    margin-bottom: 0;
+}
+
+.meeting-dialog .objection {
+    border-left: 3px solid var(--danger);
+    background: var(--danger-soft);
+    border-radius: 0 var(--r-sm) var(--r-sm) 0;
+    line-height: 1.6;
+}
+
+.meeting-dialog .action {
+    border-left: 3px solid var(--success);
+    background: var(--success-soft);
+    border-radius: 0 var(--r-sm) var(--r-sm) 0;
+    line-height: 1.6;
+}
+
+.meeting-dialog mark.transcript-match {
+    background: var(--accent-soft);
+    color: var(--text-primary);
+    border-radius: 3px;
+    padding: 0 1px;
+}
+
+.meeting-dialog mark.transcript-match.current {
+    background: var(--btn-accent-bg);
+    color: #fff;
+}
+
+.meeting-dialog .summary-actions {
+    display: none;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.meeting-dialog .summary-actions.visible {
+    display: flex;
+}
+
+.meeting-dialog .mindmap-container {
+    border: 1px solid var(--border);
+    background: var(--bg-surface);
+    border-radius: var(--r-md);
+    padding: 42px;
+    min-height: 420px;
+    overflow: auto;
+}
+
+.meeting-dialog .mindmap-root {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: max-content;
+    min-width: 100%;
+    padding: 8px 12px 24px;
+}
+
+.meeting-dialog .mindmap-root-title {
+    position: relative;
+    z-index: 2;
+    background: var(--btn-accent-bg);
+    color: #fff;
+    border: 1px solid transparent;
+    border-radius: var(--r-lg);
+    padding: 14px 24px;
+    font-size: 16px;
+    font-weight: 700;
+    box-shadow: var(--shadow-md);
+    text-align: center;
+    width: min(360px, 90vw);
+    max-width: 360px;
+    line-height: 1.4;
+}
+
+.meeting-dialog .mindmap-children {
+    display: grid;
+    grid-template-columns: repeat(
+        var(--mindmap-columns, 4),
+        minmax(230px, 270px)
+    );
+    justify-content: center;
+    align-items: start;
+    gap: 34px;
+    margin-top: 58px;
+    position: relative;
+    width: max-content;
+}
+
+.meeting-dialog .mindmap-children::before {
+    content: "";
+    position: absolute;
+    top: -28px;
+    left: 135px;
+    right: 135px;
+    height: 2px;
+    background: var(--border-strong);
+    border-radius: 2px;
+}
+
+.meeting-dialog .mindmap-branch {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 250px;
+    min-width: 230px;
+    max-width: 270px;
+}
+
+.meeting-dialog .mindmap-branch::before {
+    content: "";
+    position: absolute;
+    top: -58px;
+    left: 50%;
+    width: 2px;
+    height: 58px;
+    transform: translateX(-50%);
+    background: var(--border-strong);
+    border-radius: 2px;
+}
+
+.meeting-dialog .mindmap-node {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    min-height: 46px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    padding: 11px 15px;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.45;
+    text-align: center;
+    box-shadow: var(--shadow-sm);
+    overflow-wrap: anywhere;
+    word-break: normal;
+}
+
+.meeting-dialog .mindmap-node:hover {
+    border-color: var(--accent);
+    box-shadow: var(--shadow-md);
+}
+
+.meeting-dialog .mindmap-node-children {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    gap: 14px;
+    margin-top: 18px;
+    position: relative;
+    padding-top: 10px;
+}
+
+.meeting-dialog .mindmap-node-children::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 2px;
+    transform: translateX(-50%);
+    background: var(--border);
+    border-radius: 2px;
+}
+
+.meeting-dialog .mindmap-node-children > .mindmap-branch {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    align-items: center;
+}
+
+.meeting-dialog .mindmap-node-children > .mindmap-branch::before {
+    top: -10px;
+    height: 10px;
+    width: 2px;
+    background: var(--border);
+}
+
+.meeting-dialog .mindmap-node-children > .mindmap-branch > .mindmap-node {
+    width: 100%;
+}
+
+.meeting-dialog .mindmap-node-children .mindmap-node-children {
+    width: 92%;
+    gap: 10px;
+    margin-top: 12px;
+    padding-top: 8px;
+}
+
+.meeting-dialog .mindmap-node-children .mindmap-node-children::before {
+    width: 1px;
+    background: var(--border);
+}
+
+.meeting-dialog .mindmap-node-children .mindmap-node-children .mindmap-node {
+    font-size: 12px;
+    font-weight: 500;
+    padding: 9px 12px;
+    min-height: 40px;
+}
+
+@media (max-width: 1100px) {
+
+    .meeting-dialog .mindmap-container {
+            padding: 28px;
+        }
+
+    .meeting-dialog .mindmap-children {
+            grid-template-columns: repeat(
+                var(--mindmap-columns, 3),
+                minmax(220px, 250px)
+            );
+            gap: 26px;
+        }
+
+    .meeting-dialog .mindmap-branch {
+            width: 235px;
+            min-width: 220px;
+        }
+}
+
+@media (max-width: 900px) {
+
+    .meeting-dialog .mindmap-container {
+            padding: 20px;
+        }
+
+    .meeting-dialog .mindmap-root {
+            width: 100%;
+            min-width: 0;
+        }
+
+    .meeting-dialog .mindmap-root-title {
+            width: min(320px, 90vw);
+        }
+
+    .meeting-dialog .mindmap-children {
+            grid-template-columns: 1fr;
+            width: min(100%, 360px);
+            gap: 18px;
+            margin-top: 38px;
+        }
+
+    .meeting-dialog .mindmap-children::before {
+            display: none;
+        }
+
+    .meeting-dialog .mindmap-branch {
+            width: 100%;
+            min-width: 0;
+            max-width: 360px;
+        }
+
+    .meeting-dialog .mindmap-branch::before {
+            display: none;
+        }
+
+    .meeting-dialog .mindmap-node-children {
+            width: 100%;
+        }
+
+    .meeting-dialog .mindmap-node-children::before {
+            display: none;
+        }
+
+    .meeting-dialog .mindmap-node-children > .mindmap-branch::before {
+            display: none;
+        }
+}
+
+.meeting-dialog .label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.meeting-dialog .section-icon {
+    --section-icon: var(--icon-file);
+    width: 22px;
+    height: 22px;
+    flex: none;
+    display: inline-grid;
+    place-items: center;
+    border-radius: 7px;
+    color: var(--accent);
+    background: var(--accent-soft);
+}
+
+.meeting-dialog .section-icon::before {
+    content: "";
+    width: 13px;
+    height: 13px;
+    background: currentColor;
+    -webkit-mask: var(--section-icon) center / contain no-repeat;
+    mask: var(--section-icon) center / contain no-repeat;
+}
+
+.meeting-dialog .section-icon--title {
+    --section-icon: var(--icon-heading);
+}
+
+.meeting-dialog .section-icon--summary {
+    --section-icon: var(--icon-file);
+}
+
+.meeting-dialog .section-icon--objective {
+    --section-icon: var(--icon-target);
+}
+
+.meeting-dialog .section-icon--tasks {
+    --section-icon: var(--icon-clipboard);
+    color: var(--warning);
+    background: color-mix(in srgb, var(--warning) 12%, transparent);
+}
+
+.meeting-dialog .section-icon--decisions {
+    --section-icon: var(--icon-circle-check);
+}
+
+.meeting-dialog .section-icon--objections {
+    --section-icon: var(--icon-alert);
+    color: var(--danger);
+    background: var(--danger-soft);
+}
+
+.meeting-dialog .section-icon--actions {
+    --section-icon: var(--icon-list-checks);
+    color: var(--success);
+    background: var(--success-soft);
 }

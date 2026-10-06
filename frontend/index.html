@@ -46,12 +46,16 @@
     <!-- Past-meetings drawer. Additive: its styles are scoped to its own
          classes and it reads the app through window.meetmindHistory,
          defined at the end of this file. -->
-    <link rel="stylesheet" href="/assets/history.css?v=3">
+    <link rel="stylesheet" href="/assets/history.css?v=4">
 
     <!-- PDF export (Download PDF button). Loaded from CDN; no app
          logic depends on it until the user clicks Download PDF. -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <!-- Loading animation player (assets/sound-waves.json). Optional:
+         loaders fall back to CSS bars if it doesn't load. -->
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie_light.min.js"></script>
 
     <style>
 
@@ -109,6 +113,11 @@
     --r-md: 12px;
     --r-lg: 16px;
     --r-full: 999px;
+
+    /* control heights (see CONTROLS) */
+    --control-h: 38px;
+    --control-h-sm: 32px;
+    --control-h-header: 34px;
 
     /* type */
     --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -175,7 +184,7 @@ body {
 }
 
 :where(body, .card, .connection, .theme-toggle, #status, .transcript,
-    #intelligence, #logs, .item, .decision, .title-result, .summary,
+    .intelligence, #logs, .item, .decision, .title-result, .summary,
     .meta, .label, h1, h2, .subtitle) {
     transition:
         background-color .24s ease,
@@ -280,7 +289,8 @@ h1 {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    padding: 6px 12px;
+    height: var(--control-h-header);
+    padding: 0 12px;
     border: 1px solid var(--border);
     border-radius: var(--r-full);
     background: var(--bg-surface);
@@ -322,8 +332,8 @@ h1 {
 }
 
 .theme-toggle {
-    width: 34px;
-    height: 34px;
+    width: var(--control-h-header);
+    height: var(--control-h-header);
     padding: 0;
     flex: none;
     display: inline-grid;
@@ -389,7 +399,7 @@ button {
 }
 
 button::before {
-    content: "";
+    content: none;
     width: 16px;
     height: 16px;
     flex: none;
@@ -452,23 +462,6 @@ button:disabled {
     50% {
         box-shadow: 0 0 0 7px transparent;
     }
-}
-
-#summaryBtn {
-    background: var(--btn-accent-bg);
-    color: #fff;
-    margin-top: 20px;
-    align-self: flex-start;
-    box-shadow: var(--shadow-sm);
-}
-
-#summaryBtn::before {
-    -webkit-mask-image: var(--icon-sparkles);
-    mask-image: var(--icon-sparkles);
-}
-
-#summaryBtn:hover {
-    background: var(--btn-accent-hover);
 }
 
 #timer {
@@ -747,7 +740,7 @@ button:disabled {
 
 /* ---------- Meeting intelligence results ---------- */
 
-#intelligence {
+.intelligence {
     border: 1px solid var(--border);
     background: var(--bg-surface);
     padding: 16px 18px;
@@ -918,7 +911,8 @@ button:disabled {
 .transcript-search-input {
     flex: 1 1 220px;
     min-width: 0;
-    padding: 9px 12px;
+    height: var(--control-h);
+    padding: 0 12px;
     border: 1px solid var(--border);
     border-radius: var(--r-md);
     background: var(--bg-surface);
@@ -934,24 +928,6 @@ button:disabled {
 .transcript-search-input:disabled {
     opacity: .5;
     cursor: not-allowed;
-}
-
-.search-nav-btn {
-    padding: 9px 12px;
-    background: var(--bg-surface);
-    color: var(--text-secondary);
-    border: 1px solid var(--border);
-    font-size: 13px;
-}
-
-.search-nav-btn::before {
-    content: none;
-}
-
-.search-nav-btn:hover:not(:disabled) {
-    color: var(--text-primary);
-    border-color: var(--border-strong);
-    background: var(--bg-elevated);
 }
 
 .search-count {
@@ -971,7 +947,7 @@ mark.transcript-match {
 }
 
 mark.transcript-match.current {
-    background: var(--accent);
+    background: var(--btn-accent-bg);
     color: #fff;
 }
 
@@ -1033,45 +1009,14 @@ mark.transcript-match.current {
 
 .summary-actions {
     display: none;
+    align-items: center;
+    flex-wrap: wrap;
     gap: 10px;
     margin-top: 20px;
 }
 
 .summary-actions.visible {
     display: flex;
-}
-
-#saveSummaryBtn,
-#cancelSummaryBtn {
-    padding: 9px 15px;
-}
-
-#saveSummaryBtn::before,
-#cancelSummaryBtn::before {
-    content: none;
-}
-
-#saveSummaryBtn {
-    background: var(--accent);
-    color: #fff;
-    border: 1px solid var(--accent);
-}
-
-#saveSummaryBtn:hover {
-    background: var(--accent-hover);
-    border-color: var(--accent-hover);
-}
-
-#cancelSummaryBtn {
-    background: var(--bg-surface);
-    color: var(--accent);
-    border: 1px solid var(--accent);
-}
-
-#cancelSummaryBtn:hover {
-    background: var(--accent-soft);
-    color: var(--accent);
-    border-color: var(--accent);
 }
 
 /* ---------- Summary export ---------- */
@@ -1087,24 +1032,6 @@ mark.transcript-match.current {
     display: flex;
 }
 
-.download-btn {
-    padding: 9px 14px;
-    font-size: 12.5px;
-    background: var(--bg-surface);
-    color: var(--text-secondary);
-    border: 1px solid var(--border);
-}
-
-.download-btn::before {
-    content: none;
-}
-
-.download-btn:hover:not(:disabled) {
-    color: var(--text-primary);
-    border-color: var(--border-strong);
-    background: var(--bg-elevated);
-}
-
 /* ---------- Summary / Mind Map actions ---------- */
 
 .intelligence-actions {
@@ -1113,26 +1040,6 @@ mark.transcript-match.current {
     gap: 10px;
     margin-top: 20px;
     flex-wrap: wrap;
-}
-
-#summaryBtn,
-#mindMapBtn {
-    margin-top: 0;
-}
-
-#mindMapBtn {
-    background: var(--bg-surface);
-    color: var(--accent);
-    border: 1px solid var(--accent);
-    box-shadow: var(--shadow-sm);
-}
-
-#mindMapBtn::before {
-    content: none;
-}
-
-#mindMapBtn:hover:not(:disabled) {
-    background: var(--accent-soft);
 }
 
 /* ---------- Full report export strip ---------- */
@@ -1156,54 +1063,9 @@ mark.transcript-match.current {
     font-size: 12px;
 }
 
-#downloadFullReportBtn {
-    background: var(--btn-accent-bg);
-    color: #fff;
-    box-shadow: var(--shadow-sm);
-}
-
-#downloadFullReportBtn::before {
-    -webkit-mask-image: var(--icon-download);
-    mask-image: var(--icon-download);
-}
-
-#downloadFullReportBtn:hover {
-    background: var(--btn-accent-hover);
-}
-
-@media (max-width: 640px) {
-
-    #downloadFullReportBtn {
-        width: 100%;
-    }
-}
-
-/* ---------- Two output partitions ---------- */
-
-.output-grid {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 20px;
-    margin-top: 20px;
-    margin-bottom: 20px;
-    align-items: stretch;
-}
-
-.output-grid > .card {
-    min-width: 0;
-}
-
-.output-grid .panel-body {
-    min-height: 520px;
-}
-
-.output-grid .panel {
-    height: 100%;
-}
-
 /* ---------- Mind Map ---------- */
 
-#mindMapContainer {
+.mindmap-container {
     border: 1px solid var(--border);
     background: var(--bg-surface);
     border-radius: var(--r-md);
@@ -1231,7 +1093,7 @@ mark.transcript-match.current {
 .mindmap-root-title {
     position: relative;
     z-index: 2;
-    background: var(--accent);
+    background: var(--btn-accent-bg);
     color: #fff;
     border: 1px solid transparent;
     border-radius: var(--r-lg);
@@ -1453,7 +1315,7 @@ mark.transcript-match.current {
 
 @media (max-width: 1100px) {
 
-    #mindMapContainer {
+    .mindmap-container {
         padding: 28px;
     }
 
@@ -1473,15 +1335,7 @@ mark.transcript-match.current {
 
 @media (max-width: 900px) {
 
-    .output-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .output-grid .panel-body {
-        min-height: 360px;
-    }
-
-    #mindMapContainer {
+    .mindmap-container {
         padding: 20px;
     }
 
@@ -1585,96 +1439,11 @@ mark.transcript-match.current {
     
 
 /* ============================================================
-   FINAL BUTTON ALIGNMENT / COLOR OVERRIDES
-   Requested UI consistency: every action button across Complete
-   Transcript, Meeting Intelligence and Mind Map shares the same
-   accent color family (see --accent / --accent-hover / --accent-soft
-   above) instead of each panel inventing its own (green, black,
-   plain gray). "Primary" actions (Create Summary, Create Mind Map,
-   both Save Changes buttons) are accent-filled with white text;
-   secondary actions (both Cancel buttons) are accent-outlined,
-   matching Create Summary / Create Mind Map's own outline look.
+   MIND MAP PANEL LAYOUT
+   Keeps the Save / Cancel row at the bottom of the Mind Map panel,
+   like the Meeting Intelligence panel. Button colours and sizes
+   for every panel live in CONTROLS at the end of this sheet.
 ============================================================ */
-
-/* Top action buttons: identical appearance */
-#summaryBtn,
-#mindMapBtn {
-    margin-top: 0;
-    background: var(--bg-surface);
-    color: var(--accent);
-    border: 1px solid var(--accent);
-    box-shadow: var(--shadow-sm);
-}
-
-#summaryBtn:hover:not(:disabled),
-#mindMapBtn:hover:not(:disabled) {
-    background: var(--accent-soft);
-    color: var(--accent);
-    border-color: var(--accent);
-}
-
-/* Keep the same icon treatment for both top buttons. */
-#summaryBtn::before,
-#mindMapBtn::before {
-    content: none;
-}
-
-/* Mind-map action row: exactly the same layout behavior as
-   Meeting Intelligence Save/Cancel actions. */
-#mindMapActions {
-    display: none;
-    gap: 10px;
-    margin-top: 20px;
-    align-items: center;
-    flex-wrap: wrap;
-}
-
-#mindMapActions.visible {
-    display: flex;
-}
-
-/* Mind-map Save Changes: same accent fill as Meeting Intelligence's
-   Save Changes, and the same accent outline as Create Summary /
-   Create Mind Map — one accent color family across all three panels. */
-#saveMindMapBtn {
-    padding: 9px 15px;
-    background: var(--accent);
-    color: #ffffff;
-    border: 1px solid var(--accent);
-    box-shadow: var(--shadow-sm);
-}
-
-#saveMindMapBtn::before {
-    content: none;
-}
-
-#saveMindMapBtn:hover:not(:disabled) {
-    background: var(--accent-hover);
-    border-color: var(--accent-hover);
-    color: #ffffff;
-}
-
-/* Mind-map Cancel: same secondary layout as Meeting Intelligence */
-#cancelMindMapBtn {
-    padding: 9px 15px;
-    background: var(--bg-surface);
-    color: var(--accent);
-    border: 1px solid var(--accent);
-    box-shadow: var(--shadow-sm);
-}
-
-#cancelMindMapBtn::before {
-    content: none;
-}
-
-#cancelMindMapBtn:hover:not(:disabled) {
-    color: var(--accent);
-    border-color: var(--accent);
-    background: var(--accent-soft);
-}
-
-/* Ensure the action row stays aligned at the bottom of the
-   Mind Map panel just like the Meeting Intelligence panel. */
 .panel--mindmap {
     display: flex;
     flex-direction: column;
@@ -1684,7 +1453,7 @@ mark.transcript-match.current {
     flex: 1 1 auto;
 }
 
-.panel--mindmap #mindMapActions {
+.panel--mindmap .mindmap-actions {
     flex: 0 0 auto;
 }
 
@@ -1757,36 +1526,761 @@ mark.transcript-match.current {
     gap: 10px;
 }
 
-.modal-btn {
-    padding: 9px 15px;
+/* ============================================================
+   MULTI-MODEL RESULTS
+   One column per generation model (see MODEL SLOTS in the
+   script). One visible model keeps the original side-by-side
+   summary | mind map layout; several sit side by side, each
+   with its summary above its mind map.
+============================================================ */
+
+:root {
+    --icon-chevron-down: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    --icon-maximize: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='15 3 21 3 21 9'/%3E%3Cpolyline points='9 21 3 21 3 15'/%3E%3Cline x1='21' x2='14' y1='3' y2='10'/%3E%3Cline x1='3' x2='10' y1='21' y2='14'/%3E%3C/svg%3E");
+    --icon-minimize: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='4 14 10 14 10 20'/%3E%3Cpolyline points='20 10 14 10 14 4'/%3E%3Cline x1='14' x2='21' y1='10' y2='3'/%3E%3Cline x1='3' x2='10' y1='21' y2='14'/%3E%3C/svg%3E");
+    --icon-bot: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 8V4H8'/%3E%3Crect width='16' height='12' x='4' y='8' rx='2'/%3E%3Cpath d='M2 14h2'/%3E%3Cpath d='M20 14h2'/%3E%3Cpath d='M15 13v2'/%3E%3Cpath d='M9 13v2'/%3E%3C/svg%3E");
+    --icon-network: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='16' y='16' width='6' height='6' rx='1'/%3E%3Crect x='2' y='16' width='6' height='6' rx='1'/%3E%3Crect x='9' y='2' width='6' height='6' rx='1'/%3E%3Cpath d='M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3'/%3E%3Cpath d='M12 12V8'/%3E%3C/svg%3E");
+    --icon-heading: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='4 7 4 4 20 4 20 7'/%3E%3Cline x1='9' x2='15' y1='20' y2='20'/%3E%3Cline x1='12' x2='12' y1='4' y2='20'/%3E%3C/svg%3E");
+    --icon-target: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Ccircle cx='12' cy='12' r='6'/%3E%3Ccircle cx='12' cy='12' r='2'/%3E%3C/svg%3E");
+    --icon-clipboard: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect width='8' height='4' x='8' y='2' rx='1' ry='1'/%3E%3Cpath d='M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2'/%3E%3Cpath d='M12 11h4'/%3E%3Cpath d='M12 16h4'/%3E%3Cpath d='M8 11h.01'/%3E%3Cpath d='M8 16h.01'/%3E%3C/svg%3E");
+    --icon-circle-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='m9 12 2 2 4-4'/%3E%3C/svg%3E");
+    --icon-alert: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3'/%3E%3Cpath d='M12 9v4'/%3E%3Cpath d='M12 17h.01'/%3E%3C/svg%3E");
+    --icon-list-checks: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m3 17 2 2 4-4'/%3E%3Cpath d='m3 7 2 2 4-4'/%3E%3Cpath d='M13 6h8'/%3E%3Cpath d='M13 12h8'/%3E%3Cpath d='M13 18h8'/%3E%3C/svg%3E");
 }
 
-.modal-btn::before {
+/* ---------- Grid of model columns ---------- */
+
+.model-grid {
+    display: grid;
+    grid-template-columns: repeat(var(--model-count, 2), minmax(0, 1fr));
+    gap: 20px;
+    margin-bottom: 20px;
+    align-items: start;
+}
+
+.model-column {
+    min-width: 0;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    background: var(--bg-surface);
+    box-shadow: var(--shadow-sm);
+}
+
+.model-column[hidden] {
+    display: none;
+}
+
+.model-column-head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 2px 4px 14px;
+}
+
+.model-mark {
+    width: 30px;
+    height: 30px;
+    flex: none;
+    border-radius: 9px;
+    background: linear-gradient(140deg, var(--accent), #8b5cf6);
+    display: grid;
+    place-items: center;
+    box-shadow: var(--shadow-sm);
+}
+
+.model-mark::after {
+    content: "";
+    width: 17px;
+    height: 17px;
+    background: #fff;
+    -webkit-mask: var(--icon-bot) center / contain no-repeat;
+    mask: var(--icon-bot) center / contain no-repeat;
+}
+
+.model-name {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    color: var(--text-primary);
+}
+
+.model-chip {
+    padding: 4px 10px;
+    border-radius: var(--r-full);
+    background: var(--accent-soft);
+    color: var(--accent);
+    font: 500 11.5px/1.3 var(--mono);
+    overflow-wrap: anywhere;
+}
+
+.model-chip:empty {
+    display: none;
+}
+
+.model-panels {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+}
+
+.model-grid[data-count="1"] .model-panels {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.model-panels > .card {
+    min-width: 0;
+    margin-bottom: 0;
+}
+
+.model-panels .panel-body {
+    min-height: 420px;
+}
+
+.model-grid[data-count="1"] .model-panels .panel-body {
+    min-height: 520px;
+}
+
+.mindmap-spacer[hidden] {
+    display: none;
+}
+
+.panel-model {
+    font-weight: 500;
+    color: var(--text-muted);
+}
+
+.panel-head {
+    flex-wrap: wrap;
+}
+
+.panel-head-tools {
+    min-height: var(--control-h-sm);
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.panel--mindmap .panel-head h2::before {
+    -webkit-mask-image: var(--icon-network);
+    mask-image: var(--icon-network);
+}
+
+.result-error {
+    color: var(--danger);
+    padding: 0 20px;
+}
+
+@media (max-width: 900px) {
+
+    .model-grid,
+    .model-grid[data-count="1"] .model-panels {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .model-panels .panel-body,
+    .model-grid[data-count="1"] .model-panels .panel-body {
+        min-height: 360px;
+    }
+}
+
+@media (max-width: 640px) {
+
+    .model-column {
+        padding: 10px;
+    }
+}
+
+/* ---------- Generation status badge ---------- */
+
+.gen-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px 4px 8px;
+    border-radius: var(--r-full);
+    font-size: 11.5px;
+    font-weight: 600;
+    line-height: 1.3;
+    white-space: nowrap;
+}
+
+.gen-badge[hidden] {
+    display: none;
+}
+
+.gen-badge::before {
+    content: "";
+    width: 13px;
+    height: 13px;
+    flex: none;
+    background: currentColor;
+    -webkit-mask-position: center;
+    mask-position: center;
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+}
+
+.gen-badge.is-generating {
+    color: var(--accent);
+    background: var(--accent-soft);
+}
+
+.gen-badge.is-generating::before {
+    width: 7px;
+    height: 7px;
+    margin: 0 3px;
+    border-radius: 50%;
+    animation: breathe 1.2s ease-in-out infinite;
+}
+
+.gen-badge.is-done {
+    color: var(--success);
+    background: var(--success-soft);
+}
+
+.gen-badge.is-done::before {
+    -webkit-mask-image: var(--icon-circle-check);
+    mask-image: var(--icon-circle-check);
+}
+
+.gen-badge.is-error {
+    color: var(--danger);
+    background: var(--danger-soft);
+    cursor: help;
+}
+
+.gen-badge.is-error::before {
+    -webkit-mask-image: var(--icon-alert);
+    mask-image: var(--icon-alert);
+}
+
+/* "Generating" -> "Generating." -> ".." -> "..." and round again:
+   each dot appears a quarter-cycle after the one before it. */
+.gen-dots {
+    display: inline-flex;
+    width: 1.1em;
+}
+
+.gen-dots span {
+    opacity: 0;
+    animation: gen-dot-1 1.6s steps(1, end) infinite;
+}
+
+.gen-dots span:nth-child(2) {
+    animation-name: gen-dot-2;
+}
+
+.gen-dots span:nth-child(3) {
+    animation-name: gen-dot-3;
+}
+
+@keyframes gen-dot-1 {
+    0% { opacity: 0; }
+    25%, 100% { opacity: 1; }
+}
+
+@keyframes gen-dot-2 {
+    0% { opacity: 0; }
+    50%, 100% { opacity: 1; }
+}
+
+@keyframes gen-dot-3 {
+    0% { opacity: 0; }
+    75%, 100% { opacity: 1; }
+}
+
+/* ---------- Section icons (meeting intelligence) ---------- */
+
+.label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.section-icon {
+    --section-icon: var(--icon-file);
+    width: 22px;
+    height: 22px;
+    flex: none;
+    display: inline-grid;
+    place-items: center;
+    border-radius: 7px;
+    color: var(--accent);
+    background: var(--accent-soft);
+}
+
+.section-icon::before {
+    content: "";
+    width: 13px;
+    height: 13px;
+    background: currentColor;
+    -webkit-mask: var(--section-icon) center / contain no-repeat;
+    mask: var(--section-icon) center / contain no-repeat;
+}
+
+.section-icon--title {
+    --section-icon: var(--icon-heading);
+}
+
+.section-icon--summary {
+    --section-icon: var(--icon-file);
+}
+
+.section-icon--objective {
+    --section-icon: var(--icon-target);
+}
+
+.section-icon--tasks {
+    --section-icon: var(--icon-clipboard);
+    color: var(--warning);
+    background: color-mix(in srgb, var(--warning) 12%, transparent);
+}
+
+.section-icon--decisions {
+    --section-icon: var(--icon-circle-check);
+}
+
+.section-icon--objections {
+    --section-icon: var(--icon-alert);
+    color: var(--danger);
+    background: var(--danger-soft);
+}
+
+.section-icon--actions {
+    --section-icon: var(--icon-list-checks);
+    color: var(--success);
+    background: var(--success-soft);
+}
+
+/* ---------- Mind map full view ---------- */
+
+.panel--mindmap.is-expanded {
+    position: fixed;
+    inset: clamp(8px, 2.5vw, 28px);
+    z-index: 900;
+    margin: 0;
+    box-shadow: var(--shadow-lg);
+}
+
+.panel--mindmap.is-expanded .panel-body,
+.model-grid[data-count="1"] .panel--mindmap.is-expanded .panel-body {
+    min-height: 0;
+    max-height: none;
+}
+
+.mindmap-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 899;
+    background: rgba(15, 15, 20, .55);
+}
+
+.mindmap-backdrop[hidden] {
+    display: none;
+}
+
+body.mindmap-expanded {
+    overflow: hidden;
+}
+
+/* ---------- Loading animation (sound waves) ---------- */
+
+.placeholder--loading {
+    animation: none;
+}
+
+.placeholder--loading::before {
     content: none;
 }
 
-.modal-btn-secondary {
-    background: var(--bg-surface);
-    color: var(--accent);
-    border: 1px solid var(--accent);
-    box-shadow: var(--shadow-sm);
+.wave-loader {
+    width: 64px;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
 }
 
-.modal-btn-secondary:hover {
-    background: var(--accent-soft);
-    border-color: var(--accent);
-}
-
-.modal-btn-primary {
+.wave-loader > span {
+    width: 5px;
+    height: 30px;
+    border-radius: 3px;
     background: var(--accent);
-    color: #ffffff;
-    border: 1px solid var(--accent);
+    animation: wave-bar 1s ease-in-out infinite;
+}
+
+.wave-loader > span:nth-child(2) { animation-delay: -.8s; }
+.wave-loader > span:nth-child(3) { animation-delay: -.6s; }
+.wave-loader > span:nth-child(4) { animation-delay: -.4s; }
+.wave-loader > span:nth-child(5) { animation-delay: -.2s; }
+
+@keyframes wave-bar {
+    0%, 100% { transform: scaleY(.3); }
+    50% { transform: scaleY(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+    .wave-loader > span,
+    .gen-badge.is-generating::before {
+        animation: none;
+    }
+
+    .gen-dots span {
+        animation: none;
+        opacity: 1;
+    }
+}
+
+/* ============================================================
+   CONTROLS
+   ------------------------------------------------------------
+   Every button and dropdown on the page is one of these kinds, so
+   they all share one height scale, radius, type size and colour
+   logic:
+
+     .btn-primary    accent fill — the main action of an area
+                     (Generate, Save Changes, Start New Meeting)
+     .btn-secondary  accent outline — Cancel, and every dropdown
+                     trigger (model picker, full report)
+     .btn-tool       neutral and compact — downloads, panel tools,
+                     transcript search arrows
+     .btn-icon       square, icon-only (used with .btn-tool)
+
+   Heights: --control-h for regular controls, --control-h-sm for
+   compact panel tools, --control-h-header for the header row.
+   Filled accent surfaces use --btn-accent-bg in both themes, so
+   white text on them always has the same contrast.
+
+   A button shows a leading icon only when a rule below gives its
+   ::before content and a mask image (see the base button rules).
+============================================================ */
+
+:root {
+    --icon-chevron-up: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m18 15-6-6-6 6'/%3E%3C/svg%3E");
+    --icon-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");
+}
+
+#recordBtn,
+.btn-primary,
+.btn-secondary {
+    height: var(--control-h);
+    padding: 0 16px;
+    font-size: 13px;
     box-shadow: var(--shadow-sm);
 }
 
-.modal-btn-primary:hover {
-    background: var(--accent-hover);
-    border-color: var(--accent-hover);
+.btn-primary {
+    background: var(--btn-accent-bg);
+    border-color: var(--btn-accent-bg);
+    color: #fff;
+}
+
+.btn-primary:hover {
+    background: var(--btn-accent-hover);
+    border-color: var(--btn-accent-hover);
+}
+
+.btn-secondary {
+    background: var(--bg-surface);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.btn-secondary:hover,
+.btn-secondary[aria-expanded="true"] {
+    background: var(--accent-soft);
+}
+
+.btn-tool {
+    height: var(--control-h-sm);
+    padding: 0 12px;
+    gap: 6px;
+    font-size: 12.5px;
+    background: var(--bg-surface);
+    border-color: var(--border);
+    color: var(--text-secondary);
+}
+
+.btn-tool::before {
+    width: 14px;
+    height: 14px;
+}
+
+.btn-tool:hover {
+    background: var(--bg-elevated);
+    border-color: var(--border-strong);
+    color: var(--text-primary);
+}
+
+.btn-icon {
+    width: var(--control-h-sm);
+    padding: 0;
+    flex: none;
+}
+
+.btn-icon::before {
+    width: 15px;
+    height: 15px;
+}
+
+/* The transcript search row pairs its arrows with a regular-height
+   input, so they take the regular height too. */
+.transcript-search .btn-icon {
+    width: var(--control-h);
+    height: var(--control-h);
+}
+
+/* ---------- Leading icons ---------- */
+
+#recordBtn::before,
+#generateBtn::before,
+.download-btn::before,
+.expand-btn::before,
+.search-nav-btn::before,
+.dropdown-trigger::before {
+    content: "";
+}
+
+#generateBtn::before {
+    -webkit-mask-image: var(--icon-sparkles);
+    mask-image: var(--icon-sparkles);
+}
+
+.download-btn::before,
+#downloadFullReportBtn::before {
+    -webkit-mask-image: var(--icon-download);
+    mask-image: var(--icon-download);
+}
+
+.expand-btn::before {
+    -webkit-mask-image: var(--icon-maximize);
+    mask-image: var(--icon-maximize);
+}
+
+.expand-btn[aria-pressed="true"]::before {
+    -webkit-mask-image: var(--icon-minimize);
+    mask-image: var(--icon-minimize);
+}
+
+#searchPrevBtn::before {
+    -webkit-mask-image: var(--icon-chevron-up);
+    mask-image: var(--icon-chevron-up);
+}
+
+#searchNextBtn::before {
+    -webkit-mask-image: var(--icon-chevron-down);
+    mask-image: var(--icon-chevron-down);
+}
+
+#modelPickerBtn::before {
+    -webkit-mask-image: var(--icon-bot);
+    mask-image: var(--icon-bot);
+}
+
+/* ---------- Dropdown (model picker + full report) ---------- */
+
+.dropdown {
+    position: relative;
+    display: inline-flex;
+    max-width: 100%;
+}
+
+.dropdown-trigger {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.dropdown-trigger::after {
+    content: "";
+    width: 14px;
+    height: 14px;
+    flex: none;
+    margin-left: 2px;
+    background: currentColor;
+    -webkit-mask: var(--icon-chevron-down) center / contain no-repeat;
+    mask: var(--icon-chevron-down) center / contain no-repeat;
+    transition: transform .16s ease;
+}
+
+.dropdown-trigger[aria-expanded="true"]::after {
+    transform: rotate(180deg);
+}
+
+.dropdown-prefix {
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.dropdown-value {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dropdown-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: max-content;
+    min-width: 100%;
+    max-width: min(420px, calc(100vw - 32px));
+    padding: 6px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    box-shadow: var(--shadow-lg);
+}
+
+.dropdown-menu--end {
+    left: auto;
+    right: 0;
+}
+
+.dropdown-menu[hidden] {
+    display: none;
+}
+
+.dropdown-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: start;
+    align-items: center;
+    row-gap: 2px;
+    column-gap: 16px;
+    width: 100%;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: var(--r-sm);
+    background: transparent;
+    color: var(--text-primary);
+    font-size: 13px;
+    text-align: left;
+}
+
+.dropdown-item[role="menuitemradio"] {
+    grid-template-columns: minmax(0, 1fr) 16px;
+}
+
+.dropdown-item-label,
+.dropdown-item-meta {
+    grid-column: 1;
+}
+
+.dropdown-item-meta {
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--text-muted);
+}
+
+/* Check mark column of single-choice items (empty until chosen). */
+.dropdown-item[role="menuitemradio"]::after {
+    content: "";
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    width: 16px;
+    height: 16px;
+}
+
+.dropdown-item[aria-checked="true"] {
+    color: var(--accent);
+}
+
+.dropdown-item[aria-checked="true"]::after {
+    background: currentColor;
+    -webkit-mask: var(--icon-check) center / contain no-repeat;
+    mask: var(--icon-check) center / contain no-repeat;
+}
+
+.dropdown-item:hover:not([aria-disabled="true"]),
+.dropdown-item:focus-visible {
+    background: var(--accent-soft);
+}
+
+.dropdown-item:focus-visible {
+    outline-offset: -2px;
+}
+
+.dropdown-item[aria-disabled="true"] {
+    opacity: .5;
+    cursor: not-allowed;
+}
+
+.dropdown-item[aria-disabled="true"]:active {
+    transform: none;
+}
+
+/* ---------- Header row: one height for every control ---------- */
+
+.header-actions #mm-account-bar a,
+.header-actions #mm-account-bar button {
+    height: var(--control-h-header);
+    padding: 0 13px;
+    display: inline-flex;
+    align-items: center;
+}
+
+/* ---------- Report ready (Open button under Meeting Report) ---------- */
+
+.report-ready {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 12px;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.report-ready[hidden] {
+    display: none;
+}
+
+.report-ready .btn-tool {
+    max-width: 100%;
+    text-align: left;
+}
+
+/* ---------- Small screens ---------- */
+
+@media (max-width: 640px) {
+
+    .intelligence-actions {
+        align-items: stretch;
+    }
+
+    .intelligence-actions .dropdown,
+    .report-strip .dropdown,
+    .dropdown-trigger,
+    #generateBtn {
+        width: 100%;
+    }
+
+    .dropdown-menu {
+        left: 0;
+        right: 0;
+        width: auto;
+        max-width: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+    .dropdown-trigger::after {
+        transition: none;
+    }
 }
 
 </style>
@@ -1907,19 +2401,21 @@ mark.transcript-match.current {
 
             <button
                 id="searchPrevBtn"
-                class="search-nav-btn"
+                class="btn-tool btn-icon search-nav-btn"
                 type="button"
                 title="Previous match"
+                aria-label="Previous match"
                 disabled
-            >&uarr;</button>
+            ></button>
 
             <button
                 id="searchNextBtn"
-                class="search-nav-btn"
+                class="btn-tool btn-icon search-nav-btn"
                 type="button"
                 title="Next match"
+                aria-label="Next match"
                 disabled
-            >&darr;</button>
+            ></button>
 
             <span
                 id="searchCount"
@@ -1948,20 +2444,40 @@ mark.transcript-match.current {
 
         <div class="intelligence-actions">
 
-            <button
-                id="summaryBtn"
-                type="button"
-                disabled
-            >
-                Create Summary
-            </button>
+            <div class="dropdown">
+
+                <button
+                    id="modelPickerBtn"
+                    class="btn-secondary dropdown-trigger"
+                    type="button"
+                    aria-haspopup="menu"
+                    aria-expanded="false"
+                    aria-controls="modelMenu"
+                >
+                    <span class="dropdown-prefix">Models</span>
+                    <span
+                        id="modelPickerValue"
+                        class="dropdown-value"
+                    >Both models</span>
+                </button>
+
+                <div
+                    id="modelMenu"
+                    class="dropdown-menu"
+                    role="menu"
+                    aria-label="Choose the models to generate with"
+                    hidden
+                ></div>
+
+            </div>
 
             <button
-                id="mindMapBtn"
+                id="generateBtn"
+                class="btn-primary"
                 type="button"
                 disabled
             >
-                Create Mind Map
+                Generate Summary &amp; Mind Map
             </button>
 
         </div>
@@ -1970,137 +2486,17 @@ mark.transcript-match.current {
 
 
     <!-- ==================================================
-         TWO OUTPUT PARTITIONS
+         MODEL RESULT COLUMNS
+         One column per generation model (built by the MODEL
+         SLOTS script from GET /api/models), each holding that
+         model's Meeting Intelligence and Mind Map panels.
     =================================================== -->
 
-    <div class="output-grid">
-
-        <!-- ==============================================
-             SUMMARY PARTITION
-        =============================================== -->
-
-        <div class="card panel panel--intel">
-
-            <div class="panel-head">
-                <h2>
-                    Meeting Intelligence
-                </h2>
-            </div>
-
-            <div
-                id="editHint"
-                class="edit-hint"
-            >
-                Click any field to edit it.
-            </div>
-
-            <div
-                id="downloadActions"
-                class="download-actions"
-            >
-
-                <button
-                    id="downloadPdfBtn"
-                    class="download-btn"
-                    type="button"
-                    disabled
-                >Download PDF</button>
-
-                <button
-                    id="downloadMarkdownBtn"
-                    class="download-btn"
-                    type="button"
-                    disabled
-                >Download Markdown</button>
-
-            </div>
-
-            <div class="panel-body scroll-fade">
-
-                <div id="intelligence">
-
-                    <div class="placeholder">
-                        Click Create Summary to generate
-                        meeting intelligence.
-                    </div>
-
-                </div>
-
-            </div>
-
-        </div>
-
-
-        <!-- ==============================================
-             MIND MAP PARTITION
-        =============================================== -->
-
-        <div class="card panel panel--mindmap">
-
-            <div class="panel-head">
-                <h2>
-                    Mind Map
-                </h2>
-            </div>
-
-            <div
-                id="mindMapEditHint"
-                class="edit-hint"
-            >
-                Click any mind-map node to edit it.
-            </div>
-
-            <div
-                id="mindMapDownloadActions"
-                class="download-actions"
-            >
-
-                <button
-                    id="downloadMindMapBtn"
-                    class="download-btn"
-                    type="button"
-                    disabled
-                >Download Mind Map Image</button>
-
-            </div>
-
-            <div class="panel-body scroll-fade">
-
-                <div id="mindMapContainer">
-
-                    <div class="placeholder">
-                        Click Create Mind Map to generate
-                        the meeting mind map.
-                    </div>
-
-                </div>
-
-            </div>
-
-            <div
-                id="mindMapActions"
-                class="summary-actions"
-            >
-
-                <button
-                    id="saveMindMapBtn"
-                    type="button"
-                >
-                    Save Changes
-                </button>
-
-                <button
-                    id="cancelMindMapBtn"
-                    type="button"
-                >
-                    Cancel
-                </button>
-
-            </div>
-
-        </div>
-
-    </div>
+    <div
+        id="modelGrid"
+        class="model-grid"
+        aria-label="Results per model"
+    ></div>
 
 
     <!-- ==================================================
@@ -2121,17 +2517,54 @@ mark.transcript-match.current {
                 id="fullReportHint"
                 class="report-strip-hint"
             >
-                Create both the summary and the mind map
-                to enable this download.
+                Generate a summary and a mind map with at least
+                one model to enable this download.
             </p>
+
+            <div
+                id="reportReady"
+                class="report-ready"
+                hidden
+            >
+                <span
+                    id="reportReadyText"
+                    class="report-ready-text"
+                ></span>
+                <button
+                    id="reportReadyBtn"
+                    class="btn-tool download-btn"
+                    type="button"
+                ></button>
+            </div>
 
         </div>
 
-        <button
-            id="downloadFullReportBtn"
-            type="button"
-            disabled
-        >Download Full Report</button>
+        <div class="dropdown">
+
+            <button
+                id="downloadFullReportBtn"
+                class="btn-secondary dropdown-trigger"
+                type="button"
+                aria-haspopup="menu"
+                aria-expanded="false"
+                aria-controls="reportMenu"
+                disabled
+            >
+                <span
+                    id="reportTriggerLabel"
+                    class="dropdown-value"
+                >Download Full Report</span>
+            </button>
+
+            <div
+                id="reportMenu"
+                class="dropdown-menu dropdown-menu--end"
+                role="menu"
+                aria-label="Download a full meeting report"
+                hidden
+            ></div>
+
+        </div>
 
     </div>
 
@@ -2190,7 +2623,7 @@ mark.transcript-match.current {
         </h3>
 
         <p id="newMeetingDesc">
-            This transcript hasn't been saved yet. Generate a Summary or Mind Map first if you want to keep it for later &mdash; starting a new meeting now will discard it.
+            This transcript hasn't been saved yet. Generate a summary and mind map first if you want to keep it for later &mdash; starting a new meeting now will discard it.
         </p>
 
         <div class="modal-actions">
@@ -2198,7 +2631,7 @@ mark.transcript-match.current {
             <button
                 type="button"
                 id="newMeetingCancelBtn"
-                class="modal-btn modal-btn-secondary"
+                class="btn-secondary"
             >
                 Cancel
             </button>
@@ -2206,7 +2639,7 @@ mark.transcript-match.current {
             <button
                 type="button"
                 id="newMeetingConfirmBtn"
-                class="modal-btn modal-btn-primary"
+                class="btn-primary"
             >
                 Start New Meeting
             </button>
@@ -2243,31 +2676,17 @@ let timerInterval = null;
 
 let transcript = "";
 
-let currentSummary = "";
-
-let latestMeetingData = null;
-
-let currentIntelligenceData = null;
-
-// Id of the meeting row this data was saved as on the server (backend/database.py's
+// Id of the meeting row this recording was saved as on the server (backend/database.py's
 // meetings table). Null until the row has actually been persisted — set by whichever
-// of summary or mind-map generation runs first, kept on the second so both write to
-// the same row, or restored when a saved meeting is opened from history.
+// generation comes back first, sent with every later one so they all write to the same
+// row, or restored when a saved meeting is opened from history. Each model's summary and
+// mind map live in that model's slot (see MODEL SLOTS).
 let currentMeetingId = null;
 
-// Which of the two generators is currently waiting on the model:
-// "summary", "mindmap", or null when neither is. They have to take
-// turns: both of them open this meeting's row on the server, and each
-// one only knows to reuse the existing row when currentMeetingId is
-// already set. If they overlap, both post meeting_id: null and the
-// recording gets logged twice -- the second row showing up in the
-// history as a stray "Untitled Meeting". Waiting for the first to
-// come back means the second request carries the id it created.
-let generationInFlight = null;
-
-// Mind-map state (independent from Meeting Intelligence)
-let currentMindMapData = null;
-let savedMindMapData = null;
+// Bumped whenever the panels switch to a different meeting (new recording, a meeting
+// opened from history, reset). A generation compares it before rendering, so a result
+// that comes back late can't land in another meeting's panels.
+let sessionEpoch = 0;
 
 let searchMatches = [];
 
@@ -2283,49 +2702,29 @@ const recordBtn =
         "recordBtn"
     );
 
-const summaryBtn =
+const generateBtn =
     document.getElementById(
-        "summaryBtn"
+        "generateBtn"
     );
 
-const mindMapBtn =
+const modelPickerBtn =
     document.getElementById(
-        "mindMapBtn"
+        "modelPickerBtn"
     );
 
-const mindMapContainer =
+const modelPickerValue =
     document.getElementById(
-        "mindMapContainer"
+        "modelPickerValue"
     );
 
-const mindMapEditHint =
+const modelMenu =
     document.getElementById(
-        "mindMapEditHint"
+        "modelMenu"
     );
 
-const mindMapDownloadActions =
+const modelGrid =
     document.getElementById(
-        "mindMapDownloadActions"
-    );
-
-const downloadMindMapBtn =
-    document.getElementById(
-        "downloadMindMapBtn"
-    );
-
-const mindMapActions =
-    document.getElementById(
-        "mindMapActions"
-    );
-
-const saveMindMapBtn =
-    document.getElementById(
-        "saveMindMapBtn"
-    );
-
-const cancelMindMapBtn =
-    document.getElementById(
-        "cancelMindMapBtn"
+        "modelGrid"
     );
 
 const timerEl =
@@ -2341,11 +2740,6 @@ const statusEl =
 const transcriptEl =
     document.getElementById(
         "transcript"
-    );
-
-const intelligenceEl =
-    document.getElementById(
-        "intelligence"
     );
 
 const logsEl =
@@ -2383,29 +2777,34 @@ const searchCount =
         "searchCount"
     );
 
-const editHint =
-    document.getElementById(
-        "editHint"
-    );
-
-const downloadActions =
-    document.getElementById(
-        "downloadActions"
-    );
-
-const downloadPdfBtn =
-    document.getElementById(
-        "downloadPdfBtn"
-    );
-
-const downloadMarkdownBtn =
-    document.getElementById(
-        "downloadMarkdownBtn"
-    );
-
 const downloadFullReportBtn =
     document.getElementById(
         "downloadFullReportBtn"
+    );
+
+const reportMenu =
+    document.getElementById(
+        "reportMenu"
+    );
+
+const reportTriggerLabel =
+    document.getElementById(
+        "reportTriggerLabel"
+    );
+
+const reportReady =
+    document.getElementById(
+        "reportReady"
+    );
+
+const reportReadyText =
+    document.getElementById(
+        "reportReadyText"
+    );
+
+const reportReadyBtn =
+    document.getElementById(
+        "reportReadyBtn"
     );
 
 const fullReportHint =
@@ -2744,6 +3143,23 @@ async function openWebSocket() {
                     log(
                         "WebSocket closed."
                     );
+
+                    // Closed before a transcript came back: don't
+                    // leave the transcription loader running.
+                    if (
+                        !isRecording
+                        &&
+                        !transcript
+                        &&
+                        transcriptEl.querySelector(
+                            ".wave-loader"
+                        )
+                    ) {
+
+                        renderTranscript(
+                            ""
+                        );
+                    }
                 };
 
         }
@@ -2825,6 +3241,15 @@ function handleServerMessage(
                 "Recording complete. Transcribing with Parrotlet..."
             );
 
+            transcriptEl.innerHTML =
+                loadingHtml(
+                    "Transcribing the recording with Parrotlet..."
+                );
+
+            mountWaveLoaders(
+                transcriptEl
+            );
+
             log(
                 data.message
                 ||
@@ -2853,11 +3278,7 @@ function handleServerMessage(
 
             resetTranscriptSearch();
 
-            summaryBtn.disabled =
-                !transcript;
-
-            mindMapBtn.disabled =
-                !transcript;
+            updateGenerateButton();
 
             recordBtn.disabled =
                 false;
@@ -2865,7 +3286,7 @@ function handleServerMessage(
             if (transcript) {
 
                 setStatus(
-                    "Transcript ready. Click Create Summary."
+                    "Transcript ready. Choose the model(s) and click Generate."
                 );
 
             } else {
@@ -2938,12 +3359,23 @@ function handleServerMessage(
 
             resetTranscriptSearch();
 
-            renderIntelligence(
-                data
-            );
+            {
+                const slot =
+                    slotForModel(
+                        data.model
+                    );
 
-            summaryBtn.disabled =
-                false;
+                renderIntelligence(
+                    slot,
+                    data
+                );
+
+                setGenerationStatus(
+                    slot,
+                    "summary",
+                    "done"
+                );
+            }
 
             recordBtn.disabled =
                 false;
@@ -2972,6 +3404,20 @@ function handleServerMessage(
             setStatus(
                 `Error: ${data.message}`
             );
+
+            // Don't leave the transcription loader running.
+            if (
+                !transcript
+                &&
+                transcriptEl.querySelector(
+                    ".wave-loader"
+                )
+            ) {
+
+                renderTranscript(
+                    ""
+                );
+            }
 
             recordBtn.disabled =
                 false;
@@ -3028,10 +3474,1514 @@ function renderTranscript(
 
 
 /* ============================================================
+   MODEL SLOTS
+   ------------------------------------------------------------
+   Every generation model gets a "slot": a result column holding
+   that model's own Meeting Intelligence and Mind Map panels, plus
+   the state those panels used to keep in globals (what each panel
+   shows, and the last saved version exports and Cancel go back to).
+
+   The model list comes from GET /api/models (backend/app.py's
+   LLM_MODELS), so a model added there gets a column, a selector
+   entry and a report option here with no further changes. The
+   fallback below only covers that request failing.
+============================================================ */
+
+const FALLBACK_MODELS = [
+    { key: "mistral", label: "Mistral 128B", modelId: "" },
+    { key: "qwen", label: "Qwen3 27B", modelId: "" }
+];
+
+// Model-selector value meaning "every model".
+const ALL_MODELS = "all";
+
+// key -> slot, in display order.
+const modelSlots = new Map();
+
+
+function deepClone(
+    value
+) {
+
+    return JSON.parse(
+        JSON.stringify(
+            value
+        )
+    );
+}
+
+
+function placeholderHtml(
+    text
+) {
+
+    return `<div class="placeholder">${escapeHtml(text)}</div>`;
+}
+
+
+function createModelSlot(
+    model
+) {
+
+    const column =
+        document.createElement(
+            "section"
+        );
+
+    column.className =
+        "model-column";
+
+    column.dataset.model =
+        model.key;
+
+    column.innerHTML =
+        `
+        <div class="model-column-head">
+            <span class="model-mark" aria-hidden="true"></span>
+            <h2 class="model-name"></h2>
+            <span class="model-chip" title="Model ID"></span>
+        </div>
+
+        <div class="model-panels">
+
+            <div class="card panel panel--intel">
+
+                <div class="panel-head">
+                    <h2>
+                        Meeting Intelligence
+                        <span class="panel-model"></span>
+                    </h2>
+                    <div class="panel-head-tools">
+                        <span class="gen-badge" role="status" hidden></span>
+                    </div>
+                </div>
+
+                <div class="edit-hint">
+                    Click any field to edit it.
+                </div>
+
+                <div class="download-actions">
+                    <button class="btn-tool download-btn download-pdf-btn" type="button" disabled>Download PDF</button>
+                    <button class="btn-tool download-btn download-md-btn" type="button" disabled>Download Markdown</button>
+                </div>
+
+                <div class="panel-body scroll-fade">
+                    <div class="intelligence"></div>
+                </div>
+
+            </div>
+
+            <div class="card panel panel--mindmap">
+
+                <div class="panel-head">
+                    <h2>
+                        Mind Map
+                        <span class="panel-model"></span>
+                    </h2>
+                    <div class="panel-head-tools">
+                        <span class="gen-badge" role="status" hidden></span>
+                        <button class="btn-tool btn-icon expand-btn" type="button" aria-pressed="false"></button>
+                    </div>
+                </div>
+
+                <div class="edit-hint">
+                    Click any mind-map node to edit it.
+                </div>
+
+                <div class="download-actions">
+                    <button class="btn-tool download-btn download-mindmap-btn" type="button" disabled>Download Mind Map Image</button>
+                </div>
+
+                <div class="panel-body scroll-fade">
+                    <div class="mindmap-container"></div>
+                </div>
+
+                <div class="summary-actions mindmap-actions">
+                    <button class="btn-primary save-mindmap-btn" type="button">Save Changes</button>
+                    <button class="btn-secondary cancel-mindmap-btn" type="button">Cancel</button>
+                </div>
+
+            </div>
+
+            <div class="mindmap-spacer" hidden></div>
+
+        </div>
+        `;
+
+    const intelPanel =
+        column.querySelector(
+            ".panel--intel"
+        );
+
+    const mindmapPanel =
+        column.querySelector(
+            ".panel--mindmap"
+        );
+
+    const slot = {
+
+        model,
+
+        column,
+
+        // What the summary panel shows (formerly currentIntelligenceData).
+        intel: null,
+
+        // Last saved summary — exports and Cancel use this
+        // (formerly latestMeetingData).
+        intelSaved: null,
+
+        // What the mind-map panel shows (formerly currentMindMapData).
+        mindmap: null,
+
+        // Last saved mind map (formerly savedMindMapData).
+        mindmapSaved: null,
+
+        // "idle" | "generating" | "done" | "error", per output.
+        status: {
+            summary: "idle",
+            mindmap: "idle"
+        },
+
+        els: {
+            name: column.querySelector(".model-name"),
+            chip: column.querySelector(".model-chip"),
+            panelModels: column.querySelectorAll(".panel-model"),
+
+            intelligence: intelPanel.querySelector(".intelligence"),
+            editHint: intelPanel.querySelector(".edit-hint"),
+            downloadActions: intelPanel.querySelector(".download-actions"),
+            downloadPdfBtn: intelPanel.querySelector(".download-pdf-btn"),
+            downloadMarkdownBtn: intelPanel.querySelector(".download-md-btn"),
+            summaryBadge: intelPanel.querySelector(".gen-badge"),
+
+            mindmapPanel: mindmapPanel,
+            mindMapContainer: mindmapPanel.querySelector(".mindmap-container"),
+            mindMapEditHint: mindmapPanel.querySelector(".edit-hint"),
+            mindMapDownloadActions: mindmapPanel.querySelector(".download-actions"),
+            downloadMindMapBtn: mindmapPanel.querySelector(".download-mindmap-btn"),
+            mindMapActions: mindmapPanel.querySelector(".mindmap-actions"),
+            saveMindMapBtn: mindmapPanel.querySelector(".save-mindmap-btn"),
+            cancelMindMapBtn: mindmapPanel.querySelector(".cancel-mindmap-btn"),
+            mindmapBadge: mindmapPanel.querySelector(".gen-badge"),
+            expandBtn: mindmapPanel.querySelector(".expand-btn"),
+            mindmapSpacer: column.querySelector(".mindmap-spacer")
+        }
+    };
+
+    const els =
+        slot.els;
+
+    els.downloadPdfBtn.addEventListener(
+        "click",
+        () => downloadPdf(slot)
+    );
+
+    els.downloadMarkdownBtn.addEventListener(
+        "click",
+        () => downloadMarkdown(slot)
+    );
+
+    els.downloadMindMapBtn.addEventListener(
+        "click",
+        () => downloadMindMapImage(slot)
+    );
+
+    els.saveMindMapBtn.addEventListener(
+        "click",
+        () => saveMindMapEdits(slot)
+    );
+
+    els.cancelMindMapBtn.addEventListener(
+        "click",
+        () => cancelMindMapEdits(slot)
+    );
+
+    els.expandBtn.addEventListener(
+        "click",
+        () => setMindMapExpanded(
+            slot,
+            !els.mindmapPanel.classList.contains("is-expanded")
+        )
+    );
+
+    // Every change to either output re-renders that panel's direct
+    // children, so watching them keeps the report menu in step
+    // without hooking each code path (see updateFullReportAvailability).
+    fullReportObserver.observe(
+        els.intelligence,
+        { childList: true }
+    );
+
+    fullReportObserver.observe(
+        els.mindMapContainer,
+        { childList: true }
+    );
+
+    modelSlots.set(
+        model.key,
+        slot
+    );
+
+    modelGrid.appendChild(
+        column
+    );
+
+    applyModelLabels(
+        slot
+    );
+
+    resetSlot(
+        slot,
+        isRecording ? "recording" : "ready"
+    );
+
+    return slot;
+}
+
+
+/* A slot for a model key, created on the fly when a saved meeting
+   holds results from a model the current model list doesn't offer. */
+function ensureSlot(
+    key
+) {
+
+    return modelSlots.get(key)
+        || createModelSlot(
+            {
+                key: key,
+                label: key,
+                modelId: ""
+            }
+        );
+}
+
+
+/* The slot a model key belongs to, falling back to the first one. */
+function slotForModel(
+    key
+) {
+
+    return modelSlots.get(key)
+        || modelSlots.values().next().value;
+}
+
+
+function applyModelLabels(
+    slot
+) {
+
+    const {
+        model,
+        els
+    } = slot;
+
+    els.name.textContent =
+        model.label;
+
+    els.chip.textContent =
+        model.modelId || "";
+
+    els.panelModels.forEach(
+        span => {
+
+            span.textContent =
+                `(${model.label})`;
+        }
+    );
+
+    updateExpandButton(
+        slot
+    );
+}
+
+
+function slotHasContent(
+    slot
+) {
+
+    return !!(
+        slot.intel
+        ||
+        slot.mindmap
+        ||
+        slot.status.summary !== "idle"
+        ||
+        slot.status.mindmap !== "idle"
+    );
+}
+
+
+/* Empties a slot. "recording" while a new recording is under way,
+   "ready" otherwise. */
+function resetSlot(
+    slot,
+    phase = "ready"
+) {
+
+    const {
+        model,
+        els
+    } = slot;
+
+    setMindMapExpanded(
+        slot,
+        false
+    );
+
+    slot.intel =
+        null;
+
+    slot.intelSaved =
+        null;
+
+    els.intelligence.innerHTML =
+        placeholderHtml(
+            phase === "recording"
+                ? "Meeting intelligence will be generated after transcription."
+                : `Click Generate to create meeting intelligence with ${model.label}.`
+        );
+
+    els.editHint.classList.remove(
+        "visible"
+    );
+
+    els.downloadActions.classList.remove(
+        "visible"
+    );
+
+    els.downloadPdfBtn.disabled =
+        true;
+
+    els.downloadMarkdownBtn.disabled =
+        true;
+
+    clearMindMap(
+        slot,
+        placeholderHtml(
+            phase === "recording"
+                ? "Mind map will be generated after transcription."
+                : `Click Generate to create the meeting mind map with ${model.label}.`
+        )
+    );
+
+    setGenerationStatus(
+        slot,
+        "summary",
+        "idle"
+    );
+
+    setGenerationStatus(
+        slot,
+        "mindmap",
+        "idle"
+    );
+}
+
+
+/* ============================================================
+   DROPDOWN MENUS
+   ------------------------------------------------------------
+   One behaviour (and, in CSS, one look) for every dropdown on the
+   page — the model picker and the report menu: the trigger toggles
+   the menu, Arrow / Home / End move between items, Escape or Tab
+   closes it, and a click anywhere else closes it. `render` rebuilds
+   the items each time the menu opens, so they always reflect the
+   current state.
+============================================================ */
+
+const dropdowns =
+    [];
+
+
+function createDropdown(
+    trigger,
+    menu,
+    render
+) {
+
+    const dropdown = {
+
+        trigger,
+
+        menu,
+
+        isOpen() {
+
+            return !menu.hidden;
+        },
+
+        open() {
+
+            if (
+                trigger.disabled
+            ) {
+
+                return;
+            }
+
+            dropdowns.forEach(
+                other => {
+
+                    if (
+                        other !== dropdown
+                    ) {
+
+                        other.close();
+                    }
+                }
+            );
+
+            render(
+                menu
+            );
+
+            menu.hidden =
+                false;
+
+            trigger.setAttribute(
+                "aria-expanded",
+                "true"
+            );
+
+            const target =
+                menu.querySelector(
+                    '.dropdown-item[aria-checked="true"]'
+                )
+                ||
+                menu.querySelector(
+                    '.dropdown-item:not([aria-disabled="true"])'
+                )
+                ||
+                menu.querySelector(
+                    ".dropdown-item"
+                );
+
+            if (
+                target
+            ) {
+
+                target.focus();
+            }
+        },
+
+        close(
+            returnFocus = false
+        ) {
+
+            if (
+                menu.hidden
+            ) {
+
+                return;
+            }
+
+            menu.hidden =
+                true;
+
+            trigger.setAttribute(
+                "aria-expanded",
+                "false"
+            );
+
+            if (
+                returnFocus
+            ) {
+
+                trigger.focus();
+            }
+        },
+
+        /* Re-render an open menu in place, keeping keyboard focus on
+           the same item. */
+        refresh() {
+
+            if (
+                menu.hidden
+            ) {
+
+                return;
+            }
+
+            const focused =
+                menu.contains(
+                    document.activeElement
+                )
+                    ? document.activeElement.dataset.value
+                    : null;
+
+            render(
+                menu
+            );
+
+            if (
+                focused
+            ) {
+
+                const again =
+                    [
+                        ...menu.querySelectorAll(
+                            ".dropdown-item"
+                        )
+                    ].find(
+                        item => item.dataset.value === focused
+                    );
+
+                if (
+                    again
+                ) {
+
+                    again.focus();
+                }
+            }
+        }
+    };
+
+    trigger.addEventListener(
+        "click",
+        () => {
+
+            if (
+                dropdown.isOpen()
+            ) {
+
+                dropdown.close();
+
+            } else {
+
+                dropdown.open();
+            }
+        }
+    );
+
+    menu.addEventListener(
+        "keydown",
+        event => {
+
+            const items =
+                [
+                    ...menu.querySelectorAll(
+                        ".dropdown-item"
+                    )
+                ];
+
+            const index =
+                items.indexOf(
+                    document.activeElement
+                );
+
+            let next =
+                null;
+
+            if (
+                event.key === "ArrowDown"
+            ) {
+
+                next =
+                    items[(index + 1) % items.length];
+
+            } else if (
+                event.key === "ArrowUp"
+            ) {
+
+                next =
+                    items[(index - 1 + items.length) % items.length];
+
+            } else if (
+                event.key === "Home"
+            ) {
+
+                next =
+                    items[0];
+
+            } else if (
+                event.key === "End"
+            ) {
+
+                next =
+                    items[items.length - 1];
+
+            } else if (
+                event.key === "Tab"
+            ) {
+
+                dropdown.close();
+            }
+
+            if (
+                next
+            ) {
+
+                event.preventDefault();
+
+                next.focus();
+            }
+        }
+    );
+
+    dropdowns.push(
+        dropdown
+    );
+
+    return dropdown;
+}
+
+
+/* One menu entry. `checked` true/false makes it a single-choice
+   (radio) item; leave it null for a plain action item. */
+function dropdownItem(
+    {
+        value,
+        label,
+        meta = "",
+        disabled = false,
+        checked = null,
+        onSelect
+    }
+) {
+
+    const item =
+        document.createElement(
+            "button"
+        );
+
+    item.type =
+        "button";
+
+    item.className =
+        "dropdown-item";
+
+    item.dataset.value =
+        value;
+
+    item.setAttribute(
+        "role",
+        checked === null
+            ? "menuitem"
+            : "menuitemradio"
+    );
+
+    if (
+        checked !== null
+    ) {
+
+        item.setAttribute(
+            "aria-checked",
+            String(
+                checked
+            )
+        );
+    }
+
+    if (
+        disabled
+    ) {
+
+        item.setAttribute(
+            "aria-disabled",
+            "true"
+        );
+    }
+
+    item.innerHTML =
+        `<span class="dropdown-item-label">${escapeHtml(label)}</span>`
+        +
+        (
+            meta
+                ? `<span class="dropdown-item-meta">${escapeHtml(meta)}</span>`
+                : ""
+        );
+
+    item.addEventListener(
+        "click",
+        () => {
+
+            if (
+                !disabled
+            ) {
+
+                onSelect();
+            }
+        }
+    );
+
+    return item;
+}
+
+
+document.addEventListener(
+    "click",
+    event => {
+
+        dropdowns.forEach(
+            dropdown => {
+
+                if (
+                    dropdown.isOpen()
+                    &&
+                    event.target.closest(".dropdown")
+                        !== dropdown.trigger.closest(".dropdown")
+                ) {
+
+                    dropdown.close();
+                }
+            }
+        );
+    }
+);
+
+
+/* ============================================================
+   MODEL SELECTION
+============================================================ */
+
+// What the model picker is set to: ALL_MODELS or one model key.
+let selectedModelValue =
+    ALL_MODELS;
+
+
+function selectedSlots() {
+
+    if (
+        modelSlots.has(
+            selectedModelValue
+        )
+    ) {
+
+        return [
+            modelSlots.get(
+                selectedModelValue
+            )
+        ];
+    }
+
+    return [
+        ...modelSlots.values()
+    ];
+}
+
+
+function modelChoices() {
+
+    const slots =
+        [
+            ...modelSlots.values()
+        ];
+
+    const choices =
+        [];
+
+    if (
+        slots.length > 1
+    ) {
+
+        choices.push(
+            {
+                value: ALL_MODELS,
+                label: slots.length === 2
+                    ? "Both models"
+                    : `All ${slots.length} models`,
+                meta: slots
+                    .map(
+                        slot => slot.model.label
+                    )
+                    .join(
+                        " + "
+                    )
+            }
+        );
+    }
+
+    slots.forEach(
+        slot => {
+
+            choices.push(
+                {
+                    value: slot.model.key,
+                    label: slot.model.label,
+                    meta: slot.model.modelId
+                        || "This model only"
+                }
+            );
+        }
+    );
+
+    return choices;
+}
+
+
+/* Keeps the picker's value valid for the current model list and
+   shows it on the trigger. */
+function renderModelPicker() {
+
+    const choices =
+        modelChoices();
+
+    if (
+        !choices.some(
+            choice => choice.value === selectedModelValue
+        )
+    ) {
+
+        selectedModelValue =
+            choices.length
+                ? choices[0].value
+                : ALL_MODELS;
+    }
+
+    const current =
+        choices.find(
+            choice => choice.value === selectedModelValue
+        );
+
+    modelPickerValue.textContent =
+        current
+            ? current.label
+            : "";
+
+    modelPickerBtn.title =
+        current
+            ? current.meta
+            : "";
+
+    modelPickerBtn.setAttribute(
+        "aria-label",
+        current
+            ? `Models: ${current.label} (${current.meta})`
+            : "Models"
+    );
+
+    modelDropdown.refresh();
+}
+
+
+function renderModelMenu(
+    menu
+) {
+
+    menu.innerHTML =
+        "";
+
+    modelChoices().forEach(
+        choice => {
+
+            menu.appendChild(
+                dropdownItem(
+                    {
+                        ...choice,
+                        checked: choice.value === selectedModelValue,
+                        onSelect: () => {
+
+                            modelDropdown.close(
+                                true
+                            );
+
+                            setModelSelection(
+                                choice.value
+                            );
+                        }
+                    }
+                )
+            );
+        }
+    );
+}
+
+
+function setModelSelection(
+    value
+) {
+
+    selectedModelValue =
+        value;
+
+    renderModelPicker();
+
+    applyModelSelection();
+}
+
+
+const modelDropdown =
+    createDropdown(
+        modelPickerBtn,
+        modelMenu,
+        renderModelMenu
+    );
+
+
+/* Shows the columns of the selected model(s): one model keeps the
+   original side-by-side summary | mind map layout, several put
+   their columns side by side with summary above mind map. */
+function applyModelSelection() {
+
+    const visible =
+        selectedSlots();
+
+    modelSlots.forEach(
+        slot => {
+
+            const shown =
+                visible.includes(
+                    slot
+                );
+
+            if (
+                !shown
+            ) {
+
+                setMindMapExpanded(
+                    slot,
+                    false
+                );
+            }
+
+            slot.column.hidden =
+                !shown;
+        }
+    );
+
+    modelGrid.dataset.count =
+        String(
+            visible.length
+        );
+
+    modelGrid.style.setProperty(
+        "--model-count",
+        String(
+            visible.length
+        )
+    );
+
+    // Column widths change with the selection, and a mind map that
+    // was rendered while its column was hidden had no width to be
+    // centered in — so center every map now on screen.
+    visible.forEach(
+        slot => {
+
+            if (
+                slot.mindmap
+            ) {
+
+                centerMindMap(
+                    slot
+                );
+            }
+        }
+    );
+
+    updateGenerateButton();
+}
+
+
+async function loadModelCatalog() {
+
+    let models =
+        null;
+
+    try {
+
+        const response =
+            await fetch(
+                "/api/models",
+                {
+                    credentials:
+                        "same-origin"
+                }
+            );
+
+        if (
+            response.ok
+        ) {
+
+            const list =
+                await response.json();
+
+            if (
+                Array.isArray(
+                    list
+                )
+            ) {
+
+                models =
+                    list
+                        .filter(
+                            item => item && item.key
+                        )
+                        .map(
+                            item => ({
+                                key: String(item.key),
+                                label: String(item.label || item.key),
+                                modelId: String(item.modelId || "")
+                            })
+                        );
+            }
+        }
+
+    } catch (
+        error
+    ) {}
+
+    if (
+        !models
+        ||
+        !models.length
+    ) {
+
+        log(
+            "Could not load the model list — using the built-in defaults."
+        );
+
+        return;
+    }
+
+    models.forEach(
+        model => {
+
+            const slot =
+                modelSlots.get(
+                    model.key
+                );
+
+            if (
+                !slot
+            ) {
+
+                createModelSlot(
+                    model
+                );
+
+                return;
+            }
+
+            slot.model =
+                model;
+
+            applyModelLabels(
+                slot
+            );
+
+            // Refresh the placeholder text with the server's label.
+            if (
+                !slotHasContent(
+                    slot
+                )
+            ) {
+
+                resetSlot(
+                    slot,
+                    isRecording ? "recording" : "ready"
+                );
+            }
+        }
+    );
+
+    // Drop built-in defaults the backend doesn't offer, unless
+    // they are already showing something.
+    const unoffered =
+        [
+            ...modelSlots.entries()
+        ].filter(
+            ([key, slot]) =>
+                !models.some(
+                    model => model.key === key
+                )
+                &&
+                !slotHasContent(
+                    slot
+                )
+        );
+
+    unoffered.forEach(
+        ([key, slot]) => {
+
+            slot.column.remove();
+
+            modelSlots.delete(
+                key
+            );
+        }
+    );
+
+    // Display order follows the server's order.
+    const ordered =
+        new Map();
+
+    models.forEach(
+        model => {
+
+            if (
+                modelSlots.has(
+                    model.key
+                )
+            ) {
+
+                ordered.set(
+                    model.key,
+                    modelSlots.get(model.key)
+                );
+            }
+        }
+    );
+
+    modelSlots.forEach(
+        (
+            slot,
+            key
+        ) => {
+
+            if (
+                !ordered.has(
+                    key
+                )
+            ) {
+
+                ordered.set(
+                    key,
+                    slot
+                );
+            }
+        }
+    );
+
+    modelSlots.clear();
+
+    ordered.forEach(
+        (
+            slot,
+            key
+        ) => {
+
+            modelSlots.set(
+                key,
+                slot
+            );
+
+            modelGrid.appendChild(
+                slot.column
+            );
+        }
+    );
+
+    renderModelPicker();
+
+    applyModelSelection();
+
+    updateFullReportAvailability();
+}
+
+
+/* ============================================================
+   GENERATION STATUS BADGES
+============================================================ */
+
+function setGenerationStatus(
+    slot,
+    kind,
+    status,
+    message = ""
+) {
+
+    slot.status[kind] =
+        status;
+
+    const badge =
+        kind === "summary"
+            ? slot.els.summaryBadge
+            : slot.els.mindmapBadge;
+
+    badge.className =
+        "gen-badge";
+
+    badge.removeAttribute(
+        "title"
+    );
+
+    badge.hidden =
+        status === "idle";
+
+    if (
+        status === "generating"
+    ) {
+
+        badge.classList.add(
+            "is-generating"
+        );
+
+        badge.innerHTML =
+            'Generating<span class="gen-dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span>';
+
+    } else if (
+        status === "done"
+    ) {
+
+        badge.classList.add(
+            "is-done"
+        );
+
+        badge.textContent =
+            "Generated";
+
+    } else if (
+        status === "error"
+    ) {
+
+        badge.classList.add(
+            "is-error"
+        );
+
+        badge.textContent =
+            "Failed";
+
+        badge.title =
+            message;
+
+    } else {
+
+        badge.textContent =
+            "";
+    }
+
+    updateGenerateButton();
+}
+
+
+function isAnyGenerating() {
+
+    return [
+        ...modelSlots.values()
+    ].some(
+        slot =>
+            slot.status.summary === "generating"
+            ||
+            slot.status.mindmap === "generating"
+    );
+}
+
+
+/* What Generate would create for these slots: every output that is
+   still missing and not already being generated. Existing results
+   are never regenerated — that would silently replace them with
+   different model output; changes go through Save Changes instead. */
+function pendingGenerations(
+    slots
+) {
+
+    const jobs =
+        [];
+
+    slots.forEach(
+        slot => {
+
+            if (
+                !slot.intel
+                &&
+                slot.status.summary !== "generating"
+            ) {
+
+                jobs.push(
+                    {
+                        slot: slot,
+                        kind: "summary"
+                    }
+                );
+            }
+
+            if (
+                !slot.mindmap
+                &&
+                slot.status.mindmap !== "generating"
+            ) {
+
+                jobs.push(
+                    {
+                        slot: slot,
+                        kind: "mindmap"
+                    }
+                );
+            }
+        }
+    );
+
+    return jobs;
+}
+
+
+function updateGenerateButton() {
+
+    generateBtn.disabled =
+        !transcript
+        ||
+        !pendingGenerations(
+            selectedSlots()
+        ).length;
+}
+
+
+/* ============================================================
+   LOADING ANIMATION (sound waves)
+   ------------------------------------------------------------
+   Loading states show assets/sound-waves.json ("Sound Waves" by
+   Leonardo Balduzzi, LottieFiles, Lottie Simple License) through
+   lottie-web. Until that has loaded — or if it can't — the same
+   element shows plain CSS bars, so a loader is never blank.
+============================================================ */
+
+let waveAnimationRequest =
+    null;
+
+const waveAnimations =
+    new Set();
+
+
+function loadWaveAnimation() {
+
+    if (
+        !waveAnimationRequest
+    ) {
+
+        waveAnimationRequest =
+            fetch(
+                "/assets/sound-waves.json"
+            )
+                .then(
+                    response => {
+
+                        if (
+                            !response.ok
+                        ) {
+
+                            throw new Error(
+                                `HTTP ${response.status}`
+                            );
+                        }
+
+                        return response.json();
+                    }
+                )
+                .catch(
+                    () => null
+                );
+    }
+
+    return waveAnimationRequest;
+}
+
+
+function loadingHtml(
+    message
+) {
+
+    return `
+        <div class="placeholder placeholder--loading" role="status">
+            <div class="wave-loader" aria-hidden="true">
+                <span></span><span></span><span></span><span></span><span></span>
+            </div>
+            <div>${escapeHtml(message)}</div>
+        </div>
+        `;
+}
+
+
+async function mountWaveLoaders(
+    root
+) {
+
+    // Stop players whose loader has since been replaced.
+    waveAnimations.forEach(
+        animation => {
+
+            if (
+                !animation.wrapper
+                ||
+                !animation.wrapper.isConnected
+            ) {
+
+                animation.destroy();
+
+                waveAnimations.delete(
+                    animation
+                );
+            }
+        }
+    );
+
+    if (
+        window.matchMedia(
+            "(prefers-reduced-motion: reduce)"
+        ).matches
+    ) {
+
+        return;
+    }
+
+    const data =
+        await loadWaveAnimation();
+
+    if (
+        !data
+        ||
+        !window.lottie
+    ) {
+
+        return;
+    }
+
+    root.querySelectorAll(
+        ".wave-loader:not([data-lottie])"
+    ).forEach(
+        element => {
+
+            if (
+                !element.isConnected
+            ) {
+
+                return;
+            }
+
+            element.dataset.lottie =
+                "true";
+
+            element.innerHTML =
+                "";
+
+            waveAnimations.add(
+                window.lottie.loadAnimation(
+                    {
+                        container: element,
+                        renderer: "svg",
+                        loop: true,
+                        autoplay: true,
+                        // lottie-web annotates the data it is given, so
+                        // each player gets its own copy.
+                        animationData: deepClone(data)
+                    }
+                )
+            );
+        }
+    );
+}
+
+
+/* ============================================================
    MEETING INTELLIGENCE RENDERING
 ============================================================ */
 
+function sectionLabel(
+    icon,
+    text
+) {
+
+    return `
+        <div class="label">
+            <span class="section-icon section-icon--${icon}" aria-hidden="true"></span>
+            ${text}
+        </div>
+        `;
+}
+
+
 function renderIntelligence(
+    slot,
     data,
     resetSaved = true
 ) {
@@ -3042,6 +4992,9 @@ function renderIntelligence(
 
         return;
     }
+
+    const els =
+        slot.els;
 
     const merged =
         {
@@ -3054,39 +5007,35 @@ function renderIntelligence(
                 ""
         };
 
-    currentIntelligenceData =
-        JSON.parse(
-            JSON.stringify(
-                merged
-            )
+    slot.intel =
+        deepClone(
+            merged
         );
 
     if (
         resetSaved
         ||
-        !latestMeetingData
+        !slot.intelSaved
     ) {
 
-        latestMeetingData =
-            JSON.parse(
-                JSON.stringify(
-                    merged
-                )
+        slot.intelSaved =
+            deepClone(
+                merged
             );
     }
 
-    editHint.classList.add(
+    els.editHint.classList.add(
         "visible"
     );
 
-    downloadActions.classList.add(
+    els.downloadActions.classList.add(
         "visible"
     );
 
-    downloadPdfBtn.disabled =
+    els.downloadPdfBtn.disabled =
         false;
 
-    downloadMarkdownBtn.disabled =
+    els.downloadMarkdownBtn.disabled =
         false;
 
     const title =
@@ -3145,9 +5094,7 @@ function renderIntelligence(
         `
         <div class="result-section">
 
-            <div class="label">
-                TITLE
-            </div>
+            ${sectionLabel("title", "TITLE")}
 
             <div
                 class="title-result editable-field"
@@ -3170,13 +5117,10 @@ function renderIntelligence(
         `
         <div class="result-section">
 
-            <div class="label">
-                MEETING SUMMARY
-            </div>
+            ${sectionLabel("summary", "MEETING SUMMARY")}
 
             <textarea
-                id="meetingSummaryEditor"
-                class="editable-summary"
+                class="editable-summary meeting-summary-editor"
                 spellcheck="true"
                 aria-label="Editable meeting summary"
             >${escapeHtml(summary)}</textarea>
@@ -3193,9 +5137,7 @@ function renderIntelligence(
         `
         <div class="result-section">
 
-            <div class="label">
-                OBJECTIVE
-            </div>
+            ${sectionLabel("objective", "OBJECTIVE")}
 
             <div
                 class="summary editable-field"
@@ -3218,9 +5160,7 @@ function renderIntelligence(
         `
         <div class="result-section">
 
-            <div class="label">
-                TASKS
-            </div>
+            ${sectionLabel("tasks", "TASKS")}
         `;
 
 
@@ -3353,9 +5293,7 @@ function renderIntelligence(
         `
         <div class="result-section">
 
-            <div class="label">
-                DECISIONS
-            </div>
+            ${sectionLabel("decisions", "DECISIONS")}
         `;
 
 
@@ -3425,9 +5363,7 @@ function renderIntelligence(
             `
             <div class="result-section">
 
-                <div class="label">
-                    OBJECTIONS
-                </div>
+                ${sectionLabel("objections", "OBJECTIONS")}
             `;
 
 
@@ -3481,9 +5417,7 @@ function renderIntelligence(
             `
             <div class="result-section">
 
-                <div class="label">
-                    ACTION ITEMS
-                </div>
+                ${sectionLabel("actions", "ACTION ITEMS")}
             `;
 
 
@@ -3531,31 +5465,24 @@ function renderIntelligence(
 
     html +=
         `
-        <div
-            id="summaryActions"
-            class="summary-actions"
-        >
-            <button
-                id="saveSummaryBtn"
-                type="button"
-            >
+        <div class="summary-actions intel-actions">
+            <button class="btn-primary save-summary-btn" type="button">
                 Save Changes
             </button>
 
-            <button
-                id="cancelSummaryBtn"
-                type="button"
-            >
+            <button class="btn-secondary cancel-summary-btn" type="button">
                 Cancel
             </button>
         </div>
         `;
 
 
-    intelligenceEl.innerHTML =
+    els.intelligence.innerHTML =
         html;
 
-    setupSummaryEditor();
+    setupSummaryEditor(
+        slot
+    );
 }
 
 
@@ -3563,26 +5490,34 @@ function renderIntelligence(
    SUMMARY EDITOR
 ============================================================ */
 
-function setupSummaryEditor() {
+function setupSummaryEditor(
+    slot
+) {
+
+    const container =
+        slot.els.intelligence;
+
+    const label =
+        slot.model.label;
 
     const editor =
-        document.getElementById(
-            "meetingSummaryEditor"
+        container.querySelector(
+            ".meeting-summary-editor"
         );
 
     const actions =
-        document.getElementById(
-            "summaryActions"
+        container.querySelector(
+            ".intel-actions"
         );
 
     const saveBtn =
-        document.getElementById(
-            "saveSummaryBtn"
+        container.querySelector(
+            ".save-summary-btn"
         );
 
     const cancelBtn =
-        document.getElementById(
-            "cancelSummaryBtn"
+        container.querySelector(
+            ".cancel-summary-btn"
         );
 
     if (
@@ -3598,11 +5533,8 @@ function setupSummaryEditor() {
         return;
     }
 
-    currentSummary =
-        editor.value;
-
     const editableFields =
-        intelligenceEl.querySelectorAll(
+        container.querySelectorAll(
             "[data-edit-path]"
         );
 
@@ -3678,12 +5610,10 @@ function setupSummaryEditor() {
     function collectEditedData() {
 
         const edited =
-            JSON.parse(
-                JSON.stringify(
-                    currentIntelligenceData
-                    ||
-                    {}
-                )
+            deepClone(
+                slot.intel
+                ||
+                {}
             );
 
         editableFields.forEach(
@@ -3726,18 +5656,16 @@ function setupSummaryEditor() {
                 true;
 
             setStatus(
-                "Saving meeting intelligence changes..."
+                `Saving meeting intelligence changes (${label})...`
             );
 
             try {
 
                 /* ------------------------------------------------
                    Persist to the server, when this summary is
-                   actually a saved meeting (backend/database.py's
-                   meetings table). Without this, edits only ever
-                   lived in local JS state — they looked "saved"
-                   but a reopen from history, or another device,
-                   never saw them.
+                   actually a saved meeting — into this model's
+                   result (backend/database.py's meeting_results
+                   table), never another model's.
                 ------------------------------------------------ */
 
                 if (
@@ -3763,6 +5691,9 @@ function setupSummaryEditor() {
                                 body:
                                     JSON.stringify(
                                         {
+                                            model:
+                                                slot.model.key,
+
                                             title:
                                                 edited.title,
 
@@ -3807,18 +5738,13 @@ function setupSummaryEditor() {
                     }
                 }
 
-                currentIntelligenceData =
+                slot.intel =
                     edited;
 
-                latestMeetingData =
-                    JSON.parse(
-                        JSON.stringify(
-                            edited
-                        )
+                slot.intelSaved =
+                    deepClone(
+                        edited
                     );
-
-                currentSummary =
-                    editor.value;
 
                 actions.classList.remove(
                     "visible"
@@ -3826,24 +5752,26 @@ function setupSummaryEditor() {
 
                 setStatus(
                     currentMeetingId
-                        ? "Meeting intelligence changes saved."
-                        : "Changes kept for this session — this summary was never saved to your history."
+                        ? `Meeting intelligence changes saved (${label}).`
+                        : `Changes kept for this session (${label}) — this summary was never saved to your history.`
                 );
 
                 log(
-                    "Meeting intelligence fields manually edited and saved."
+                    `Meeting intelligence fields manually edited and saved (${label}).`
                 );
+
+                notifyResultsChanged();
 
             } catch (
                 error
             ) {
 
                 setStatus(
-                    `Could not save changes: ${error.message}`
+                    `Could not save changes (${label}): ${error.message}`
                 );
 
                 log(
-                    `Meeting intelligence save failed: ${error.message}`
+                    `Meeting intelligence save failed (${label}): ${error.message}`
                 );
 
             } finally {
@@ -3859,21 +5787,22 @@ function setupSummaryEditor() {
         () => {
 
             if (
-                latestMeetingData
+                slot.intelSaved
             ) {
 
                 renderIntelligence(
-                    latestMeetingData,
+                    slot,
+                    slot.intelSaved,
                     false
                 );
             }
 
             setStatus(
-                "Changes cancelled."
+                `Changes cancelled (${label}).`
             );
 
             log(
-                "Meeting intelligence edits cancelled."
+                `Meeting intelligence edits cancelled (${label}).`
             );
         }
     );
@@ -4260,49 +6189,20 @@ async function startRecording() {
     recordBtn.disabled =
         true;
 
-    summaryBtn.disabled =
-        true;
+    // Results still being generated belong to the recording being
+    // replaced — bumping the epoch keeps them out of the new one's
+    // panels (see GENERATE).
+    sessionEpoch++;
 
-    mindMapBtn.disabled =
-        true;
-
-    currentMindMapData =
-        null;
-
-    savedMindMapData =
-        null;
-
-    mindMapEditHint.classList.remove(
-        "visible"
-    );
-
-    mindMapDownloadActions.classList.remove(
-        "visible"
-    );
-
-    mindMapActions.classList.remove(
-        "visible"
-    );
-
-    downloadMindMapBtn.disabled =
-        true;
+    clearReportReady();
 
     transcript =
         "";
 
-    latestMeetingData =
-        null;
-
-    currentIntelligenceData =
-        null;
-
     currentMeetingId =
         null;
 
-    // A generation still running belongs to the recording being
-    // replaced — it must not keep the new one's buttons locked.
-    generationInFlight =
-        null;
+    updateGenerateButton();
 
 
     setStatus(
@@ -4320,35 +6220,12 @@ async function startRecording() {
     resetTranscriptSearch();
 
 
-    intelligenceEl.innerHTML =
-        `
-        <div class="placeholder">
-            Meeting intelligence will be generated
-            after transcription.
-        </div>
-        `;
-
-    mindMapContainer.innerHTML =
-        `
-        <div class="placeholder">
-            Mind map will be generated
-            after transcription.
-        </div>
-        `;
-
-    editHint.classList.remove(
-        "visible"
+    modelSlots.forEach(
+        slot => resetSlot(
+            slot,
+            "recording"
+        )
     );
-
-    downloadActions.classList.remove(
-        "visible"
-    );
-
-    downloadPdfBtn.disabled =
-        true;
-
-    downloadMarkdownBtn.disabled =
-        true;
 
 
     try {
@@ -4759,82 +6636,344 @@ function stopRecording() {
 
 
 /* ============================================================
-   GENERATION TURN-TAKING
+   GENERATE (summary + mind map, per selected model)
    ------------------------------------------------------------
-   Create Summary and Create Mind Map both write to the same
-   meeting row, and the row is only created by whichever of them
-   runs first — so the second one has to start after the first
-   has come back with its id. These two keep the buttons in step
-   with that rule.
+   One click sends every missing output for every selected model
+   at once. They don't have to take turns: when this recording has
+   no meeting row yet, the server opens one for the first request
+   and every other request joins it by transcript (see
+   db.find_or_create_meeting in backend/database.py).
+
+   sessionEpoch guards against results that come back after the
+   page has moved on (new recording, a meeting opened from
+   history): those are dropped here instead of landing in panels
+   that now belong to a different meeting. The server has already
+   saved them to the meeting they were generated for.
 ============================================================ */
 
-function beginGeneration(
-    kind
+function adoptMeetingId(
+    meetingId
 ) {
 
-    generationInFlight =
-        kind;
+    if (
+        meetingId
+        &&
+        !currentMeetingId
+    ) {
 
-    // Both go down for the duration, not just the one that was
-    // clicked: the other would otherwise be sent while
-    // currentMeetingId is still null and log the same recording a
-    // second time.
-    summaryBtn.disabled =
-        true;
-
-    mindMapBtn.disabled =
-        true;
+        currentMeetingId =
+            meetingId;
+    }
 }
 
 
-function endGeneration() {
+/* Tells the history drawer (assets/history.js) that the meeting on
+   screen gained or changed a saved result, so its "viewing a saved
+   meeting" bar can refresh its title and model tags. */
+function notifyResultsChanged() {
 
-    generationInFlight =
-        null;
-
-    // Re-open only the piece that still doesn't exist. Regenerating
-    // one that does would silently replace it with different model
-    // output — the same rule the history bridge applies when a saved
-    // meeting is opened; edits go through Save Changes instead.
-    summaryBtn.disabled =
-        !transcript
-        ||
-        !!currentIntelligenceData;
-
-    mindMapBtn.disabled =
-        !transcript
-        ||
-        !!currentMindMapData;
+    document.dispatchEvent(
+        new CustomEvent(
+            "meetmind:results-changed",
+            {
+                detail: {
+                    meetingId: currentMeetingId
+                }
+            }
+        )
+    );
 }
 
 
-/* True, with the user told why, when the other generator is still
-   running. Both entry points check this: their buttons are already
-   disabled, but a stray programmatic call must not slip past. */
-function blockedByGenerationInFlight() {
+async function postGeneration(
+    path,
+    slot,
+    failureMessage
+) {
+
+    const response =
+        await fetch(
+            path,
+            {
+
+                method:
+                    "POST",
+
+                headers: {
+
+                    "Content-Type":
+                        "application/json"
+                },
+
+                body:
+                    JSON.stringify(
+                        {
+                            transcript:
+                                transcript,
+                            meeting_id:
+                                currentMeetingId,
+                            model:
+                                slot.model.key
+                        }
+                    )
+            }
+        );
+
+    const data =
+        await response.json();
 
     if (
-        !generationInFlight
+        !response.ok
     ) {
+
+        throw new Error(
+            data.detail
+            ||
+            data.error
+            ||
+            failureMessage
+        );
+    }
+
+    if (
+        !data.success
+    ) {
+
+        throw new Error(
+            data.error
+            ||
+            failureMessage
+        );
+    }
+
+    return data;
+}
+
+
+/* Resolves true on success, false on failure, null when the result
+   arrived for a meeting that is no longer on screen. */
+async function generateSummary(
+    slot
+) {
+
+    const epoch =
+        sessionEpoch;
+
+    const label =
+        slot.model.label;
+
+    setGenerationStatus(
+        slot,
+        "summary",
+        "generating"
+    );
+
+    slot.els.intelligence.innerHTML =
+        loadingHtml(
+            `${label} is analyzing the complete transcript...`
+        );
+
+    mountWaveLoaders(
+        slot.els.intelligence
+    );
+
+    log(
+        `Sending complete transcript to ${label} for meeting intelligence.`
+    );
+
+    try {
+
+        const data =
+            await postGeneration(
+                "/api/meeting/summarize",
+                slot,
+                "Summary generation failed."
+            );
+
+        if (
+            epoch !== sessionEpoch
+        ) {
+
+            log(
+                `${label} summary arrived after the meeting on screen changed — not shown.`
+            );
+
+            return null;
+        }
+
+        adoptMeetingId(
+            data.meeting_id
+        );
+
+        renderIntelligence(
+            slot,
+            data
+        );
+
+        setGenerationStatus(
+            slot,
+            "summary",
+            "done"
+        );
+
+        log(
+            `Meeting intelligence received from ${label}.`
+        );
+
+        notifyResultsChanged();
+
+        return true;
+
+    } catch (
+        error
+    ) {
+
+        if (
+            epoch !== sessionEpoch
+        ) {
+
+            return null;
+        }
+
+        log(
+            `${label} summary error: ${error.message}`
+        );
+
+        slot.els.intelligence.innerHTML =
+            `
+            <div class="mindmap-empty result-error">
+                Summary generation failed:
+                ${escapeHtml(error.message)}
+            </div>
+            `;
+
+        setGenerationStatus(
+            slot,
+            "summary",
+            "error",
+            error.message
+        );
 
         return false;
     }
-
-    setStatus(
-        generationInFlight === "summary"
-            ? "The summary is still being generated — the mind map can be created as soon as it finishes."
-            : "The mind map is still being generated — the summary can be created as soon as it finishes."
-    );
-
-    return true;
 }
 
 
-/* ============================================================
-   CREATE SUMMARY
-============================================================ */
+async function generateMindMap(
+    slot
+) {
 
-async function createSummary() {
+    const epoch =
+        sessionEpoch;
+
+    const label =
+        slot.model.label;
+
+    setGenerationStatus(
+        slot,
+        "mindmap",
+        "generating"
+    );
+
+    slot.els.mindMapContainer.innerHTML =
+        loadingHtml(
+            `${label} is mapping the complete transcript...`
+        );
+
+    mountWaveLoaders(
+        slot.els.mindMapContainer
+    );
+
+    log(
+        `Sending complete transcript to ${label} for mind-map generation.`
+    );
+
+    try {
+
+        const data =
+            await postGeneration(
+                "/api/meeting/mindmap",
+                slot,
+                "Mind-map generation failed."
+            );
+
+        if (
+            epoch !== sessionEpoch
+        ) {
+
+            log(
+                `${label} mind map arrived after the meeting on screen changed — not shown.`
+            );
+
+            return null;
+        }
+
+        adoptMeetingId(
+            data.meeting_id
+        );
+
+        renderMindMap(
+            slot,
+            data.mindmap
+        );
+
+        setGenerationStatus(
+            slot,
+            "mindmap",
+            slot.mindmap
+                ? "done"
+                : "error",
+            slot.mindmap
+                ? ""
+                : "No mind map was generated."
+        );
+
+        log(
+            `Mind map received from ${label}.`
+        );
+
+        notifyResultsChanged();
+
+        return !!slot.mindmap;
+
+    } catch (
+        error
+    ) {
+
+        if (
+            epoch !== sessionEpoch
+        ) {
+
+            return null;
+        }
+
+        log(
+            `${label} mind-map error: ${error.message}`
+        );
+
+        clearMindMap(
+            slot,
+            `
+            <div class="mindmap-empty result-error">
+                Mind map generation failed:
+                ${escapeHtml(error.message)}
+            </div>
+            `
+        );
+
+        setGenerationStatus(
+            slot,
+            "mindmap",
+            "error",
+            error.message
+        );
+
+        return false;
+    }
+}
+
+
+async function generateSelected() {
 
     if (
         !transcript
@@ -4849,134 +6988,67 @@ async function createSummary() {
         return;
     }
 
+    const jobs =
+        pendingGenerations(
+            selectedSlots()
+        );
 
     if (
-        blockedByGenerationInFlight()
+        !jobs.length
+    ) {
+
+        setStatus(
+            "The selected model(s) already have a summary and mind map — edit them with Save Changes."
+        );
+
+        return;
+    }
+
+    const epoch =
+        sessionEpoch;
+
+    const labels =
+        [
+            ...new Set(
+                jobs.map(
+                    job => job.slot.model.label
+                )
+            )
+        ].join(
+            " and "
+        );
+
+    setStatus(
+        `Generating with ${labels}...`
+    );
+
+    const outcomes =
+        await Promise.all(
+            jobs.map(
+                job =>
+                    job.kind === "summary"
+                        ? generateSummary(job.slot)
+                        : generateMindMap(job.slot)
+            )
+        );
+
+    if (
+        epoch !== sessionEpoch
     ) {
 
         return;
     }
 
-
-    beginGeneration(
-        "summary"
-    );
-
+    const failed =
+        outcomes.filter(
+            outcome => outcome === false
+        ).length;
 
     setStatus(
-        "Generating meeting intelligence with Mistral 128B..."
+        failed
+            ? `Generation finished with ${failed} failure${failed === 1 ? "" : "s"} — panels marked Failed can be retried with Generate.`
+            : `Generation complete (${labels}).`
     );
-
-
-    intelligenceEl.innerHTML =
-        `
-        <div class="placeholder">
-            Mistral 128B is analyzing the complete transcript...
-        </div>
-        `;
-
-
-    log(
-        "Sending complete transcript to Mistral 128B."
-    );
-
-
-    try {
-
-        const response =
-            await fetch(
-                "/api/meeting/summarize",
-                {
-
-                    method:
-                        "POST",
-
-                    headers: {
-
-                        "Content-Type":
-                            "application/json"
-                    },
-
-                    body:
-                        JSON.stringify(
-                            {
-                                transcript:
-                                    transcript,
-                                meeting_id:
-                                    currentMeetingId
-                            }
-                        )
-                }
-            );
-
-
-        const data =
-            await response.json();
-
-
-        if (
-            !response.ok
-        ) {
-
-            throw new Error(
-                data.detail
-                ||
-                data.error
-                ||
-                "Summary generation failed."
-            );
-        }
-
-
-        if (
-            !data.success
-        ) {
-
-            throw new Error(
-                data.error
-                ||
-                "Summary generation failed."
-            );
-        }
-
-
-        currentMeetingId =
-            data.meeting_id
-            ||
-            currentMeetingId;
-
-        renderIntelligence(
-            data
-        );
-
-
-        setStatus(
-            "Meeting intelligence generated."
-        );
-
-
-        log(
-            "Meeting intelligence received."
-        );
-
-    } catch (
-        error
-    ) {
-
-        log(
-            `Summary error: ${error.message}`
-        );
-
-        setStatus(
-            `Summary generation failed: ${error.message}`
-        );
-
-    } finally {
-
-        // Always releases the turn, so a render that throws can't
-        // leave both buttons stuck down.
-        endGeneration();
-    }
 }
 
 
@@ -5112,10 +7184,87 @@ function createMindMapNode(
 }
 
 
+/* Empties a slot's mind-map panel, showing `html` in its place. */
+function clearMindMap(
+    slot,
+    html
+) {
+
+    const els =
+        slot.els;
+
+    slot.mindmap =
+        null;
+
+    slot.mindmapSaved =
+        null;
+
+    els.mindMapContainer.innerHTML =
+        html;
+
+    els.mindMapEditHint.classList.remove(
+        "visible"
+    );
+
+    els.mindMapDownloadActions.classList.remove(
+        "visible"
+    );
+
+    els.mindMapActions.classList.remove(
+        "visible"
+    );
+
+    els.downloadMindMapBtn.disabled =
+        true;
+
+    els.mindMapContainer.style.removeProperty(
+        "--mindmap-columns"
+    );
+}
+
+
+/* The generated tree is almost always wider than the panel (columns
+   are sized in fixed px, not to fit the card), so without this the
+   view opens scrolled to the left edge and the centered root/right-
+   hand branches render clipped past the card border instead of just
+   being reachable by scrolling. Center once layout settles. */
+function centerMindMap(
+    slot
+) {
+
+    requestAnimationFrame(
+        () => {
+
+            const container =
+                slot.els.mindMapContainer;
+
+            container.scrollLeft =
+                (
+                    container.scrollWidth
+                    -
+                    container.clientWidth
+                )
+                / 2;
+        }
+    );
+}
+
+
 function renderMindMap(
+    slot,
     mindmap,
     resetSaved = true
 ) {
+
+    const els =
+        slot.els;
+
+    const emptyHtml =
+        `
+        <div class="mindmap-empty">
+            No mind map was generated.
+        </div>
+        `;
 
     if (
         !mindmap
@@ -5123,53 +7272,24 @@ function renderMindMap(
         !mindmap.title
     ) {
 
-        currentMindMapData =
-            null;
-
-        savedMindMapData =
-            null;
-
-        mindMapContainer.innerHTML =
-            `
-            <div class="mindmap-empty">
-                No mind map was generated.
-            </div>
-            `;
-
-        mindMapEditHint.classList.remove(
-            "visible"
-        );
-
-        mindMapDownloadActions.classList.remove(
-            "visible"
-        );
-
-        mindMapActions.classList.remove(
-            "visible"
-        );
-
-        downloadMindMapBtn.disabled =
-            true;
-
-        mindMapContainer.style.removeProperty(
-            "--mindmap-columns"
+        clearMindMap(
+            slot,
+            emptyHtml
         );
 
         return;
     }
 
 
-    currentMindMapData =
-        JSON.parse(
-            JSON.stringify(
-                mindmap
-            )
+    slot.mindmap =
+        deepClone(
+            mindmap
         );
 
     /* Choose a stable number of top-level columns from the generated tree. */
     const topLevelCount =
-        Array.isArray(currentMindMapData.children)
-            ? currentMindMapData.children.length
+        Array.isArray(slot.mindmap.children)
+            ? slot.mindmap.children.length
             : 0;
 
     const columnCount =
@@ -5181,7 +7301,7 @@ function renderMindMap(
             )
         );
 
-    mindMapContainer.style.setProperty(
+    els.mindMapContainer.style.setProperty(
         "--mindmap-columns",
         columnCount
     );
@@ -5189,95 +7309,62 @@ function renderMindMap(
     if (
         resetSaved
         ||
-        !savedMindMapData
+        !slot.mindmapSaved
     ) {
 
-        savedMindMapData =
-            JSON.parse(
-                JSON.stringify(
-                    mindmap
-                )
+        slot.mindmapSaved =
+            deepClone(
+                mindmap
             );
     }
 
 
-    mindMapContainer.innerHTML =
-        "";
-
-
     const root =
         createMindMapNode(
-            currentMindMapData,
+            slot.mindmap,
             true,
             []
         );
 
 
     if (
-        root
+        !root
     ) {
 
-        mindMapContainer.appendChild(
-            root
+        clearMindMap(
+            slot,
+            emptyHtml
         );
 
-        mindMapEditHint.classList.add(
-            "visible"
-        );
-
-        mindMapDownloadActions.classList.add(
-            "visible"
-        );
-
-        downloadMindMapBtn.disabled =
-            false;
-
-        setupMindMapEditor();
-
-        /* The generated tree is almost always wider than the panel
-           (columns are sized in fixed px, not to fit the card), so
-           without this the view opens scrolled to the left edge and
-           the centered root/right-hand branches render clipped past
-           the card border instead of just being reachable by
-           scrolling. Center the scroll position once layout settles. */
-        requestAnimationFrame(
-            () => {
-
-                mindMapContainer.scrollLeft =
-                    (
-                        mindMapContainer.scrollWidth
-                        -
-                        mindMapContainer.clientWidth
-                    )
-                    / 2;
-
-            }
-        );
-
-    } else {
-
-        mindMapContainer.innerHTML =
-            `
-            <div class="mindmap-empty">
-                No mind map was generated.
-            </div>
-            `;
-
-        mindMapEditHint.classList.remove(
-            "visible"
-        );
-
-        mindMapDownloadActions.classList.remove(
-            "visible"
-        );
-
-        mindMapActions.classList.remove(
-            "visible"
-        );
-
-        downloadMindMapBtn.disabled =
-            true;
+        return;
     }
+
+
+    els.mindMapContainer.innerHTML =
+        "";
+
+    els.mindMapContainer.appendChild(
+        root
+    );
+
+    els.mindMapEditHint.classList.add(
+        "visible"
+    );
+
+    els.mindMapDownloadActions.classList.add(
+        "visible"
+    );
+
+    els.downloadMindMapBtn.disabled =
+        false;
+
+    setupMindMapEditor(
+        slot
+    );
+
+    centerMindMap(
+        slot
+    );
 }
 
 
@@ -5285,10 +7372,12 @@ function renderMindMap(
    MIND MAP EDITOR
 ============================================================ */
 
-function setupMindMapEditor() {
+function setupMindMapEditor(
+    slot
+) {
 
     const editableFields =
-        mindMapContainer.querySelectorAll(
+        slot.els.mindMapContainer.querySelectorAll(
             "[data-edit-path]"
         );
 
@@ -5303,7 +7392,7 @@ function setupMindMapEditor() {
                         "mindmap-editable-active"
                     );
 
-                    mindMapActions.classList.add(
+                    slot.els.mindMapActions.classList.add(
                         "visible"
                     );
                 }
@@ -5364,46 +7453,37 @@ function setMindMapPath(
    COLLECT EDITED MIND MAP
 ============================================================ */
 
-function collectEditedMindMap() {
+function collectEditedMindMap(
+    slot
+) {
 
     const edited =
-        JSON.parse(
-            JSON.stringify(
-                currentMindMapData
-                ||
-                {}
-            )
+        deepClone(
+            slot.mindmap
+            ||
+            {}
         );
 
-
-    const editableFields =
-        mindMapContainer.querySelectorAll(
-            "[data-edit-path]"
-        );
-
-
-    editableFields.forEach(
+    slot.els.mindMapContainer.querySelectorAll(
+        "[data-edit-path]"
+    ).forEach(
         field => {
-
-            const path =
-                field.dataset.editPath;
 
             const value =
                 field.innerText
                     .replace(
-                        /\u00a0/g,
+                        / /g,
                         " "
                     )
                     .trim();
 
             setMindMapPath(
                 edited,
-                path,
+                field.dataset.editPath,
                 value
             );
         }
     );
-
 
     return edited;
 }
@@ -5413,10 +7493,20 @@ function collectEditedMindMap() {
    SAVE MIND MAP EDITS
 ============================================================ */
 
-async function saveMindMapEdits() {
+async function saveMindMapEdits(
+    slot
+) {
+
+    const els =
+        slot.els;
+
+    const label =
+        slot.model.label;
 
     const edited =
-        collectEditedMindMap();
+        collectEditedMindMap(
+            slot
+        );
 
 
     if (
@@ -5433,34 +7523,15 @@ async function saveMindMapEdits() {
     }
 
 
-    // Guards against a double-click firing two concurrent saves —
-    // the summary editor's Save Changes already does this; this one
-    // was missing it.
-    saveMindMapBtn.disabled =
+    // Guards against a double-click firing two concurrent saves.
+    els.saveMindMapBtn.disabled =
         true;
-
-
-    currentMindMapData =
-        JSON.parse(
-            JSON.stringify(
-                edited
-            )
-        );
-
-    savedMindMapData =
-        JSON.parse(
-            JSON.stringify(
-                edited
-            )
-        );
 
 
     /* ------------------------------------------------
        Persist to the server, when this mind map is
-       actually a saved meeting (backend/database.py's
-       meetings table). Mirrors the summary editor's
-       save handler so edits survive a reopen from
-       history instead of only living in local JS state.
+       actually a saved meeting — into this model's
+       result only.
     ------------------------------------------------ */
 
     if (
@@ -5488,10 +7559,12 @@ async function saveMindMapEdits() {
                         body:
                             JSON.stringify(
                                 {
+                                    model:
+                                        slot.model.key,
                                     mindmap:
-                                        savedMindMapData,
+                                        edited,
                                     title:
-                                        savedMindMapData.title
+                                        edited.title
                                 }
                             )
                     }
@@ -5520,14 +7593,14 @@ async function saveMindMapEdits() {
         ) {
 
             log(
-                `Mind-map save error: ${error.message}`
+                `Mind-map save error (${label}): ${error.message}`
             );
 
             setStatus(
-                `Mind-map save failed: ${error.message}`
+                `Mind-map save failed (${label}): ${error.message}`
             );
 
-            saveMindMapBtn.disabled =
+            els.saveMindMapBtn.disabled =
                 false;
 
             return;
@@ -5535,29 +7608,36 @@ async function saveMindMapEdits() {
     }
 
 
-    saveMindMapBtn.disabled =
+    slot.mindmapSaved =
+        deepClone(
+            edited
+        );
+
+    els.saveMindMapBtn.disabled =
         false;
 
-
-    mindMapActions.classList.remove(
+    els.mindMapActions.classList.remove(
         "visible"
     );
 
 
     /* Re-render so the saved state is normalized. */
     renderMindMap(
-        savedMindMapData,
+        slot,
+        slot.mindmapSaved,
         false
     );
 
 
     setStatus(
-        "Mind map changes saved."
+        `Mind map changes saved (${label}).`
     );
 
     log(
-        "Mind map fields manually edited and saved."
+        `Mind map fields manually edited and saved (${label}).`
     );
+
+    notifyResultsChanged();
 }
 
 
@@ -5565,44 +7645,205 @@ async function saveMindMapEdits() {
    CANCEL MIND MAP EDITS
 ============================================================ */
 
-function cancelMindMapEdits() {
+function cancelMindMapEdits(
+    slot
+) {
 
     if (
-        savedMindMapData
+        slot.mindmapSaved
     ) {
 
         renderMindMap(
-            savedMindMapData,
+            slot,
+            slot.mindmapSaved,
             false
         );
     }
 
 
-    mindMapActions.classList.remove(
+    slot.els.mindMapActions.classList.remove(
         "visible"
     );
 
 
     setStatus(
-        "Mind map changes cancelled."
+        `Mind map changes cancelled (${slot.model.label}).`
     );
 
     log(
-        "Mind map edits cancelled."
+        `Mind map edits cancelled (${slot.model.label}).`
     );
 }
+
+
+/* ============================================================
+   MIND MAP FULL VIEW (expand)
+   ------------------------------------------------------------
+   Lifts a mind-map panel out of its column into a near-full-
+   viewport overlay. It is the same DOM node, so editing, Save /
+   Cancel and Download keep working exactly as in the column.
+============================================================ */
+
+const mindMapBackdrop =
+    document.createElement(
+        "div"
+    );
+
+mindMapBackdrop.className =
+    "mindmap-backdrop";
+
+mindMapBackdrop.hidden =
+    true;
+
+document.body.appendChild(
+    mindMapBackdrop
+);
+
+let expandedMindMapSlot =
+    null;
+
+
+function updateExpandButton(
+    slot
+) {
+
+    const expanded =
+        slot.els.mindmapPanel.classList.contains(
+            "is-expanded"
+        );
+
+    slot.els.expandBtn.setAttribute(
+        "aria-pressed",
+        String(
+            expanded
+        )
+    );
+
+    slot.els.expandBtn.setAttribute(
+        "aria-label",
+        expanded
+            ? `Exit full view of the ${slot.model.label} mind map`
+            : `Expand the ${slot.model.label} mind map`
+    );
+
+    slot.els.expandBtn.title =
+        expanded
+            ? "Exit full view (Esc)"
+            : "Expand mind map";
+}
+
+
+function setMindMapExpanded(
+    slot,
+    expanded
+) {
+
+    const panel =
+        slot.els.mindmapPanel;
+
+    if (
+        panel.classList.contains(
+            "is-expanded"
+        ) === expanded
+    ) {
+
+        return;
+    }
+
+    if (
+        expanded
+    ) {
+
+        if (
+            expandedMindMapSlot
+        ) {
+
+            setMindMapExpanded(
+                expandedMindMapSlot,
+                false
+            );
+        }
+
+        // Hold the panel's place in the column so nothing around it
+        // jumps while it is lifted out.
+        slot.els.mindmapSpacer.style.height =
+            `${panel.offsetHeight}px`;
+
+        slot.els.mindmapSpacer.hidden =
+            false;
+
+        expandedMindMapSlot =
+            slot;
+
+    } else {
+
+        slot.els.mindmapSpacer.hidden =
+            true;
+
+        if (
+            expandedMindMapSlot === slot
+        ) {
+
+            expandedMindMapSlot =
+                null;
+        }
+    }
+
+    panel.classList.toggle(
+        "is-expanded",
+        expanded
+    );
+
+    mindMapBackdrop.hidden =
+        !expandedMindMapSlot;
+
+    document.body.classList.toggle(
+        "mindmap-expanded",
+        !!expandedMindMapSlot
+    );
+
+    updateExpandButton(
+        slot
+    );
+
+    centerMindMap(
+        slot
+    );
+}
+
+
+mindMapBackdrop.addEventListener(
+    "click",
+    () => {
+
+        if (
+            expandedMindMapSlot
+        ) {
+
+            setMindMapExpanded(
+                expandedMindMapSlot,
+                false
+            );
+        }
+    }
+);
 
 
 /* ============================================================
    DOWNLOAD MIND MAP AS PNG
 ============================================================ */
 
-async function downloadMindMapImage() {
+async function downloadMindMapImage(
+    slot
+) {
+
+    const els =
+        slot.els;
 
     if (
-        !currentMindMapData
+        !slot.mindmap
         ||
-        !currentMindMapData.title
+        !slot.mindmap.title
     ) {
 
         setStatus(
@@ -5630,12 +7871,14 @@ async function downloadMindMapImage() {
 
 
     /* Capture any edits currently visible in the nodes. */
-    currentMindMapData =
-        collectEditedMindMap();
+    slot.mindmap =
+        collectEditedMindMap(
+            slot
+        );
 
 
     if (
-        !currentMindMapData.title
+        !slot.mindmap.title
     ) {
 
         setStatus(
@@ -5647,23 +7890,23 @@ async function downloadMindMapImage() {
 
 
     const originalText =
-        downloadMindMapBtn.textContent;
+        els.downloadMindMapBtn.textContent;
 
 
-    downloadMindMapBtn.disabled =
+    els.downloadMindMapBtn.disabled =
         true;
 
-    downloadMindMapBtn.textContent =
+    els.downloadMindMapBtn.textContent =
         "Preparing Image...";
 
 
     setStatus(
-        "Preparing mind-map image..."
+        `Preparing mind-map image (${slot.model.label})...`
     );
 
 
     log(
-        "Exporting current mind map as PNG."
+        `Exporting the ${slot.model.label} mind map as PNG.`
     );
 
 
@@ -5694,8 +7937,8 @@ async function downloadMindMapImage() {
 
         exportWrapper.style.width =
             `${Math.max(
-                mindMapContainer.scrollWidth,
-                mindMapContainer.clientWidth
+                els.mindMapContainer.scrollWidth,
+                els.mindMapContainer.clientWidth
             ) + 80}px`;
 
         exportWrapper.style.padding =
@@ -5709,7 +7952,7 @@ async function downloadMindMapImage() {
 
 
         const clone =
-            mindMapContainer.cloneNode(
+            els.mindMapContainer.cloneNode(
                 true
             );
 
@@ -5825,14 +8068,14 @@ async function downloadMindMapImage() {
 
         const title =
             sanitizeFilename(
-                currentMindMapData.title
+                slot.mindmap.title
             )
             ||
             "meeting-mind-map";
 
 
         link.download =
-            `${title}_mindmap.png`;
+            `${title}_${sanitizeFilename(slot.model.key)}_mindmap.png`;
 
         link.href =
             canvas.toDataURL(
@@ -5849,11 +8092,11 @@ async function downloadMindMapImage() {
 
 
         setStatus(
-            "Mind map image downloaded."
+            `Mind map image downloaded (${slot.model.label}).`
         );
 
         log(
-            "Mind map PNG download completed."
+            `Mind map PNG download completed (${slot.model.label}).`
         );
 
     } catch (
@@ -5881,181 +8124,11 @@ async function downloadMindMapImage() {
             );
         }
 
-        downloadMindMapBtn.disabled =
+        els.downloadMindMapBtn.disabled =
             false;
 
-        downloadMindMapBtn.textContent =
+        els.downloadMindMapBtn.textContent =
             originalText;
-    }
-}
-
-
-/* ============================================================
-   CREATE MIND MAP
-============================================================ */
-
-async function createMindMap() {
-
-    if (
-        !transcript
-        ||
-        !transcript.trim()
-    ) {
-
-        setStatus(
-            "No transcript available."
-        );
-
-        return;
-    }
-
-
-    if (
-        blockedByGenerationInFlight()
-    ) {
-
-        return;
-    }
-
-
-    beginGeneration(
-        "mindmap"
-    );
-
-
-    setStatus(
-        "Generating mind map with Mistral 128B..."
-    );
-
-
-    mindMapContainer.innerHTML =
-        `
-        <div class="placeholder">
-            Mistral 128B is analyzing the complete transcript...
-        </div>
-        `;
-
-
-    log(
-        "Sending complete transcript to Mistral 128B for mind-map generation."
-    );
-
-
-    try {
-
-        const response =
-            await fetch(
-                "/api/meeting/mindmap",
-                {
-
-                    method:
-                        "POST",
-
-                    headers: {
-
-                        "Content-Type":
-                            "application/json"
-                    },
-
-                    body:
-                        JSON.stringify(
-                            {
-                                transcript:
-                                    transcript,
-                                meeting_id:
-                                    currentMeetingId
-                            }
-                        )
-                }
-            );
-
-
-        const data =
-            await response.json();
-
-
-        if (
-            !response.ok
-        ) {
-
-            throw new Error(
-                data.detail
-                ||
-                data.error
-                ||
-                "Mind-map generation failed."
-            );
-        }
-
-
-        if (
-            !data.success
-        ) {
-
-            throw new Error(
-                data.error
-                ||
-                "Mind-map generation failed."
-            );
-        }
-
-
-        if (
-            data.meeting_id
-            &&
-            !currentMeetingId
-        ) {
-
-            currentMeetingId =
-                data.meeting_id;
-        }
-
-
-        renderMindMap(
-            data.mindmap
-        );
-
-
-        setStatus(
-            "Mind map generated successfully."
-        );
-
-
-        log(
-            "Mind map received from Mistral 128B."
-        );
-
-
-    } catch (
-        error
-    ) {
-
-        log(
-            `Mind-map error: ${error.message}`
-        );
-
-
-        mindMapContainer.innerHTML =
-            `
-            <div class="mindmap-empty">
-                Mind map generation failed:
-                ${escapeHtml(error.message)}
-            </div>
-            `;
-
-
-        setStatus(
-            `Mind-map generation failed: ${error.message}`
-        );
-
-    } finally {
-
-        // Releases the turn. endGeneration() re-opens the button only
-        // when there is still no mind map — once one exists,
-        // regenerating it would silently replace it with different
-        // model output, so changes go through manual field edits
-        // (Save Changes) instead.
-        endGeneration();
     }
 }
 
@@ -6064,10 +8137,12 @@ async function createMindMap() {
    SUMMARY EXPORT
 ============================================================ */
 
-function getExportData() {
+function getExportData(
+    slot
+) {
 
     const data =
-        latestMeetingData || {};
+        slot.intelSaved || {};
 
     return {
 
@@ -6206,12 +8281,29 @@ function sanitizeFilename(
 }
 
 
-function buildMarkdownSummary() {
+/* "<title>_<model>" — keeps two models' downloads of the same
+   meeting from overwriting each other. */
+function exportFileStem(
+    slot,
+    data
+) {
+
+    return `${sanitizeFilename(data.title)}_${sanitizeFilename(slot.model.key)}`;
+}
+
+
+function buildMarkdownSummary(
+    slot
+) {
 
     const data =
-        getExportData();
+        getExportData(
+            slot
+        );
 
     return `# ${data.title}
+
+_Generated by ${slot.model.label} with MeetMind._
 
 ## Objective
 
@@ -6240,15 +8332,21 @@ ${exportList(data.action_items)}
 }
 
 
-function downloadMarkdown() {
+function downloadMarkdown(
+    slot
+) {
 
     const data =
-        getExportData();
+        getExportData(
+            slot
+        );
 
     const blob =
         new Blob(
             [
-                buildMarkdownSummary()
+                buildMarkdownSummary(
+                    slot
+                )
             ],
             {
                 type:
@@ -6270,7 +8368,7 @@ function downloadMarkdown() {
         url;
 
     anchor.download =
-        `${sanitizeFilename(data.title)}.md`;
+        `${exportFileStem(slot, data)}.md`;
 
     document.body.appendChild(
         anchor
@@ -6285,11 +8383,11 @@ function downloadMarkdown() {
     );
 
     setStatus(
-        "Markdown summary downloaded."
+        `Markdown summary downloaded (${slot.model.label}).`
     );
 
     log(
-        "Meeting summary exported as Markdown."
+        `Meeting summary exported as Markdown (${slot.model.label}).`
     );
 }
 
@@ -6387,11 +8485,13 @@ function pdfSection(
 }
 
 
-/* Writes the saved meeting intelligence into a jsPDF doc.
-   Shared by Download PDF and Download Full Report. */
+/* Writes one model's saved meeting intelligence into a jsPDF doc,
+   starting at the top of the current page. Shared by Download PDF
+   and Download Full Report. */
 function writeSummaryPdf(
     doc,
-    data
+    data,
+    modelLabel
 ) {
 
     let y = 20;
@@ -6426,7 +8526,7 @@ function writeSummaryPdf(
     y =
         pdfWrite(
             doc,
-            "MeetMind — AI Meeting Intelligence",
+            `MeetMind — AI Meeting Intelligence — generated by ${modelLabel}`,
             15,
             y,
             doc.internal.pageSize.getWidth() - 30
@@ -6496,7 +8596,9 @@ function writeSummaryPdf(
 }
 
 
-function downloadPdf() {
+function downloadPdf(
+    slot
+) {
 
     if (
         !window.jspdf
@@ -6516,7 +8618,9 @@ function downloadPdf() {
     }
 
     const data =
-        getExportData();
+        getExportData(
+            slot
+        );
 
     const doc =
         new window.jspdf.jsPDF(
@@ -6528,146 +8632,230 @@ function downloadPdf() {
 
     writeSummaryPdf(
         doc,
-        data
+        data,
+        slot.model.label
     );
 
     doc.save(
-        `${sanitizeFilename(data.title)}.pdf`
+        `${exportFileStem(slot, data)}.pdf`
     );
 
     setStatus(
-        "PDF summary downloaded."
+        `PDF summary downloaded (${slot.model.label}).`
     );
 
     log(
-        "Meeting summary exported as PDF."
+        `Meeting summary exported as PDF (${slot.model.label}).`
     );
 }
-
-
-downloadMarkdownBtn.addEventListener(
-    "click",
-    downloadMarkdown
-);
-
-
-downloadPdfBtn.addEventListener(
-    "click",
-    downloadPdf
-);
 
 
 /* ============================================================
    DOWNLOAD FULL REPORT (SUMMARY + MIND MAP IN ONE PDF)
    ------------------------------------------------------------
-   Exports only the SAVED versions — latestMeetingData for the
-   summary and savedMindMapData for the mind map — never text
-   still being typed into either panel. The mind map is rebuilt
-   off-screen from savedMindMapData, so unsaved node edits in
-   the live panel can't leak into the image.
+   The report button opens a menu: one report per model, plus one
+   combined report holding every model in turn. A model is ready
+   once it has both a summary and a mind map.
+
+   Exports only the SAVED versions — intelSaved for the summary
+   and mindmapSaved for the mind map — never text still being
+   typed into a panel. Each mind map is rebuilt off-screen from
+   mindmapSaved, so unsaved node edits in the live panel can't
+   leak into the image.
 ============================================================ */
 
 let fullReportBusy =
     false;
 
 
-function isFullReportReady() {
+function isSlotReportReady(
+    slot
+) {
 
     return !!(
-        currentIntelligenceData
+        slot.intel
         &&
-        latestMeetingData
+        slot.intelSaved
         &&
-        savedMindMapData
+        slot.mindmapSaved
         &&
-        savedMindMapData.title
+        slot.mindmapSaved.title
     );
+}
+
+
+function reportOptions() {
+
+    const slots =
+        [
+            ...modelSlots.values()
+        ];
+
+    const options =
+        slots.map(
+            slot => ({
+                id: slot.model.key,
+                label: `Download ${slot.model.label} report`,
+                slots: [slot]
+            })
+        );
+
+    if (
+        slots.length > 1
+    ) {
+
+        options.push(
+            {
+                id: ALL_MODELS,
+                label: `Download ${slots.map(slot => slot.model.label).join(" + ")} report`,
+                slots: slots
+            }
+        );
+    }
+
+    return options;
 }
 
 
 function updateFullReportAvailability() {
 
-    const ready =
-        isFullReportReady();
+    const anyReady =
+        reportOptions().some(
+            option =>
+                option.slots.every(
+                    isSlotReportReady
+                )
+        );
 
     downloadFullReportBtn.disabled =
-        !ready
+        !anyReady
         ||
         fullReportBusy;
 
     fullReportHint.textContent =
-        ready
-            ? "Meeting intelligence followed by the mind map, in one PDF."
-            : "Create both the summary and the mind map to enable this download.";
+        anyReady
+            ? "Each model's meeting intelligence followed by its mind map, in one PDF — per model, or all models combined."
+            : "Generate a summary and a mind map with at least one model to enable this download.";
+
+    if (
+        downloadFullReportBtn.disabled
+    ) {
+
+        reportDropdown.close();
+
+    } else {
+
+        reportDropdown.refresh();
+    }
 }
 
 
 /*
- * Every change to either output (generate, open from history,
- * new recording, reset) re-renders that panel's contents, so
- * watching the panels' direct children keeps the button in step
- * without hooking each of those code paths. Typing inside an
- * editable field only changes deeper descendants, so it doesn't
- * fire this.
+ * Each slot's panels are observed in createModelSlot(). Every change
+ * to either output (generate, open from history, new recording,
+ * reset) re-renders that panel's contents, so watching the panels'
+ * direct children keeps the menu in step without hooking each of
+ * those code paths. Typing inside an editable field only changes
+ * deeper descendants, so it doesn't fire this.
  */
 const fullReportObserver =
     new MutationObserver(
         updateFullReportAvailability
     );
 
-[
-    intelligenceEl,
-    mindMapContainer
-].forEach(
-    element => {
 
-        fullReportObserver.observe(
-            element,
-            {
-                childList:
-                    true
-            }
-        );
-    }
-);
+function renderReportMenu(
+    menu
+) {
 
-updateFullReportAvailability();
+    menu.innerHTML =
+        "";
+
+    reportOptions().forEach(
+        option => {
+
+            const ready =
+                option.slots.every(
+                    isSlotReportReady
+                );
+
+            const combined =
+                option.slots.length > 1;
+
+            menu.appendChild(
+                dropdownItem(
+                    {
+                        value: option.id,
+                        label: option.label,
+                        meta: ready
+                            ? (combined ? "One PDF, every model in turn" : "Summary + mind map")
+                            : (combined ? "Needs a summary and mind map from every model" : "Needs a summary and mind map"),
+                        disabled: !ready,
+                        onSelect: () => {
+
+                            reportDropdown.close();
+
+                            downloadFullReport(
+                                option.slots
+                            );
+                        }
+                    }
+                )
+            );
+        }
+    );
+}
+
+
+const reportDropdown =
+    createDropdown(
+        downloadFullReportBtn,
+        reportMenu,
+        renderReportMenu
+    );
 
 
 /* Which panels have edits typed in but not yet saved. */
-function getUnsavedEdits() {
+function getUnsavedEdits(
+    slots
+) {
 
     const pending =
         [];
 
-    const summaryActions =
-        document.getElementById(
-            "summaryActions"
-        );
+    slots.forEach(
+        slot => {
 
-    if (
-        summaryActions
-        &&
-        summaryActions.classList.contains(
-            "visible"
-        )
-    ) {
+            const summaryActions =
+                slot.els.intelligence.querySelector(
+                    ".intel-actions"
+                );
 
-        pending.push(
-            "Meeting Intelligence (summary)"
-        );
-    }
+            if (
+                summaryActions
+                &&
+                summaryActions.classList.contains(
+                    "visible"
+                )
+            ) {
 
-    if (
-        mindMapActions.classList.contains(
-            "visible"
-        )
-    ) {
+                pending.push(
+                    `Meeting Intelligence (${slot.model.label})`
+                );
+            }
 
-        pending.push(
-            "Mind Map"
-        );
-    }
+            if (
+                slot.els.mindMapActions.classList.contains(
+                    "visible"
+                )
+            ) {
+
+                pending.push(
+                    `Mind Map (${slot.model.label})`
+                );
+            }
+        }
+    );
 
     return pending;
 }
@@ -6747,7 +8935,7 @@ async function confirmUnsavedEdits(
 }
 
 
-/* Renders savedMindMapData off-screen and captures it as a canvas. */
+/* Renders a saved mind map off-screen and captures it as a canvas. */
 async function renderSavedMindMapCanvas(
     mindmap
 ) {
@@ -6924,7 +9112,8 @@ async function renderSavedMindMapCanvas(
  */
 function addMindMapPdfPages(
     doc,
-    canvas
+    canvas,
+    heading = "Mind Map"
 ) {
 
     const orientation =
@@ -6956,7 +9145,7 @@ function addMindMapPdfPages(
     );
 
     doc.text(
-        "Mind Map",
+        heading,
         margin,
         20
     );
@@ -6991,9 +9180,10 @@ function addMindMapPdfPages(
 
         doc.addImage(
             canvas.toDataURL(
-                "image/png"
+                "image/jpeg",
+                0.92
             ),
-            "PNG",
+            "JPEG",
             (pageWidth - width) / 2,
             top,
             width,
@@ -7052,9 +9242,10 @@ function addMindMapPdfPages(
 
         doc.addImage(
             slice.toDataURL(
-                "image/png"
+                "image/jpeg",
+                0.92
             ),
-            "PNG",
+            "JPEG",
             margin,
             y,
             maxWidth,
@@ -7080,10 +9271,156 @@ function addMindMapPdfPages(
 }
 
 
-async function downloadFullReport() {
+/* ------------------------------------------------------------
+   Saving a built report.
+   The file is built asynchronously (rendering each mind map takes a
+   moment), so by the time it is ready the browser may no longer
+   count the download as caused by the user's click and can drop it
+   without any message. So the report is also kept behind a Save
+   button: a click on it is a fresh user action and always allowed.
+------------------------------------------------------------ */
+
+let reportReadyUrl =
+    null;
+
+
+function clearReportReady() {
 
     if (
-        !isFullReportReady()
+        reportReadyUrl
+    ) {
+
+        URL.revokeObjectURL(
+            reportReadyUrl
+        );
+
+        reportReadyUrl =
+            null;
+    }
+
+    reportReady.hidden =
+        true;
+
+    reportReadyBtn.onclick =
+        null;
+}
+
+
+function saveFile(
+    url,
+    fileName
+) {
+
+    const anchor =
+        document.createElement(
+            "a"
+        );
+
+    anchor.href =
+        url;
+
+    anchor.download =
+        fileName;
+
+    anchor.rel =
+        "noopener";
+
+    document.body.appendChild(
+        anchor
+    );
+
+    anchor.click();
+
+    anchor.remove();
+}
+
+
+/* True inside an iframe or an embedded browser (such as an editor's
+   preview pane), where downloads are usually blocked. */
+function isEmbeddedBrowser() {
+
+    return (
+        window.self !== window.top
+        ||
+        /Electron\//.test(
+            navigator.userAgent
+        )
+    );
+}
+
+
+function offerReportDownload(
+    blob,
+    fileName
+) {
+
+    clearReportReady();
+
+    reportReadyUrl =
+        URL.createObjectURL(
+            blob
+        );
+
+    const url =
+        reportReadyUrl;
+
+    const size =
+        `${(blob.size / 1048576).toFixed(1)} MB`;
+
+    reportReadyText.textContent =
+        "Report ready — didn't download? Open it and save it from the PDF viewer:";
+
+    reportReadyBtn.textContent =
+        `Open ${fileName} (${size})`;
+
+    // Opens the PDF in a new tab (the browser's PDF viewer, which has
+    // its own save and print buttons) instead of downloading it, so it
+    // still works where the browser refuses downloads from this page.
+    reportReadyBtn.onclick =
+        () => {
+
+            const tab =
+                window.open(
+                    url,
+                    "_blank"
+                );
+
+            if (
+                !tab
+            ) {
+
+                saveFile(
+                    url,
+                    fileName
+                );
+            }
+        };
+
+    reportReady.hidden =
+        false;
+
+    // The automatic attempt.
+    saveFile(
+        url,
+        fileName
+    );
+}
+
+
+async function downloadFullReport(
+    slots
+) {
+
+    const ready =
+        () =>
+            slots.length > 0
+            &&
+            slots.every(
+                isSlotReportReady
+            );
+
+    if (
+        !ready()
     ) {
 
         setStatus(
@@ -7114,7 +9451,9 @@ async function downloadFullReport() {
 
 
     const pending =
-        getUnsavedEdits();
+        getUnsavedEdits(
+            slots
+        );
 
     if (
         pending.length
@@ -7138,7 +9477,7 @@ async function downloadFullReport() {
 
         /* Something may have been reset while the dialog was open. */
         if (
-            !isFullReportReady()
+            !ready()
         ) {
 
             return;
@@ -7146,72 +9485,157 @@ async function downloadFullReport() {
     }
 
 
-    const data =
-        getExportData();
+    const startedAt =
+        performance.now();
 
-    const mindmap =
-        JSON.parse(
-            JSON.stringify(
-                savedMindMapData
-            )
+    const sections =
+        slots.map(
+            slot => ({
+                slot: slot,
+                data: getExportData(slot),
+                mindmap: deepClone(slot.mindmapSaved)
+            })
         );
 
+    const labels =
+        slots
+            .map(
+                slot => slot.model.label
+            )
+            .join(
+                " + "
+            );
+
     const originalText =
-        downloadFullReportBtn.textContent;
+        reportTriggerLabel.textContent;
 
     fullReportBusy =
         true;
 
     updateFullReportAvailability();
 
-    downloadFullReportBtn.textContent =
+    reportTriggerLabel.textContent =
         "Preparing Report...";
 
     setStatus(
-        "Preparing full meeting report..."
+        `Preparing full meeting report (${labels})...`
     );
 
     log(
-        "Exporting summary and mind map as one PDF."
+        `Exporting summary and mind map as one PDF (${labels}).`
     );
 
 
     try {
 
-        const canvas =
-            await renderSavedMindMapCanvas(
-                mindmap
-            );
+        clearReportReady();
 
         const doc =
             new window.jspdf.jsPDF(
                 {
                     unit: "mm",
-                    format: "a4"
+                    format: "a4",
+                    compress: true
                 }
             );
 
-        writeSummaryPdf(
-            doc,
-            data
+        for (
+            let i = 0;
+            i < sections.length;
+            i++
+        ) {
+
+            const section =
+                sections[i];
+
+            const canvas =
+                await renderSavedMindMapCanvas(
+                    section.mindmap
+                );
+
+            // Each further model starts on a fresh portrait page.
+            if (
+                i > 0
+            ) {
+
+                doc.addPage(
+                    "a4",
+                    "portrait"
+                );
+            }
+
+            writeSummaryPdf(
+                doc,
+                section.data,
+                section.slot.model.label
+            );
+
+            addMindMapPdfPages(
+                doc,
+                canvas,
+                `Mind Map — ${section.slot.model.label}`
+            );
+        }
+
+        const fileName =
+            sections.length > 1
+                ? `${sanitizeFilename(sections[0].data.title)}_combined_full_report.pdf`
+                : `${exportFileStem(sections[0].slot, sections[0].data)}_full_report.pdf`;
+
+        const blob =
+            doc.output(
+                "blob"
+            );
+
+        const seconds =
+            (
+                performance.now()
+                -
+                startedAt
+            ) / 1000;
+
+        offerReportDownload(
+            blob,
+            fileName
         );
 
-        addMindMapPdfPages(
-            doc,
-            canvas
-        );
-
-        doc.save(
-            `${sanitizeFilename(data.title)}_full_report.pdf`
-        );
-
-        setStatus(
-            "Full meeting report downloaded."
-        );
+        const sizeLabel =
+            `${(blob.size / 1048576).toFixed(1)} MB`;
 
         log(
-            "Summary and mind map exported as one PDF."
+            `Report built in ${seconds.toFixed(1)} s (${sizeLabel}, ${labels}) and sent to the browser to save.`
         );
+
+        if (
+            isEmbeddedBrowser()
+        ) {
+
+            setStatus(
+                "Report ready, but this page is running inside an embedded window, where downloads are usually blocked. Open MeetMind in a normal browser tab to save it."
+            );
+
+            log(
+                "Embedded browser detected: the browser is likely to block the download."
+            );
+
+        } else if (
+            seconds > 4
+        ) {
+
+            setStatus(
+                `Report ready (${labels}). Building took ${seconds.toFixed(0)} s, so the browser may have blocked the automatic download. Use the Open button under Meeting Report.`
+            );
+
+            log(
+                "Building took longer than the browser's window for automatic downloads. Use the Open button."
+            );
+
+        } else {
+
+            setStatus(
+                `Report ready (${labels}). If nothing downloaded, use the Open button under Meeting Report.`
+            );
+        }
 
     } catch (
         error
@@ -7230,18 +9654,12 @@ async function downloadFullReport() {
         fullReportBusy =
             false;
 
-        downloadFullReportBtn.textContent =
+        reportTriggerLabel.textContent =
             originalText;
 
         updateFullReportAvailability();
     }
 }
-
-
-downloadFullReportBtn.addEventListener(
-    "click",
-    downloadFullReport
-);
 
 
 /* ============================================================
@@ -7377,49 +9795,82 @@ recordBtn.addEventListener(
 );
 
 
-summaryBtn.addEventListener(
+generateBtn.addEventListener(
     "click",
     function() {
 
-        createSummary();
+        generateSelected();
     }
 );
 
 
-mindMapBtn.addEventListener(
-    "click",
-    function() {
+/* Escape closes an open dropdown first, then a full-view mind map. */
+document.addEventListener(
+    "keydown",
+    function(event) {
 
-        createMindMap();
+        if (
+            event.key !== "Escape"
+        ) {
+
+            return;
+        }
+
+        const openDropdown =
+            dropdowns.find(
+                dropdown => dropdown.isOpen()
+            );
+
+        if (
+            openDropdown
+        ) {
+
+            openDropdown.close(
+                true
+            );
+
+            return;
+        }
+
+        if (
+            expandedMindMapSlot
+            &&
+            !newMeetingOverlay.classList.contains(
+                "visible"
+            )
+        ) {
+
+            const slot =
+                expandedMindMapSlot;
+
+            setMindMapExpanded(
+                slot,
+                false
+            );
+
+            slot.els.expandBtn.focus();
+        }
     }
 );
 
 
-downloadMindMapBtn.addEventListener(
-    "click",
-    function() {
+/* ============================================================
+   MODEL SLOTS — STARTUP
+   Built from the fallback list so the page is usable at once,
+   then brought in line with GET /api/models.
+============================================================ */
 
-        downloadMindMapImage();
-    }
+FALLBACK_MODELS.forEach(
+    createModelSlot
 );
 
+renderModelPicker();
 
-saveMindMapBtn.addEventListener(
-    "click",
-    function() {
+applyModelSelection();
 
-        saveMindMapEdits();
-    }
-);
+updateFullReportAvailability();
 
-
-cancelMindMapBtn.addEventListener(
-    "click",
-    function() {
-
-        cancelMindMapEdits();
-    }
-);
+loadModelCatalog();
 
 
 </script>
@@ -7539,20 +9990,57 @@ cancelMindMapBtn.addEventListener(
    lives here because loading a saved meeting means reusing this
    file's own renderers and state -- so the saved meeting appears
    in exactly the same panels, styled exactly the same way, as one
-   that was just recorded. Nothing above is modified.
+   that was just recorded.
 ============================================================ */
 
 const pristineTranscriptHTML =
     transcriptEl.innerHTML;
 
-const pristineIntelligenceHTML =
-    intelligenceEl.innerHTML;
+
+/* {model: {summary, mindmap}} from GET /api/meetings/{id}. Falls
+   back to the pre-multi-model summary/mindmap fields, filed under
+   the first model. */
+function savedMeetingResults(
+    meeting
+) {
+
+    if (
+        meeting.results
+        &&
+        typeof meeting.results === "object"
+    ) {
+
+        return meeting.results;
+    }
+
+    if (
+        meeting.summary
+        ||
+        meeting.mindmap
+    ) {
+
+        return {
+            [slotForModel(null).model.key]: {
+                summary: meeting.summary || null,
+                mindmap: meeting.mindmap || null
+            }
+        };
+    }
+
+    return {};
+}
 
 
 window.meetmindHistory = {
 
     /* Show a saved meeting in the live panels. */
     load: function (meeting) {
+
+        // Results still being generated belong to the meeting being
+        // replaced; they must not land in this one's panels.
+        sessionEpoch++;
+
+        clearReportReady();
 
         transcript =
             (meeting.transcript || "").trim();
@@ -7566,51 +10054,93 @@ window.meetmindHistory = {
 
         resetTranscriptSearch();
 
-        // Once a meeting has a summary and/or mind map, its Create
-        // button stays disabled for that piece — regeneration would
-        // silently replace existing content with different model
-        // output. Only the piece that's still missing stays available
-        // to generate; anything already there can only be hand-edited.
-        summaryBtn.disabled =
-            !transcript
-            ||
-            !!meeting.summary;
-
-        mindMapBtn.disabled =
-            !transcript
-            ||
-            !!meeting.mindmap;
-
-        if (meeting.summary) {
-
-            renderIntelligence(
-                {
-                    ...meeting.summary,
-                    title:
-                        meeting.title
-                        ||
-                        meeting.summary.title,
-                    transcript: transcript
-                },
-                true
+        const results =
+            savedMeetingResults(
+                meeting
             );
 
-        } else {
+        Object.keys(results).forEach(
+            ensureSlot
+        );
 
-            // Clear it alongside the panel — endGeneration() reads this
-            // to decide whether Create Summary may re-open, and the
-            // previously viewed meeting's summary must not stand in for
-            // this one's.
-            currentIntelligenceData =
-                null;
+        renderModelPicker();
 
-            intelligenceEl.innerHTML =
-                pristineIntelligenceHTML;
+        // Each model shows what it saved. A model with nothing saved
+        // stays ready to generate, so a model not used when the
+        // meeting was recorded can still be run on it now. Anything
+        // already there can only be hand-edited (see
+        // pendingGenerations).
+        modelSlots.forEach(
+            slot => {
+
+                const result =
+                    results[slot.model.key] || {};
+
+                resetSlot(
+                    slot,
+                    "ready"
+                );
+
+                if (result.summary) {
+
+                    renderIntelligence(
+                        slot,
+                        {
+                            ...result.summary,
+                            transcript: transcript
+                        },
+                        true
+                    );
+
+                    setGenerationStatus(
+                        slot,
+                        "summary",
+                        "done"
+                    );
+                }
+
+                if (result.mindmap) {
+
+                    renderMindMap(
+                        slot,
+                        result.mindmap
+                    );
+
+                    if (slot.mindmap) {
+
+                        setGenerationStatus(
+                            slot,
+                            "mindmap",
+                            "done"
+                        );
+                    }
+                }
+            }
+        );
+
+        // Make sure every model with saved results is on screen.
+        const withResults =
+            [
+                ...modelSlots.values()
+            ].filter(
+                slot => results[slot.model.key]
+            );
+
+        if (
+            withResults.some(
+                slot => !selectedSlots().includes(slot)
+            )
+        ) {
+
+            selectedModelValue =
+                withResults.length === 1
+                    ? withResults[0].model.key
+                    : ALL_MODELS;
+
+            renderModelPicker();
         }
 
-        renderMindMap(
-            meeting.mindmap || null
-        );
+        applyModelSelection();
 
         setStatus(
             "Viewing a saved meeting."
@@ -7620,53 +10150,29 @@ window.meetmindHistory = {
     /* Put the panels back to their untouched, ready-to-record state. */
     reset: function () {
 
+        sessionEpoch++;
+
+        clearReportReady();
+
         transcript =
             "";
 
         currentMeetingId =
             null;
 
-        currentIntelligenceData =
-            null;
-
-        currentMindMapData =
-            null;
-
-        savedMindMapData =
-            null;
-
-        generationInFlight =
-            null;
-
         transcriptEl.innerHTML =
             pristineTranscriptHTML;
 
-        intelligenceEl.innerHTML =
-            pristineIntelligenceHTML;
-
         resetTranscriptSearch();
 
-        summaryBtn.disabled =
-            true;
-
-        mindMapBtn.disabled =
-            !transcript;
-
-        mindMapContainer.innerHTML =
-            `
-            <div class="placeholder">
-                Mind map will be generated
-                after transcription.
-            </div>
-            `;
-
-        editHint.classList.remove(
-            "visible"
+        modelSlots.forEach(
+            slot => resetSlot(
+                slot,
+                "ready"
+            )
         );
 
-        downloadActions.classList.remove(
-            "visible"
-        );
+        updateGenerateButton();
 
         setStatus(
             "Ready"
@@ -7679,20 +10185,20 @@ window.meetmindHistory = {
         return isRecording;
     },
 
-    /* True while a summary or mind map is still being generated.
-       Opening a saved meeting mid-generation would swap
-       currentMeetingId out from under the request still in flight, so
-       the drawer asks first. */
+    /* True while any model's summary or mind map is still being
+       generated. Opening a saved meeting mid-generation leaves that
+       result out of the panels (it is still saved to the meeting it
+       was generated for), so the drawer asks first. */
     isGenerating: function () {
 
-        return generationInFlight !== null;
+        return isAnyGenerating();
     }
 };
 
 
 </script>
 
-<script src="/assets/dialog.js?v=2"></script>
-<script src="/assets/history.js?v=5"></script>
+<script src="/assets/dialog.js?v=3"></script>
+<script src="/assets/history.js?v=6"></script>
 </body>
 </html>

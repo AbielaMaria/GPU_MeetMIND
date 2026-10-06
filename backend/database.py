@@ -75,6 +75,7 @@ def init_db():
             "ON meetings(user_id, created_at DESC)"
         )
         _migrate_meetings_mindmap_column(conn)
+        _create_meeting_results_table(conn)
 
 
 def _migrate_users_otp_columns(conn):
@@ -128,6 +129,45 @@ def _migrate_meetings_mindmap_column(conn):
         return
 
     conn.execute("ALTER TABLE meetings ADD COLUMN mindmap_json TEXT")
+
+
+def _create_meeting_results_table(conn):
+    """
+    One row per (meeting, LLM) pair: the summary and mind map that model
+    produced for that meeting. The composite primary key is what keeps a
+    meeting from ever holding two results for the same model — generating
+    again, or hand-edits, update that row in place.
+
+    The first time this table is created on an existing database, every
+    meeting's legacy meetings.summary_json / meetings.mindmap_json is
+    copied in as a "mistral" result, since Mistral was the only model
+    before results were stored per model. Those legacy columns are left
+    untouched (as a pre-migration snapshot) and are no longer read or
+    written by the app.
+    """
+    already_exists = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'meeting_results'"
+    ).fetchone()
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS meeting_results (
+            meeting_id INTEGER NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+            model TEXT NOT NULL,
+            summary_json TEXT,
+            mindmap_json TEXT,
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY (meeting_id, model)
+        )
+    """)
+
+    if already_exists:
+        return
+
+    conn.execute(
+        "INSERT INTO meeting_results (meeting_id, model, summary_json, mindmap_json, updated_at) "
+        "SELECT id, 'mistral', summary_json, mindmap_json, created_at FROM meetings "
+        "WHERE summary_json IS NOT NULL OR mindmap_json IS NOT NULL"
+    )
 
 
 # ============================================================
@@ -254,46 +294,41 @@ def delete_sessions_for_user(user_id):
 # MEETINGS
 # ============================================================
 
-def create_meeting(user_id, title, transcript, summary_json, mindmap_json=None):
-    created_at = datetime.now(timezone.utc).isoformat()
-    with _connect() as conn:
-        cur = conn.execute(
-            "INSERT INTO meetings (user_id, title, transcript, summary_json, mindmap_json, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            (user_id, title, transcript, summary_json, mindmap_json, created_at),
-        )
-        meeting_id = cur.lastrowid
-    return get_meeting(meeting_id)
-
-
-def find_recent_meeting_by_transcript(user_id, transcript, within_hours=6):
+def find_or_create_meeting(user_id, transcript, title="Untitled Meeting", within_hours=6):
     """
     The id of this user's most recent meeting holding exactly this
-    transcript, or None.
+    transcript, creating that meeting if there is none.
 
-    Both /api/meeting/summarize and /api/meeting/mindmap open the meeting
-    row lazily, so when they run against the same recording at the same
-    time neither one knows about the row the other has just inserted.
-    Looking the recording up by its own transcript lets the second one
-    join that row instead of logging the same meeting twice. The time
+    /api/meeting/summarize and /api/meeting/mindmap open the meeting row
+    lazily, once per model, so a "generate with every model" click sends
+    several requests for the same recording at once — none of which
+    knows about the row another has just inserted. Looking the recording
+    up by its own transcript lets every one of them land on the same row,
+    and BEGIN IMMEDIATE takes SQLite's write lock before that lookup, so
+    two requests can't both miss the row and both insert it. The time
     window keeps an unrelated old meeting that happens to share a very
     short transcript out of it.
     """
-    if not transcript:
-        return None
-
     cutoff = (
         datetime.now(timezone.utc) - timedelta(hours=within_hours)
     ).isoformat()
 
     with _connect() as conn:
+        conn.execute("BEGIN IMMEDIATE")
         row = conn.execute(
             "SELECT id FROM meetings "
             "WHERE user_id = ? AND transcript = ? AND created_at >= ? "
             "ORDER BY created_at DESC LIMIT 1",
             (user_id, transcript, cutoff),
         ).fetchone()
-        return row["id"] if row else None
+        if row:
+            return row["id"]
+
+        cur = conn.execute(
+            "INSERT INTO meetings (user_id, title, transcript, created_at) VALUES (?, ?, ?, ?)",
+            (user_id, title, transcript, datetime.now(timezone.utc).isoformat()),
+        )
+        return cur.lastrowid
 
 
 def get_meeting(meeting_id):
@@ -309,7 +344,7 @@ def get_meeting(meeting_id):
 
 
 def update_meeting(meeting_id, **fields):
-    """Patch title/summary_json (or any column) on an existing meeting."""
+    """Patch the title (or any column) on an existing meeting."""
     if not fields:
         return get_meeting(meeting_id)
     columns = ", ".join(f"{key} = ?" for key in fields)
@@ -327,8 +362,14 @@ def list_meetings(user_id=None):
     """
     query = (
         "SELECT meetings.id, meetings.title, meetings.created_at, meetings.user_id, "
-        "meetings.summary_json IS NOT NULL AS has_summary, "
-        "meetings.mindmap_json IS NOT NULL AS has_mindmap, "
+        "EXISTS (SELECT 1 FROM meeting_results r WHERE r.meeting_id = meetings.id "
+        "AND r.summary_json IS NOT NULL) AS has_summary, "
+        "EXISTS (SELECT 1 FROM meeting_results r WHERE r.meeting_id = meetings.id "
+        "AND r.mindmap_json IS NOT NULL) AS has_mindmap, "
+        # "model:SM" per model with a result — S/M are 1/0 for summary/mind map.
+        "(SELECT GROUP_CONCAT(r.model || ':' || (r.summary_json IS NOT NULL) "
+        "|| (r.mindmap_json IS NOT NULL)) FROM meeting_results r "
+        "WHERE r.meeting_id = meetings.id) AS result_models, "
         "LENGTH(meetings.transcript) AS transcript_chars, "
         "users.username AS username, users.email AS email "
         "FROM meetings JOIN users ON users.id = meetings.user_id "
@@ -341,3 +382,50 @@ def list_meetings(user_id=None):
 
     with _connect() as conn:
         return [dict(r) for r in conn.execute(query, params).fetchall()]
+
+
+# ============================================================
+# PER-MODEL RESULTS
+# ============================================================
+
+def get_meeting_results(meeting_id):
+    """{model: {"summary_json": ..., "mindmap_json": ...}} for one meeting."""
+    with _connect() as conn:
+        rows = conn.execute(
+            "SELECT model, summary_json, mindmap_json FROM meeting_results WHERE meeting_id = ?",
+            (meeting_id,),
+        ).fetchall()
+        return {
+            row["model"]: {
+                "summary_json": row["summary_json"],
+                "mindmap_json": row["mindmap_json"],
+            }
+            for row in rows
+        }
+
+
+def save_meeting_result(meeting_id, model, **fields):
+    """
+    Upsert one model's result for a meeting. Only the columns passed
+    (summary_json and/or mindmap_json) are written, so saving a mind map
+    never clears that model's summary and vice versa.
+    """
+    allowed = {"summary_json", "mindmap_json"}
+    unknown = set(fields) - allowed
+    if unknown:
+        raise ValueError(f"Unknown meeting_results columns: {sorted(unknown)}")
+    if not fields:
+        return
+
+    updated_at = datetime.now(timezone.utc).isoformat()
+    columns = list(fields)
+    assignments = ", ".join(f"{col} = excluded.{col}" for col in columns)
+
+    with _connect() as conn:
+        conn.execute(
+            f"INSERT INTO meeting_results (meeting_id, model, {', '.join(columns)}, updated_at) "
+            f"VALUES (?, ?, {', '.join('?' for _ in columns)}, ?) "
+            f"ON CONFLICT(meeting_id, model) DO UPDATE SET {assignments}, "
+            "updated_at = excluded.updated_at",
+            [meeting_id, model, *fields.values(), updated_at],
+        )
