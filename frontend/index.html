@@ -3662,9 +3662,10 @@ function stopTimer() {
 }
 
 
-/* A meeting's length for display: "45 sec", "38 min", "1 h 12 min".
-   Empty when the length isn't known (meetings saved before durations
-   were recorded). */
+/* A meeting's length for display, down to the second: "45 sec",
+   "5 min 43 sec", "1 h 12 min 5 sec". A unit that is zero is left
+   out ("38 min"). Empty when the length isn't known (meetings saved
+   before durations were recorded). */
 function formatDuration(
     seconds
 ) {
@@ -3693,16 +3694,36 @@ function formatDuration(
             (total % 3600) / 60
         );
 
+    const secs =
+        total % 60;
+
+    const parts =
+        [];
+
     if (hours) {
 
-        return minutes
-            ? `${hours} h ${minutes} min`
-            : `${hours} h`;
+        parts.push(
+            `${hours} h`
+        );
     }
 
-    return minutes
-        ? `${minutes} min`
-        : `${total} sec`;
+    if (minutes) {
+
+        parts.push(
+            `${minutes} min`
+        );
+    }
+
+    if (secs) {
+
+        parts.push(
+            `${secs} sec`
+        );
+    }
+
+    return parts.join(
+        " "
+    );
 }
 
 

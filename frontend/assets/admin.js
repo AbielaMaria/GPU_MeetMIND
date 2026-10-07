@@ -647,15 +647,20 @@
             ", " + d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
     }
 
-    /* Recording length: "45 sec", "38 min", "1 h 12 min". Empty for
-       meetings saved before durations were recorded. */
+    /* Recording length down to the second: "45 sec", "5 min 43 sec",
+       "1 h 12 min 5 sec". A unit that is zero is left out ("38 min").
+       Empty for meetings saved before durations were recorded. */
     function fmtDuration(seconds) {
         var total = Math.round(Number(seconds));
         if (!total || total < 0) return "";
         var h = Math.floor(total / 3600);
         var m = Math.floor((total % 3600) / 60);
-        if (h) return m ? h + " h " + m + " min" : h + " h";
-        return m ? m + " min" : total + " sec";
+        var s = total % 60;
+        var parts = [];
+        if (h) parts.push(h + " h");
+        if (m) parts.push(m + " min");
+        if (s) parts.push(s + " sec");
+        return parts.join(" ");
     }
 
     function api(path) {
