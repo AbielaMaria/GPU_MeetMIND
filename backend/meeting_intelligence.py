@@ -1,50 +1,701 @@
+# """
+# MeetMind - Meeting Intelligence
+# Mistral 128B API and Qwen3-27B API
+# Meeting summary, action items, timeline, and hierarchical mindmap.
+# """
+
+# import json
+# import os
+# import re
+# from typing import Optional
+
+# import requests
+# from pydantic import BaseModel, Field
+
+# from mistral_client import call_mistral, MISTRAL_MODEL as DEFAULT_MISTRAL_MODEL
+
+
+# # ============================================================
+# # CONFIGURATION
+# # ============================================================
+
+# MISTRAL_MODEL = os.getenv("MISTRAL_MODEL", DEFAULT_MISTRAL_MODEL)
+
+# QWEN_API_URL = os.getenv(
+#     "QWEN_API_URL",
+#     "http://115.112.206.245/api/chat/completions",
+# )
+# QWEN_API_KEY = os.getenv("QWEN_API_KEY", "")
+# QWEN_MODEL = os.getenv("QWEN_MODEL", "ai-switch.qwen3-27b")
+
+# JSON_ONLY_INSTRUCTION = """
+# Return exactly one valid JSON object.
+# Do not include your thinking process, reasoning, introduction,
+# Markdown fences, or explanatory text before or after the JSON.
+# Use double quotes for JSON keys and strings.
+# Do not use trailing commas.
+# """
+
+
+# # ============================================================
+# # PYDANTIC SCHEMAS
+# # ============================================================
+
+# class Task(BaseModel):
+#     task: str
+#     assignee: Optional[str] = None
+#     deadline: Optional[str] = None
+
+
+# class TimelineItem(BaseModel):
+#     action: str
+#     date: str
+
+
+# class MindMapNode(BaseModel):
+#     title: str
+#     children: list["MindMapNode"] = Field(default_factory=list)
+
+
+# class MeetingResult(BaseModel):
+#     title: str
+#     objective: str
+#     meeting_summary: str
+#     tasks_assigned: list[Task]
+#     decision_points: list[str]
+#     objections: list[str]
+#     action_items: list[str]
+#     timeline: list[TimelineItem]
+
+
+# # ============================================================
+# # QWEN3-27B CLOUD API
+# # ============================================================
+
+# def _call_qwen(
+#     *,
+#     system_prompt: str,
+#     user_prompt: str,
+#     temperature: float = 0.0,
+#     max_tokens: int = 4096,
+# ) -> str:
+#     """Call the configured Qwen3-27B API."""
+
+#     if not QWEN_API_URL:
+#         raise RuntimeError("QWEN_API_URL is not configured.")
+
+#     if not QWEN_API_KEY:
+#         raise RuntimeError("QWEN_API_KEY is not configured.")
+
+#     headers = {
+#         "Authorization": f"Bearer {QWEN_API_KEY}",
+#         "Content-Type": "application/json",
+#     }
+
+#     payload = {
+#         "model": QWEN_MODEL,
+#         "messages": [
+#             {
+#                 "role": "system",
+#                 "content": system_prompt + "\n\n" + JSON_ONLY_INSTRUCTION,
+#             },
+#             {
+#                 "role": "user",
+#                 "content": user_prompt + "\n\n" + JSON_ONLY_INSTRUCTION,
+#             },
+#         ],
+#         "temperature": temperature,
+#         "max_tokens": max_tokens,
+#     }
+
+#     try:
+#         response = requests.post(
+#             QWEN_API_URL,
+#             headers=headers,
+#             json=payload,
+#             timeout=300,
+#         )
+#         response.raise_for_status()
+#         data = response.json()
+
+#     except requests.RequestException as exc:
+#         raise RuntimeError(
+#             f"Qwen API request failed: {exc}"
+#         ) from exc
+
+#     except ValueError as exc:
+#         raise RuntimeError(
+#             "Qwen API returned an invalid HTTP JSON response."
+#         ) from exc
+
+#     try:
+#         content = data["choices"][0]["message"]["content"]
+#     except (KeyError, IndexError, TypeError) as exc:
+#         raise RuntimeError(
+#             f"Unexpected Qwen API response structure: {data}"
+#         ) from exc
+
+#     if not isinstance(content, str) or not content.strip():
+#         raise RuntimeError("Qwen API returned an empty response.")
+
+#     return content.strip()
+
+
+# # ============================================================
+# # ROBUST JSON EXTRACTION
+# # ============================================================
+
+# def _remove_thinking_content(text: str) -> str:
+#     """Remove common reasoning sections and surrounding Markdown."""
+
+#     text = re.sub(
+#         r"<think\b[^>]*>.*?</think\s*>",
+#         "",
+#         text,
+#         flags=re.IGNORECASE | re.DOTALL,
+#     )
+
+#     text = re.sub(
+#         r"<think\b[^>]*>.*$",
+#         "",
+#         text,
+#         flags=re.IGNORECASE | re.DOTALL,
+#     )
+
+#     text = re.sub(
+#         r"```(?:json|JSON)?[ \t]*",
+#         "",
+#         text,
+#     )
+
+#     text = text.replace("```", "")
+
+#     return text.strip()
+
+
+# def _extract_json_object(text: str, required_keys=None) -> str:
+#     """
+#     Extract one complete valid JSON object from an LLM response.
+
+#     The scanner respects quoted strings and escaped characters,
+#     so braces inside JSON strings do not break object detection.
+#     """
+
+#     if not isinstance(text, str) or not text.strip():
+#         raise ValueError("The model returned an empty response.")
+
+#     text = _remove_thinking_content(text)
+
+#     candidates = []
+#     length = len(text)
+
+#     for start, char in enumerate(text):
+#         if char != "{":
+#             continue
+
+#         depth = 0
+#         in_string = False
+#         escaped = False
+
+#         for end in range(start, length):
+#             current = text[end]
+
+#             if in_string:
+#                 if escaped:
+#                     escaped = False
+#                 elif current == "\\":
+#                     escaped = True
+#                 elif current == '"':
+#                     in_string = False
+#                 continue
+
+#             if current == '"':
+#                 in_string = True
+#             elif current == "{":
+#                 depth += 1
+#             elif current == "}":
+#                 depth -= 1
+
+#                 if depth == 0:
+#                     candidate = text[start:end + 1]
+
+#                     try:
+#                         parsed = json.loads(candidate)
+#                     except json.JSONDecodeError:
+#                         break
+
+#                     if isinstance(parsed, dict):
+#                         matching = (
+#                             required_keys is None
+#                             or required_keys.issubset(parsed.keys())
+#                         )
+
+#                         candidates.append(
+#                             (
+#                                 matching,
+#                                 len(candidate),
+#                                 start,
+#                                 candidate,
+#                             )
+#                         )
+
+#                     break
+
+#     if not candidates:
+#         raise ValueError(
+#             "No complete valid JSON object was found in the model response."
+#         )
+
+#     if required_keys:
+#         matching_candidates = [
+#             candidate
+#             for candidate in candidates
+#             if candidate[0]
+#         ]
+
+#         if matching_candidates:
+#             candidates = matching_candidates
+
+#     # Prefer the largest object matching the expected schema.
+#     # This helps avoid selecting a nested child object.
+#     selected = max(
+#         candidates,
+#         key=lambda candidate: (
+#             candidate[0],
+#             candidate[1],
+#             candidate[2],
+#         ),
+#     )
+
+#     return selected[3]
+
+
+# def _parse_mindmap_json(text: str) -> dict:
+#     """Parse and validate the root of a mindmap JSON object."""
+
+#     cleaned = _extract_json_object(
+#         text,
+#         required_keys={"title", "children"},
+#     )
+
+#     parsed = json.loads(cleaned)
+
+#     if not isinstance(parsed, dict):
+#         raise ValueError("Mindmap root must be a JSON object.")
+
+#     if not isinstance(parsed.get("title"), str):
+#         raise ValueError("Mindmap root must contain a title string.")
+
+#     if not parsed["title"].strip():
+#         raise ValueError("Mindmap root title cannot be empty.")
+
+#     if not isinstance(parsed.get("children"), list):
+#         raise ValueError("Mindmap children must be a list.")
+
+#     return parsed
+
+
+# # ============================================================
+# # MEETING INTELLIGENCE PROMPT
+# # ============================================================
+
+# SYSTEM_PROMPT = """
+# You are MeetMind, an AI meeting intelligence system.
+
+# Analyze the complete meeting transcript and return accurate,
+# professional meeting intelligence grounded in the transcript.
+
+# The transcript may contain English, Tamil, Tamil-English code-mixed
+# speech, Indian English, informal speech, and ASR errors.
+
+# Speaker diarization is disabled. Do not create speaker labels.
+
+# STRICT GROUNDING:
+# - Never invent names, tasks, assignees, deadlines, dates,
+#   decisions, objections, action items, or facts.
+# - Correct an ASR error only when the intended meaning is clear.
+# - Preserve important technical terminology.
+
+# TITLE:
+# Generate a short, meaningful title describing the actual meeting.
+
+# OBJECTIVE:
+# The objective is mandatory. Infer why the meeting was held from
+# the complete discussion. Never return an empty objective or a
+# generic refusal such as "Unknown" or "Not mentioned".
+
+# SUMMARY:
+# Write a professional executive-style summary, normally 3-6
+# sentences. Cover the main subject, important topics, current
+# status, problems, decisions, and next steps when present.
+# Do not merely copy the transcript.
+
+# TASKS:
+# Extract genuine work that needs to be completed.
+# Only assign a task to a named person explicitly identified
+# as responsible. Do not use pronouns such as "I" or "we"
+# as assignees. Use null if the responsible person's name
+# is not explicitly stated.
+
+# DEADLINES:
+# Only use explicitly stated deadlines or dates.
+# Never invent dates or infer a deadline from vague wording.
+
+# TIMELINE:
+# Include only actual actions with explicitly stated deadlines
+# or dates. Use an empty list if no such actions exist.
+
+# DECISIONS:
+# Include only decisions that were actually made.
+
+# OBJECTIONS:
+# Include genuine objections, disagreements, concerns, blockers,
+# or explicitly raised risks. Do not invent concerns.
+
+# ACTION ITEMS:
+# Include explicit follow-up actions. Do not invent actions.
+
+# Return exactly these fields:
+# title, objective, meeting_summary, tasks_assigned,
+# decision_points, objections, action_items, timeline.
+
+# The output must be a single valid JSON object.
+# """
+
+
+# # ============================================================
+# # MEETING SUMMARY GENERATION
+# # ============================================================
+
+# def generate_meeting_summary(
+#     transcript: str,
+#     _llm_call=call_mistral,
+#     _llm_model=MISTRAL_MODEL,
+# ):
+#     """Generate meeting intelligence using the selected LLM."""
+
+#     transcript = (transcript or "").strip()
+
+#     if not transcript:
+#         raise ValueError("Cannot generate a summary from an empty transcript.")
+
+#     user_prompt = f"""
+# Analyze the COMPLETE meeting transcript.
+
+# Return a JSON object containing exactly these fields:
+
+# {{
+#   "title": "Meeting title",
+#   "objective": "Purpose of the meeting",
+#   "meeting_summary": "Professional meeting summary",
+#   "tasks_assigned": [
+#     {{
+#       "task": "Task description",
+#       "assignee": null,
+#       "deadline": null
+#     }}
+#   ],
+#   "decision_points": [],
+#   "objections": [],
+#   "action_items": [],
+#   "timeline": [
+#     {{
+#       "action": "Action with an explicit deadline",
+#       "date": "Explicit deadline or date"
+#     }}
+#   ]
+# }}
+
+# Use empty lists when no relevant items exist.
+# Use null for unknown task assignees and deadlines.
+# Do not invent information.
+
+# COMPLETE MEETING TRANSCRIPT:
+# ============================
+# {transcript}
+# ============================
+
+# Return only the JSON object.
+# """
+
+#     try:
+#         content = _llm_call(
+#             system_prompt=SYSTEM_PROMPT,
+#             user_prompt=user_prompt,
+#             temperature=0.0,
+#             max_tokens=4096,
+#         )
+
+#     except Exception as exc:
+#         raise RuntimeError(
+#             f"Meeting summary generation failed for {_llm_model}: {exc}"
+#         ) from exc
+
+#     if not isinstance(content, str) or not content.strip():
+#         raise RuntimeError(
+#             f"{_llm_model} returned an empty meeting summary."
+#         )
+
+#     try:
+#         cleaned = _extract_json_object(
+#             content,
+#             required_keys={
+#                 "title",
+#                 "objective",
+#                 "meeting_summary",
+#                 "tasks_assigned",
+#                 "decision_points",
+#                 "objections",
+#                 "action_items",
+#                 "timeline",
+#             },
+#         )
+
+#         data = json.loads(cleaned)
+
+#         result = MeetingResult.model_validate(data)
+
+#     except Exception as exc:
+#         raise RuntimeError(
+#             f"{_llm_model} returned invalid structured meeting output: {exc}"
+#         ) from exc
+
+#     if not result.objective.strip():
+#         raise RuntimeError(
+#             f"{_llm_model} returned an empty meeting objective."
+#         )
+
+#     return result.model_dump()
+
+
+# # ============================================================
+# # MINDMAP VALIDATION
+# # ============================================================
+
+# def _clean_mindmap_node(node: dict) -> dict:
+#     """Recursively validate and normalize mindmap nodes."""
+
+#     if not isinstance(node, dict):
+#         raise ValueError("Every mindmap node must be an object.")
+
+#     title = node.get("title")
+
+#     if not isinstance(title, str) or not title.strip():
+#         raise ValueError("Every mindmap node must have a non-empty title.")
+
+#     children = node.get("children", [])
+
+#     if not isinstance(children, list):
+#         raise ValueError(
+#             f"Children for node {title!r} must be a list."
+#         )
+
+#     cleaned = {
+#         "title": title.strip(),
+#         "children": [
+#             _clean_mindmap_node(child)
+#             for child in children
+#         ],
+#     }
+
+#     return cleaned
+
+
+# # ============================================================
+# # MINDMAP GENERATION
+# # ============================================================
+
+# MINDMAP_SYSTEM_PROMPT = """
+# You are MeetMind, a meeting mindmap generator.
+
+# Generate a hierarchical mindmap directly from the complete transcript.
+# Do not generate the mindmap from a summary.
+
+# Use only information supported by the transcript.
+# Do not invent names, decisions, tasks, deadlines, or facts.
+# Keep node titles concise and meaningful.
+
+# Every node must contain:
+# - title: a string
+# - children: an array of child nodes, which may be empty
+
+# Return exactly one JSON object with a root title and children.
+# Do not add any other fields.
+# Do not return reasoning, Markdown, introductions, or explanations.
+# """
+
+
+# def generate_mindmap(
+#     transcript: str,
+#     _llm_call=call_mistral,
+#     _llm_model=MISTRAL_MODEL,
+# ):
+#     """Generate a hierarchical mindmap directly from the transcript."""
+
+#     transcript = (transcript or "").strip()
+
+#     if not transcript:
+#         raise ValueError(
+#             "Cannot generate a mindmap because the transcript is empty."
+#         )
+
+#     user_prompt = f"""
+# Analyze the complete meeting transcript and create a hierarchical mindmap.
+
+# Capture relevant:
+# - Main topics
+# - Technical discussions
+# - Current status
+# - Problems or challenges
+# - Decisions
+# - Action items
+# - Tasks
+# - Explicit timelines
+# - Next steps
+
+# Only include categories supported by the transcript.
+
+# Return exactly this structure:
+
+# {{
+#   "title": "Main Meeting Topic",
+#   "children": [
+#     {{
+#       "title": "Major Topic",
+#       "children": [
+#         {{
+#           "title": "Important Detail",
+#           "children": []
+#         }}
+#       ]
+#     }}
+#   ]
+# }}
+
+# Every node must contain a title and a children array.
+# Do not include fields other than title and children.
+
+# COMPLETE MEETING TRANSCRIPT:
+# ============================
+# {transcript}
+# ============================
+
+# Return only one valid JSON object.
+# """
+
+#     try:
+#         content = _llm_call(
+#             system_prompt=MINDMAP_SYSTEM_PROMPT,
+#             user_prompt=user_prompt,
+#             temperature=0.0,
+#             max_tokens=4096,
+#         )
+
+#     except Exception as exc:
+#         raise RuntimeError(
+#             f"Mindmap generation failed for {_llm_model}: {exc}"
+#         ) from exc
+
+#     if not isinstance(content, str) or not content.strip():
+#         raise RuntimeError(
+#             f"{_llm_model} returned an empty mindmap response."
+#         )
+
+#     try:
+#         mindmap_data = _parse_mindmap_json(content)
+
+#     except Exception as first_error:
+#         repair_prompt = f"""
+# Repair the following malformed mindmap response.
+
+# Requirements:
+# - Preserve the existing information.
+# - Do not invent new content.
+# - Return one valid JSON object.
+# - The root must contain title and children.
+# - Every node must contain title and children.
+# - Use only title and children fields.
+# - Do not include reasoning, Markdown, or explanations.
+
+# Malformed response:
+# {content}
+
+# Return only the repaired JSON object.
+# """
+
+#         try:
+#             repaired_content = _llm_call(
+#                 system_prompt=(
+#                     "You are a JSON repair engine. Return only one valid "
+#                     "mindmap JSON object. Do not explain anything."
+#                 ),
+#                 user_prompt=repair_prompt,
+#                 temperature=0.0,
+#                 max_tokens=4096,
+#             )
+
+#             mindmap_data = _parse_mindmap_json(repaired_content)
+
+#         except Exception as repair_error:
+#             raise RuntimeError(
+#                 f"{_llm_model} returned invalid mindmap JSON, and "
+#                 f"automatic repair failed. Original error: {first_error}. "
+#                 f"Repair error: {repair_error}"
+#             ) from repair_error
+
+#     try:
+#         return _clean_mindmap_node(mindmap_data)
+
+#     except Exception as exc:
+#         raise RuntimeError(
+#             f"{_llm_model} returned an invalid mindmap structure: {exc}"
+#         ) from exc
+
+
+# # ============================================================
+# # QWEN3-27B WRAPPERS
+# # ============================================================
+
+# def generate_meeting_summary_qwen(transcript: str):
+#     """Generate meeting intelligence using Qwen3-27B Cloud API."""
+
+#     return generate_meeting_summary(
+#         transcript,
+#         _llm_call=_call_qwen,
+#         _llm_model=QWEN_MODEL,
+#     )
+
+
+# def generate_mindmap_qwen(transcript: str):
+#     """Generate a mindmap using Qwen3-27B Cloud API."""
+
+#     return generate_mindmap(
+#         transcript,
+#         _llm_call=_call_qwen,
+#         _llm_model=QWEN_MODEL,
+#     )
+
+"""MeetMind - Meeting Intelligence
+
+Mistral 128B API and Qwen3-27B API
+
+Meeting summary, action items, timeline, and hierarchical mindmap.
+
 """
 
-MeetMind - Meeting Intelligence
-
-Flow:
-
-    Complete transcript
-
-        |
-
-        +------------------------------+
-
-        \\|                              |
-
-        v                              v
-
-    Mistral 128B API              Qwen3-27B API
-
-        \\|                              |
-
-        v                              v
-
-Meeting Intelligence              Mind Map
-
-                                      |
-
-                                      v
-
-                             Hierarchical JSON
-
-Speaker diarization: DISABLED
-
-"""
+import json
 
 import os
 
 import re
 
-import json
-
 from typing import Optional
-
-from mistral_client import call_mistral, MISTRAL_MODEL
 
 import requests
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+from mistral_client import call_mistral, MISTRAL_MODEL as DEFAULT_MISTRAL_MODEL
 
 # ============================================================
 
@@ -52,177 +703,63 @@ from pydantic import BaseModel
 
 # ============================================================
 
-MISTRAL_MODEL = os.getenv(
+MISTRAL_MODEL = os.getenv("MISTRAL_MODEL", DEFAULT_MISTRAL_MODEL)
 
-    "MISTRAL_MODEL",
+# Mistral long-context configuration used by mistral_client.py.
 
-    MISTRAL_MODEL,
+# This is the model/API context capacity we intend to support; the provider
 
-)
+# must also support 128K for this to work in practice.
 
-# Qwen3-27B Cloud API configuration.
+MISTRAL_CONTEXT_WINDOW = int(os.getenv("MISTRAL_CONTEXT_WINDOW", "128000"))
+
+MISTRAL_MAX_OUTPUT_TOKENS = int(os.getenv("MISTRAL_MAX_OUTPUT_TOKENS", "4096"))
+
 QWEN_API_URL = os.getenv(
+
     "QWEN_API_URL",
+
     "http://115.112.206.245/api/chat/completions",
+
 )
 
-QWEN_API_KEY = os.getenv(
-    "QWEN_API_KEY",
-    "",
+QWEN_API_KEY = os.getenv("QWEN_API_KEY", "")
+
+QWEN_MODEL = os.getenv("QWEN_MODEL", "ai-switch.qwen3-27b")
+
+# Qwen3-27B long-context configuration.
+
+# The configured Qwen API/model must support a 128K context window.
+
+QWEN_CONTEXT_WINDOW = int(
+
+    os.getenv("QWEN_CONTEXT_WINDOW", "128000")
+
 )
 
-QWEN_MODEL = os.getenv(
-    "QWEN_MODEL",
-    "qwen3-27b",
+QWEN_MAX_OUTPUT_TOKENS = int(
+
+    os.getenv("QWEN_MAX_OUTPUT_TOKENS", "4096")
+
 )
+
+JSON_ONLY_INSTRUCTION = """
+
+Return exactly one valid JSON object.
+
+Do not include your thinking process, reasoning, introduction,
+
+Markdown fences, or explanatory text before or after the JSON.
+
+Use double quotes for JSON keys and strings.
+
+Do not use trailing commas.
+
+"""
 
 # ============================================================
 
-# PLACEHOLDER / REFUSAL DETECTION
-
-# ============================================================
-
-_PLACEHOLDER_VALUES = {
-
-    "unknown",
-
-    "not mentioned",
-
-    "not specified",
-
-    "n/a",
-
-    "none",
-
-    "null",
-
-    "",
-
-}
-
-_REFUSAL_PATTERNS = (
-
-    "could not be generated",
-
-    "could not be determined",
-
-    "cannot be determined",
-
-    "unable to determine",
-
-    "no objective",
-
-    "no objective found",
-
-    "not mentioned",
-
-    "not specified",
-
-    "unknown",
-
-)
-
-def _looks_like_refusal(text: str) -> bool:
-
-    text = (text or "").strip().lower()
-
-    if not text:
-
-        return True
-
-    return any(
-
-        pattern in text
-
-        for pattern in _REFUSAL_PATTERNS
-
-    )
-
-# ============================================================
-
-# NAME VALIDATION
-
-# ============================================================
-
-_PRONOUN_STARTS = (
-
-    "i ",
-
-    "i'll",
-
-    "i will",
-
-    "i'm",
-
-    "we ",
-
-    "we'll",
-
-    "we will",
-
-    "we're",
-
-    "you ",
-
-    "you'll",
-
-    "they ",
-
-    "he ",
-
-    "she ",
-
-    "it ",
-
-)
-
-_TASK_VERB_PATTERN = re.compile(
-
-    r"\b("
-
-    r"will|test|check|review|update|send|do|complete|"
-
-    r"finish|verify|fix|build|create|write|prepare|"
-
-    r"evaluate|develop|integrate|implement|analyze|analyse"
-
-    r")\b",
-
-    re.IGNORECASE,
-
-)
-
-def _looks_like_real_name(value: str) -> bool:
-
-    value = (value or "").strip()
-
-    if not value:
-
-        return False
-
-    lowered = value.lower()
-
-    if lowered in _PLACEHOLDER_VALUES:
-
-        return False
-
-    if lowered.startswith(_PRONOUN_STARTS):
-
-        return False
-
-    if len(value.split()) > 3:
-
-        return False
-
-    if _TASK_VERB_PATTERN.search(lowered):
-
-        return False
-
-    return True
-
-# ============================================================
-
-# PYDANTIC OUTPUT SCHEMA
+# PYDANTIC SCHEMAS
 
 # ============================================================
 
@@ -240,23 +777,11 @@ class TimelineItem(BaseModel):
 
     date: str
 
-# ============================================================
-
-# MIND MAP SCHEMA
-
-# ============================================================
-
 class MindMapNode(BaseModel):
 
     title: str
 
-    children: list["MindMapNode"] = []
-
-# ============================================================
-
-# MEETING INTELLIGENCE SCHEMA
-
-# ============================================================
+    children: list["MindMapNode"] = Field(default_factory=list)
 
 class MeetingResult(BaseModel):
 
@@ -278,7 +803,361 @@ class MeetingResult(BaseModel):
 
 # ============================================================
 
-# MEETING INTELLIGENCE SYSTEM PROMPT
+# QWEN3-27B CLOUD API
+
+# ============================================================
+
+def _call_qwen(
+
+    *,
+
+    system_prompt: str,
+
+    user_prompt: str,
+
+    temperature: float = 0.0,
+
+    max_tokens: int = QWEN_MAX_OUTPUT_TOKENS,
+
+) -> str:
+
+    """Call the configured Qwen3-27B API."""
+
+    if not QWEN_API_URL:
+
+        raise RuntimeError("QWEN_API_URL is not configured.")
+
+    if not QWEN_API_KEY:
+
+        raise RuntimeError("QWEN_API_KEY is not configured.")
+
+    headers = {
+
+        "Authorization": f"Bearer {QWEN_API_KEY}",
+
+        "Content-Type": "application/json",
+
+    }
+
+    payload = {
+
+        "model": QWEN_MODEL,
+
+        "messages": [
+
+            {
+
+                "role": "system",
+
+                "content": system_prompt + "\n\n" + JSON_ONLY_INSTRUCTION,
+
+            },
+
+            {
+
+                "role": "user",
+
+                "content": user_prompt + "\n\n" + JSON_ONLY_INSTRUCTION,
+
+            },
+
+        ],
+
+        "temperature": temperature,
+
+        "max_tokens": max_tokens,
+
+        "context_window": QWEN_CONTEXT_WINDOW,
+
+    }
+
+    try:
+
+        response = requests.post(
+
+            QWEN_API_URL,
+
+            headers=headers,
+
+            json=payload,
+
+            timeout=300,
+
+        )
+
+        response.raise_for_status()
+
+        data = response.json()
+
+    except requests.RequestException as exc:
+
+        raise RuntimeError(
+
+            f"Qwen API request failed: {exc}"
+
+        ) from exc
+
+    except ValueError as exc:
+
+        raise RuntimeError(
+
+            "Qwen API returned an invalid HTTP JSON response."
+
+        ) from exc
+
+    try:
+
+        content = data["choices"][0]["message"]["content"]
+
+    except (KeyError, IndexError, TypeError) as exc:
+
+        raise RuntimeError(
+
+            f"Unexpected Qwen API response structure: {data}"
+
+        ) from exc
+
+    if not isinstance(content, str) or not content.strip():
+
+        raise RuntimeError("Qwen API returned an empty response.")
+
+    return content.strip()
+
+# ============================================================
+
+# ROBUST JSON EXTRACTION
+
+# ============================================================
+
+def _remove_thinking_content(text: str) -> str:
+
+    """Remove common reasoning sections and surrounding Markdown."""
+
+    text = re.sub(
+
+        r"<think\b[^>]*>.*?</think\s*>",
+
+        "",
+
+        text,
+
+        flags=re.IGNORECASE | re.DOTALL,
+
+    )
+
+    text = re.sub(
+
+        r"<think\b[^>]*>.*$",
+
+        "",
+
+        text,
+
+        flags=re.IGNORECASE | re.DOTALL,
+
+    )
+
+    text = re.sub(
+
+        r"```(?:json|JSON)?[ \t]*",
+
+        "",
+
+        text,
+
+    )
+
+    text = text.replace("```", "")
+
+    return text.strip()
+
+def _extract_json_object(text: str, required_keys=None) -> str:
+
+    """
+
+    Extract one complete valid JSON object from an LLM response.
+
+    The scanner respects quoted strings and escaped characters,
+
+    so braces inside JSON strings do not break object detection.
+
+    """
+
+    if not isinstance(text, str) or not text.strip():
+
+        raise ValueError("The model returned an empty response.")
+
+    text = _remove_thinking_content(text)
+
+    candidates = []
+
+    length = len(text)
+
+    for start, char in enumerate(text):
+
+        if char != "{":
+
+            continue
+
+        depth = 0
+
+        in_string = False
+
+        escaped = False
+
+        for end in range(start, length):
+
+            current = text[end]
+
+            if in_string:
+
+                if escaped:
+
+                    escaped = False
+
+                elif current == "\\\\":
+
+                    escaped = True
+
+                elif current == '"':
+
+                    in_string = False
+
+                continue
+
+            if current == '"':
+
+                in_string = True
+
+            elif current == "{":
+
+                depth += 1
+
+            elif current == "}":
+
+                depth -= 1
+
+                if depth == 0:
+
+                    candidate = text[start:end + 1]
+
+                    try:
+
+                        parsed = json.loads(candidate)
+
+                    except json.JSONDecodeError:
+
+                        break
+
+                    if isinstance(parsed, dict):
+
+                        matching = (
+
+                            required_keys is None
+
+                            or required_keys.issubset(parsed.keys())
+
+                        )
+
+                        candidates.append(
+
+                            (
+
+                                matching,
+
+                                len(candidate),
+
+                                start,
+
+                                candidate,
+
+                            )
+
+                        )
+
+                    break
+
+    if not candidates:
+
+        raise ValueError(
+
+            "No complete valid JSON object was found in the model response."
+
+        )
+
+    if required_keys:
+
+        matching_candidates = [
+
+            candidate
+
+            for candidate in candidates
+
+            if candidate[0]
+
+        ]
+
+        if matching_candidates:
+
+            candidates = matching_candidates
+
+    # Prefer the largest object matching the expected schema.
+
+    # This helps avoid selecting a nested child object.
+
+    selected = max(
+
+        candidates,
+
+        key=lambda candidate: (
+
+            candidate[0],
+
+            candidate[1],
+
+            candidate[2],
+
+        ),
+
+    )
+
+    return selected[3]
+
+def _parse_mindmap_json(text: str) -> dict:
+
+    """Parse and validate the root of a mindmap JSON object."""
+
+    cleaned = _extract_json_object(
+
+        text,
+
+        required_keys={"title", "children"},
+
+    )
+
+    parsed = json.loads(cleaned)
+
+    if not isinstance(parsed, dict):
+
+        raise ValueError("Mindmap root must be a JSON object.")
+
+    if not isinstance(parsed.get("title"), str):
+
+        raise ValueError("Mindmap root must contain a title string.")
+
+    if not parsed["title"].strip():
+
+        raise ValueError("Mindmap root title cannot be empty.")
+
+    if not isinstance(parsed.get("children"), list):
+
+        raise ValueError("Mindmap children must be a list.")
+
+    return parsed
+
+# ============================================================
+
+# MEETING INTELLIGENCE PROMPT
 
 # ============================================================
 
@@ -286,1889 +1165,435 @@ SYSTEM_PROMPT = """
 
 You are MeetMind, an AI meeting intelligence system.
 
-Your job is to analyze the COMPLETE meeting transcript and
+Analyze the complete meeting transcript and return accurate,
 
-produce accurate, useful, professional meeting intelligence.
+professional meeting intelligence grounded in the transcript.
 
-The transcript may contain:
+The transcript may contain English, Tamil, Tamil-English code-mixed
 
-- English
+speech, Indian English, informal speech, and ASR errors.
 
-- Tamil
+Speaker diarization is disabled. Do not create speaker labels.
 
-- Tamil-English code-mixed speech
+STRICT GROUNDING:
 
-- Indian English
+\\- Never invent names, tasks, assignees, deadlines, dates,
 
-- informal spoken language
+  decisions, objections, action items, or facts.
 
-- automatic speech recognition errors
+\\- Correct an ASR error only when the intended meaning is clear.
 
-Speaker diarization is DISABLED.
+\\- Preserve important technical terminology.
 
-Do not create speaker labels.
+TITLE:
 
-============================================================
+Generate a short, meaningful title describing the actual meeting.
 
-STRICT TRANSCRIPT GROUNDING
+OBJECTIVE:
 
-============================================================
+The objective is mandatory. Infer why the meeting was held from
 
-Use ONLY information supported by the transcript.
+the complete discussion. Never return an empty objective or a
 
-Never invent:
+generic refusal such as "Unknown" or "Not mentioned".
 
-- names
+SUMMARY:
 
-- people
+Write a professional executive-style summary, normally 3-6
 
-- tasks
+sentences. Cover the main subject, important topics, current
 
-- assignees
+status, problems, decisions, and next steps when present.
 
-- deadlines
+Do not merely copy the transcript.
 
-- dates
+TASKS:
 
-- decisions
+Extract genuine work that needs to be completed.
 
-- objections
+Only assign a task to a named person explicitly identified
 
-- action items
+as responsible. Do not use pronouns such as "I" or "we"
 
-- facts
+as assignees. Use null if the responsible person's name
 
-You may correct an obvious ASR error only when the intended
+is not explicitly stated.
 
-meaning is clear from the surrounding context.
+DEADLINES:
 
-============================================================
+Only use explicitly stated deadlines or dates.
 
-1\\. TITLE
+Never invent dates or infer a deadline from vague wording.
 
-============================================================
+TIMELINE:
 
-Generate a short, meaningful title based on the actual meeting.
+Include only actual actions with explicitly stated deadlines
 
-The title should describe the main subject of the meeting.
+or dates. Use an empty list if no such actions exist.
 
-Avoid generic titles such as:
+DECISIONS:
 
-"Meeting"
+Include only decisions that were actually made.
 
-"Project Meeting"
+OBJECTIONS:
 
-"Discussion"
+Include genuine objections, disagreements, concerns, blockers,
 
-when a more specific title can be generated.
+or explicitly raised risks. Do not invent concerns.
 
-============================================================
+ACTION ITEMS:
 
-2\\. OBJECTIVE
-
-============================================================
-
-The objective is MANDATORY.
-
-Analyze the COMPLETE transcript and determine WHY the meeting
-
-was held.
-
-The speaker does not need to explicitly say:
-
-"The objective is..."
-
-Infer the purpose from:
-
-- what is being reviewed
-
-- what is being tested
-
-- what problem is being addressed
-
-- what the participants are trying to accomplish
-
-- what outcome the meeting is working toward
-
-The objective must:
-
-- be specific
-
-- be concise
-
-- explain why the meeting happened
-
-- be based on the complete transcript
-
-- be generated through analysis
-
-NEVER return:
-
-"Objective could not be determined."
-
-"No objective found."
-
-"No objective could be generated."
-
-"Not mentioned."
-
-"Unknown."
-
-Even when the objective is not explicitly stated, infer the
-
-most reasonable purpose from the complete discussion.
-
-============================================================
-
-3\\. MEETING SUMMARY
-
-============================================================
-
-Generate a PROFESSIONAL EXECUTIVE-STYLE SUMMARY.
-
-Do NOT simply shorten or copy the transcript.
-
-The summary must explain:
-
-1\\. What the meeting was primarily about.
-
-2\\. The important topics discussed.
-
-3\\. The current status or progress.
-
-4\\. Problems, concerns, limitations, or gaps.
-
-5\\. Important decisions.
-
-6\\. Planned next steps.
-
-The summary should allow someone who did NOT attend the meeting
-
-to understand what happened.
-
-When applicable, clearly distinguish:
-
-- CURRENT STATUS
-
-- KEY DISCUSSION
-
-- PROBLEMS / GAPS
-
-- DECISIONS
-
-- NEXT STEPS
-
-Do not invent information.
-
-Preserve important technical terminology.
-
-For a normal meeting, produce approximately 3-6 sentences.
-
-For a short meeting, use fewer sentences.
-
-For a long meeting, provide enough detail to cover the major
-
-outcomes without becoming repetitive.
-
-The summary should read like a professional meeting report,
-
-not like a transcript.
-
-============================================================
-
-4\\. TASKS
-
-============================================================
-
-Extract only genuine work that needs to be completed.
-
-Do not convert every statement into a task.
-
-Example:
-
-"We discussed database integration."
-
-This is discussion, not necessarily a task.
-
-Example:
-
-"We need to integrate the backend database."
-
-This is a task.
-
-Tasks must represent actual work.
-
-============================================================
-
-5\\. TASK ASSIGNEE
-
-============================================================
-
-Only provide an assignee when a person's NAME is explicitly
-
-identified as responsible for the task.
-
-Example:
-
-"Ravi will evaluate the transcription quality."
-
-Correct:
-
-task:
-
-"Evaluate the transcription quality"
-
-assignee:
-
-"Ravi"
-
-If the transcript says:
-
-"I will evaluate the transcription quality."
-
-DO NOT use:
-
-"I"
-
-"I'll"
-
-"I'll test"
-
-"will evaluate"
-
-as the assignee.
-
-In that case:
-
-assignee = null
-
-The assignee field is ONLY for a person's name.
-
-============================================================
-
-6\\. DEADLINE
-
-============================================================
-
-Only provide a deadline when the transcript explicitly states
-
-a deadline or date for the task.
-
-Examples:
-
-"I will complete this by Friday."
-
-deadline = "Friday"
-
-"We will finish it next week."
-
-deadline = "next week"
-
-"Let's test the recordings on September 5."
-
-deadline = "September 5"
-
-"The demo needs to be ready tomorrow."
-
-deadline = "tomorrow"
-
-If no deadline or date is explicitly stated:
-
-deadline = null
-
-Never infer or invent a deadline.
-
-Do NOT convert general future language such as:
-
-- "later"
-
-- "soon"
-
-- "in the future"
-
-- "after this"
-
-- "next step"
-
-into a deadline unless the transcript gives a specific
-
-time/date reference.
-
-============================================================
-
-7\\. TIMELINE
-
-============================================================
-
-The Timeline is a separate section containing ONLY actions
-
-that have an explicitly mentioned deadline or date in the
-
-meeting transcript.
-
-Rules:
-
-1\\. Include ONLY actions with an explicitly mentioned deadline
-
-   or date.
-
-2\\. The action must correspond to an actual task/action discussed
-
-   in the transcript.
-
-3\\. Use the explicitly stated date/deadline.
-
-4\\. Do NOT invent dates.
-
-5\\. Do NOT infer dates.
-
-6\\. Do NOT include tasks without a deadline.
-
-7\\. Do NOT include general discussion points.
-
-8\\. Do NOT include decisions unless they also represent an
-
-   explicit action with a stated deadline.
-
-If no action with a specific deadline/date is mentioned:
-
-timeline = []
-
-============================================================
-
-8\\. DECISIONS
-
-============================================================
-
-Extract only decisions that were actually made.
-
-If there are no actual decisions:
-
-return []
-
-============================================================
-
-9\\. OBJECTIONS / CONCERNS
-
-============================================================
-
-Extract genuine:
-
-- objections
-
-- disagreements
-
-- concerns
-
-- reservations
-
-- blockers
-
-- explicitly raised risks
-
-Do not invent objections simply because a problem was discussed.
-
-If no genuine objection or concern exists:
-
-return []
-
-============================================================
-
-10\\. ACTION ITEMS
-
-============================================================
-
-Extract explicit follow-up actions resulting from the meeting.
-
-Do not invent action items.
-
-If none exist:
-
-return []
-
-============================================================
-
-11\\. TASKS VS ACTION ITEMS
-
-============================================================
-
-Avoid unnecessary duplication.
-
-TASK:
-
-Work that needs to be completed.
-
-ACTION ITEM:
-
-An explicit follow-up action resulting from the meeting.
-
-Use judgment when the same statement could fit both categories.
-
-============================================================
-
-12\\. TIMELINE VS DEADLINE
-
-============================================================
-
-The task object may contain a deadline.
-
-The Timeline is a separate presentation of ONLY those tasks
-
-that have an explicitly stated deadline/date.
-
-============================================================
-
-13\\. LANGUAGE
-
-============================================================
-
-Understand:
-
-- English
-
-- Tamil
-
-- Tamil-English code-mixed speech
-
-- Indian English
-
-Do not treat Tamil and English as different speakers.
-
-============================================================
-
-14\\. OUTPUT
-
-============================================================
+Include explicit follow-up actions. Do not invent actions.
 
 Return exactly these fields:
 
-title
+title, objective, meeting_summary, tasks_assigned,
 
-objective
+decision_points, objections, action_items, timeline.
 
-meeting_summary
-
-tasks_assigned
-
-decision_points
-
-objections
-
-action_items
-
-timeline
-
-Objective MUST:
-
-- be generated from transcript analysis
-
-- never be empty
-
-- never be null
-
-- never be a refusal
-
-- describe the actual purpose of the meeting
-
-Timeline MUST:
-
-- contain only actions with explicitly mentioned deadlines/dates
-
-- use the exact stated deadline/date
-
-- never contain invented dates
-
-- be an empty list if no deadline/date is mentioned
-
-Do not add additional fields.
+The output must be a single valid JSON object.
 
 """
 
 # ============================================================
 
-# GENERATE MEETING INTELLIGENCE
+# MEETING SUMMARY GENERATION
 
 # ============================================================
 
-# ============================================================
-# QWEN3-27B / CLOUD API
-# ============================================================
+def _normalize_meeting_result_data(data: dict) -> dict:
+    """Normalize LLM meeting output to the MeetingResult schema."""
+    if not isinstance(data, dict):
+        raise ValueError("Meeting result must be a JSON object.")
 
-def _call_qwen(
-    *,
-    system_prompt: str,
-    user_prompt: str,
-    temperature: float = 0.0,
-    max_tokens: int = 4096,
-) -> str:
-    """
-    Call Qwen3-27B through the configured OpenAI-compatible Cloud API.
+    normalized = dict(data)
 
-    Environment variables:
-        QWEN_API_URL
-        QWEN_API_KEY
-        QWEN_MODEL
-    """
+    action_items = normalized.get("action_items", [])
+    if not isinstance(action_items, list):
+        action_items = []
+    normalized["action_items"] = []
+    for item in action_items:
+        if isinstance(item, str) and item.strip():
+            normalized["action_items"].append(item.strip())
+        elif isinstance(item, dict):
+            text = item.get("action") or item.get("task") or item.get("description") or item.get("action_item")
+            if isinstance(text, str) and text.strip():
+                normalized["action_items"].append(text.strip())
 
-    if not QWEN_API_URL:
-        raise RuntimeError(
-            "QWEN_API_URL is not configured."
-        )
+    decision_points = normalized.get("decision_points", [])
+    if not isinstance(decision_points, list):
+        decision_points = []
+    normalized["decision_points"] = []
+    for item in decision_points:
+        if isinstance(item, str) and item.strip():
+            normalized["decision_points"].append(item.strip())
+        elif isinstance(item, dict):
+            text = item.get("decision") or item.get("description") or item.get("text")
+            if isinstance(text, str) and text.strip():
+                normalized["decision_points"].append(text.strip())
 
-    if not QWEN_API_KEY:
-        raise RuntimeError(
-            "QWEN_API_KEY is not configured."
-        )
+    objections = normalized.get("objections", [])
+    if not isinstance(objections, list):
+        objections = []
+    normalized["objections"] = []
+    for item in objections:
+        if isinstance(item, str) and item.strip():
+            normalized["objections"].append(item.strip())
+        elif isinstance(item, dict):
+            text = item.get("objection") or item.get("concern") or item.get("description") or item.get("text")
+            if isinstance(text, str) and text.strip():
+                normalized["objections"].append(text.strip())
 
-    headers = {
-        "Authorization": f"Bearer {QWEN_API_KEY}",
-        "Content-Type": "application/json",
-    }
+    tasks = normalized.get("tasks_assigned", [])
+    if not isinstance(tasks, list):
+        tasks = []
+    normalized_tasks = []
+    for item in tasks:
+        if isinstance(item, dict):
+            task = item.get("task") or item.get("action") or item.get("description")
+            if isinstance(task, str) and task.strip():
+                normalized_tasks.append({
+                    "task": task.strip(),
+                    "assignee": item.get("assignee"),
+                    "deadline": item.get("deadline"),
+                })
+        elif isinstance(item, str) and item.strip():
+            normalized_tasks.append({"task": item.strip(), "assignee": None, "deadline": None})
+    normalized["tasks_assigned"] = normalized_tasks
 
-    payload = {
-        "model": QWEN_MODEL,
-        "messages": [
-            {
-                "role": "system",
-                "content": system_prompt,
-            },
-            {
-                "role": "user",
-                "content": user_prompt,
-            },
-        ],
-        "temperature": temperature,
-        "max_tokens": max_tokens,
-    }
+    timeline = normalized.get("timeline", [])
+    if not isinstance(timeline, list):
+        timeline = []
+    normalized_timeline = []
+    for item in timeline:
+        if isinstance(item, dict):
+            action = item.get("action") or item.get("task") or item.get("description")
+            date = item.get("date")
+            if isinstance(action, str) and action.strip():
+                normalized_timeline.append({
+                    "action": action.strip(),
+                    "date": "" if date is None else str(date).strip(),
+                })
+    normalized["timeline"] = normalized_timeline
+    return normalized
 
-    try:
-        response = requests.post(
-            QWEN_API_URL,
-            headers=headers,
-            json=payload,
-            timeout=300,
-        )
-    except requests.RequestException as exc:
-        raise RuntimeError(
-            "Could not connect to Qwen3-27B Cloud API. "
-            f"URL: {QWEN_API_URL}. "
-            f"Original error: {exc}"
-        ) from exc
+def generate_meeting_summary(
 
-    if response.status_code != 200:
-        raise RuntimeError(
-            "Qwen3-27B API request failed. "
-            f"HTTP {response.status_code}: "
-            f"{response.text[:2000]}"
-        )
+    transcript: str,
 
-    try:
-        data = response.json()
-    except ValueError as exc:
-        raise RuntimeError(
-            "Qwen3-27B API returned invalid JSON: "
-            f"{response.text[:2000]}"
-        ) from exc
+    _llm_call=call_mistral,
 
-    try:
-        content = data["choices"][0]["message"]["content"]
-    except (KeyError, IndexError, TypeError):
-        raise RuntimeError(
-            "Unexpected Qwen3-27B API response format: "
-            + json.dumps(data, indent=2)[:4000]
-        )
+    _llm_model=MISTRAL_MODEL,
 
-    return (content or "").strip()
+):
 
-def generate_meeting_summary(transcript: str, _llm_call=call_mistral, _llm_model=MISTRAL_MODEL):
+    """Generate meeting intelligence using the selected LLM."""
 
     transcript = (transcript or "").strip()
 
     if not transcript:
 
-        return {
+        raise ValueError("Cannot generate a summary from an empty transcript.")
 
-            "title": "Untitled Meeting",
+    user_prompt = f"""
 
-            "objective": (
+Analyze the COMPLETE meeting transcript.
 
-                "No meeting objective can be generated "
+Return a JSON object containing exactly these fields:
 
-                "because no transcript was provided."
+{{
 
-            ),
+  "title": "Meeting title",
 
-            "meeting_summary": "No transcript was available.",
+  "objective": "Purpose of the meeting",
 
-            "tasks_assigned": [],
-
-            "decision_points": [],
-
-            "objections": [],
-
-            "action_items": [],
-
-            "timeline": [],
-
-        }
-
-    print()
-
-    print("=" * 70)
-
-    print("MEETMIND - MEETING INTELLIGENCE")
-
-    print("=" * 70)
-
-    print("LLM Model:", _llm_model)
-
-    print("Speaker diarization:", "DISABLED")
-
-    print("Transcript length:", len(transcript), "characters")
-
-    print("Analyzing COMPLETE transcript...")
-
-    print("Generating meeting intelligence...")
-
-    print("=" * 70)
-
-    user_content = f"""
-
-Analyze the COMPLETE meeting transcript below.
-
-Your output must be based ONLY on the transcript.
-
-IMPORTANT:
-
-The objective is mandatory.
-
-Do not wait for the speaker to explicitly say
-
-"objective".
-
-Infer the actual purpose of the meeting from the
-
-complete discussion.
-
-The meeting summary must be an executive-style summary
-
-that captures:
-
-- the main purpose
-
-- important discussion
-
-- current status
-
-- problems or gaps
-
-- decisions
-
-- next steps
-
-Do not simply copy the transcript.
-
-Do not invent information.
-
-IMPORTANT TIMELINE RULE:
-
-The Timeline must contain ONLY actions for which the
-
-meeting transcript explicitly mentions a date or deadline.
-
-If an action has no explicitly stated date/deadline,
-
-do NOT include it in the Timeline.
-
-Never infer or invent dates.
-
-MEETING TRANSCRIPT
-
-==================
-
-{transcript}
-
-==================
-
-Return the required structured meeting intelligence.
-
-"""
-
-    messages = [
-
-        {
-
-            "role": "system",
-
-            "content": SYSTEM_PROMPT,
-
-        },
-
-        {
-
-            "role": "user",
-
-            "content": user_content,
-
-        },
-
-    ]
-
-    def _call_mistral(chat_messages):
-
-        try:
-
-            system_prompt = ""
-
-            user_prompt = ""
-
-            for message in chat_messages:
-
-                role = message.get("role")
-
-                content = message.get("content", "")
-
-                if role == "system":
-
-                    system_prompt = content
-
-                elif role == "user":
-
-                    if user_prompt:
-
-                        user_prompt += "\n\n" + content
-
-                    else:
-
-                        user_prompt = content
-
-                elif role == "assistant":
-
-                    user_prompt += (
-
-                        "\n\nPrevious assistant output:\n"
-
-                        + content
-
-                    )
-
-            user_prompt += """
-
-Return ONLY valid JSON matching this exact structure:
-
-{
-
-  "title": "string",
-
-  "objective": "string",
-
-  "meeting_summary": "string",
+  "meeting_summary": "Professional meeting summary",
 
   "tasks_assigned": [
 
-    {
+    {{
 
-      "task": "string",
+      "task": "Task description",
 
-      "assignee": "string or null",
+      "assignee": null,
 
-      "deadline": "string or null"
+      "deadline": null
 
-    }
+    }}
 
   ],
 
-  "decision_points": ["string"],
+  "decision_points": [],
 
-  "objections": ["string"],
+  "objections": [],
 
-  "action_items": ["string"],
+  "action_items": [],
 
   "timeline": [
 
-    {
+    {{
 
-      "action": "string",
+      "action": "Action with an explicit deadline",
 
-      "date": "string"
+      "date": "Explicit deadline or date"
 
-    }
+    }}
 
   ]
 
-}
+}}
 
-Do not add markdown.
+Use empty lists when no relevant items exist.
 
-Do not add explanations.
+Use null for unknown task assignees and deadlines.
 
-Do not add extra fields.
+Do not invent information.
+
+COMPLETE MEETING TRANSCRIPT:
+
+\\============================
+
+{transcript}
+
+\\============================
+
+Return only the JSON object.
 
 """
 
-            content = _llm_call(
+    try:
 
-                system_prompt=system_prompt,
+        content = _llm_call(
 
-                user_prompt=user_prompt,
+            system_prompt=SYSTEM_PROMPT,
 
-                temperature=0.0,
+            user_prompt=user_prompt,
 
-                max_tokens=4096,
+            temperature=0.0,
 
-            )
-
-        except Exception as exc:
-
-            raise RuntimeError(
-
-                "Could not connect to Mistral 128B. "
-
-                f"Make sure the Mistral API is configured and "
-
-                f"model '{MISTRAL_MODEL}' is available. "
-
-                f"Original error: {exc}"
-
-            ) from exc
-
-        content = (content or "").strip()
-
-        if not content:
-
-            raise RuntimeError(
-
-                f"{_llm_model} returned an empty response."
-
-            )
-
-        if content.startswith("```"):
-
-            content = re.sub(
-
-                r"^```(?:json)?\s*",
-
-                "",
-
-                content,
-
-                flags=re.IGNORECASE,
-
-            )
-
-            content = re.sub(
-
-                r"\s*```$",
-
-                "",
-
-                content,
-
-            ).strip()
-
-        try:
-
-            result = MeetingResult.model_validate_json(content)
-
-            return result, content
-
-        except Exception as exc:
-
-            print()
-
-            print("=" * 70)
-
-            print("INVALID MISTRAL STRUCTURED OUTPUT")
-
-            print("=" * 70)
-
-            print(content)
-
-            print("=" * 70)
-
-            raise RuntimeError(
-
-                f"{_llm_model} returned invalid structured output: "
-
-                f"{exc}"
-
-            ) from exc
-
-    meeting_result, raw_response = _call_mistral(messages)
-
-    if _looks_like_refusal(meeting_result.objective):
-
-        print()
-
-        print("=" * 70)
-
-        print("OBJECTIVE INVALID - RETRYING")
-
-        print("=" * 70)
-
-        retry_messages = messages + [
-
-            {
-
-                "role": "assistant",
-
-                "content": raw_response,
-
-            },
-
-            {
-
-                "role": "user",
-
-                "content": """
-
-Your previous objective was empty, a refusal, or a
-
-placeholder.
-
-Re-read the COMPLETE transcript.
-
-Generate ONE specific sentence explaining the actual
-
-purpose of the meeting.
-
-The purpose can be inferred from what was reviewed,
-
-discussed, tested, decided, or planned.
-
-Do not refuse.
-
-Do not say that the objective is unknown.
-
-Do not mention this instruction in the answer.
-
-Return the complete JSON structure again, including:
-
-title
-
-objective
-
-meeting_summary
-
-tasks_assigned
-
-decision_points
-
-objections
-
-action_items
-
-timeline
-
-""",
-
-            },
-
-        ]
-
-        meeting_result, raw_response = _call_mistral(
-
-            retry_messages
+            max_tokens=4096,
 
         )
 
-    objective = (
-
-        meeting_result.objective.strip()
-
-        if meeting_result.objective
-
-        else ""
-
-    )
-
-    if not objective or _looks_like_refusal(objective):
+    except Exception as exc:
 
         raise RuntimeError(
 
-            f"{_llm_model} could not produce a valid meeting "
+            f"Meeting summary generation failed for {_llm_model}: {exc}"
 
-            "objective after retry."
+        ) from exc
+
+    if not isinstance(content, str) or not content.strip():
+
+        raise RuntimeError(
+
+            f"{_llm_model} returned an empty meeting summary."
 
         )
 
-    title = (
+    try:
 
-        meeting_result.title.strip()
+        cleaned = _extract_json_object(
 
-        if meeting_result.title
+            content,
 
-        else "Untitled Meeting"
+            required_keys={
 
-    )
+                "title",
 
-    meeting_summary = (
+                "objective",
 
-        meeting_result.meeting_summary.strip()
+                "meeting_summary",
 
-        if meeting_result.meeting_summary
+                "tasks_assigned",
 
-        else "No summary available."
+                "decision_points",
 
-    )
+                "objections",
 
-    result = {
+                "action_items",
 
-        "title": title,
+                "timeline",
 
-        "objective": objective,
-
-        "meeting_summary": meeting_summary,
-
-        "tasks_assigned": [],
-
-        "decision_points": [],
-
-        "objections": [],
-
-        "action_items": [],
-
-        "timeline": [],
-
-    }
-
-    # ========================================================
-
-    # TASKS
-
-    # ========================================================
-
-    for task in meeting_result.tasks_assigned:
-
-        if not task.task:
-
-            continue
-
-        task_text = task.task.strip()
-
-        if not task_text:
-
-            continue
-
-        item = {
-
-            "task": task_text
-
-        }
-
-        if task.assignee:
-
-            assignee = task.assignee.strip()
-
-            if _looks_like_real_name(assignee):
-
-                item["assignee"] = assignee
-
-        if task.deadline:
-
-            deadline = task.deadline.strip()
-
-            if (
-
-                deadline
-
-                and deadline.lower()
-
-                not in _PLACEHOLDER_VALUES
-
-            ):
-
-                item["deadline"] = deadline
-
-        result["tasks_assigned"].append(item)
-
-    # ========================================================
-
-    # DECISIONS
-
-    # ========================================================
-
-    for decision in meeting_result.decision_points:
-
-        if not decision:
-
-            continue
-
-        decision = decision.strip()
-
-        if decision:
-
-            result["decision_points"].append(decision)
-
-    # ========================================================
-
-    # OBJECTIONS
-
-    # ========================================================
-
-    for objection in meeting_result.objections:
-
-        if not objection:
-
-            continue
-
-        objection = objection.strip()
-
-        if objection:
-
-            result["objections"].append(objection)
-
-    # ========================================================
-
-    # ACTION ITEMS
-
-    # ========================================================
-
-    for action in meeting_result.action_items:
-
-        if not action:
-
-            continue
-
-        action = action.strip()
-
-        if action:
-
-            result["action_items"].append(action)
-
-    # ========================================================
-
-    # TIMELINE
-
-    # ========================================================
-
-    for timeline_item in meeting_result.timeline:
-
-        if not timeline_item:
-
-            continue
-
-        action = (timeline_item.action or "").strip()
-
-        date = (timeline_item.date or "").strip()
-
-        if not action:
-
-            continue
-
-        if not date:
-
-            continue
-
-        if date.lower() in _PLACEHOLDER_VALUES:
-
-            continue
-
-        result["timeline"].append(
-
-            {
-
-                "action": action,
-
-                "date": date,
-
-            }
+            },
 
         )
 
-    # ========================================================
+        data = json.loads(cleaned)
 
-    # ADDITIONAL TIMELINE VALIDATION
+        data = _normalize_meeting_result_data(data)
 
-    # ========================================================
+        result = MeetingResult.model_validate(data)
 
-    validated_timeline = []
+    except Exception as exc:
 
-    for timeline_item in result["timeline"]:
+        raise RuntimeError(
 
-        timeline_action = (
+            f"{_llm_model} returned invalid structured meeting output: {exc}"
 
-            timeline_item["action"]
+        ) from exc
 
-            .strip()
+    if not result.objective.strip():
 
-            .lower()
+        raise RuntimeError(
 
-        )
-
-        timeline_date = (
-
-            timeline_item["date"]
-
-            .strip()
-
-            .lower()
+            f"{_llm_model} returned an empty meeting objective."
 
         )
 
-        matched = False
-
-        for task_item in result["tasks_assigned"]:
-
-            task_text = (
-
-                task_item["task"]
-
-                .strip()
-
-                .lower()
-
-            )
-
-            task_deadline = (
-
-                task_item.get("deadline") or ""
-
-            ).strip().lower()
-
-            if (
-
-                timeline_action == task_text
-
-                and task_deadline
-
-                and task_deadline == timeline_date
-
-            ):
-
-                matched = True
-
-                break
-
-            if (
-
-                task_deadline
-
-                and task_deadline == timeline_date
-
-                and (
-
-                    timeline_action in task_text
-
-                    or task_text in timeline_action
-
-                )
-
-            ):
-
-                matched = True
-
-                break
-
-        if matched:
-
-            validated_timeline.append(
-
-                timeline_item
-
-            )
-
-    result["timeline"] = validated_timeline
-
-    # ========================================================
-
-    # LOG RESULT
-
-    # ========================================================
-
-    print()
-
-    print("=" * 70)
-
-    print("MEETING INTELLIGENCE GENERATED")
-
-    print("=" * 70)
-
-    print()
-
-    print("TITLE:")
-
-    print(result["title"])
-
-    print()
-
-    print("OBJECTIVE:")
-
-    print(result["objective"])
-
-    print()
-
-    print("SUMMARY:")
-
-    print(result["meeting_summary"])
-
-    print()
-
-    print("TASKS:")
-
-    if result["tasks_assigned"]:
-
-        for task in result["tasks_assigned"]:
-
-            print("-", task["task"])
-
-            if "assignee" in task:
-
-                print(
-
-                    "  Assignee:",
-
-                    task["assignee"]
-
-                )
-
-            if "deadline" in task:
-
-                print(
-
-                    "  Deadline:",
-
-                    task["deadline"]
-
-                )
-
-    else:
-
-        print("- No tasks identified.")
-
-    print()
-
-    print("DECISIONS:")
-
-    if result["decision_points"]:
-
-        for decision in result["decision_points"]:
-
-            print("-", decision)
-
-    else:
-
-        print("- No decisions identified.")
-
-    print()
-
-    print("OBJECTIONS:")
-
-    if result["objections"]:
-
-        for objection in result["objections"]:
-
-            print("-", objection)
-
-    else:
-
-        print("- None")
-
-    print()
-
-    print("ACTION ITEMS:")
-
-    if result["action_items"]:
-
-        for action in result["action_items"]:
-
-            print("-", action)
-
-    else:
-
-        print("- No action items identified.")
-
-    print()
-
-    print("TIMELINE:")
-
-    if result["timeline"]:
-
-        print(
-
-            f"{'S.No':<8}"
-
-            f"{'Action':<50}"
-
-            f"Date"
-
-        )
-
-        print("-" * 80)
-
-        for index, item in enumerate(
-
-            result["timeline"],
-
-            start=1
-
-        ):
-
-            print(
-
-                f"{index:<8}"
-
-                f"{item['action']:<50}"
-
-                f"{item['date']}"
-
-            )
-
-    else:
-
-        print(
-
-            "- No actions with explicit deadlines identified."
-
-        )
-
-    print()
-
-    print("=" * 70)
-
-    return result
+    return result.model_dump()
 
 # ============================================================
 
-# MIND MAP SYSTEM PROMPT
+# MINDMAP VALIDATION
 
 # ============================================================
 
-MINDMAP_SYSTEM_PROMPT = """
+def _clean_mindmap_node(node: dict) -> dict:
 
-You are MeetMind, an AI meeting mind-map generator.
-
-Your job is to analyze the COMPLETE meeting transcript and
-
-generate a concise, accurate hierarchical mind map.
-
-The transcript may contain:
-
-- English
-
-- Tamil
-
-- Tamil-English code-mixed speech
-
-- Indian English
-
-- informal spoken language
-
-- automatic speech recognition errors
-
-Speaker diarization is DISABLED.
-
-Do not create speaker labels.
-
-============================================================
-
-STRICT TRANSCRIPT GROUNDING
-
-============================================================
-
-The transcript is the ONLY source of truth.
-
-Use ONLY information supported by the transcript.
-
-Never invent:
-
-- people
-
-- names
-
-- tasks
-
-- deadlines
-
-- dates
-
-- decisions
-
-- technologies
-
-- project details
-
-- problems
-
-- outcomes
-
-- next steps
-
-You may correct an obvious ASR error only when the intended
-
-meaning is clear from the surrounding context.
-
-============================================================
-
-MIND MAP STRUCTURE
-
-============================================================
-
-The root node must represent the central topic of the meeting.
-
-Create meaningful branches based ONLY on information actually
-
-present in the transcript.
-
-Possible branches include:
-
-- Project Overview
-
-- Key Discussions
-
-- Technical Topics
-
-- Current Status
-
-- Problems / Challenges
-
-- Decisions
-
-- Action Items
-
-- Tasks
-
-- Timeline
-
-- Next Steps
-
-Do NOT force all categories into the mind map.
-
-Only create branches that are supported by the transcript.
-
-============================================================
-
-NODE RULES
-
-============================================================
-
-1\\. Keep node titles concise.
-
-2\\. Do not write paragraphs inside nodes.
-
-3\\. Preserve important technical terminology.
-
-4\\. Organize related information under the same branch.
-
-5\\. Avoid unnecessary duplication.
-
-6\\. Important action items may appear under "Action Items".
-
-7\\. Explicit deadlines may appear under "Timeline".
-
-8\\. Decisions may appear under "Decisions".
-
-9\\. Problems or concerns may appear under
-
-   "Problems / Challenges".
-
-10\\. The mind map may contain multiple levels of children.
-
-11\\. The mind map must represent the actual meeting content.
-
-12\\. Do not infer information that is not supported by the
-
-    transcript.
-
-============================================================
-
-IMPORTANT
-
-============================================================
-
-Generate the mind map DIRECTLY from the COMPLETE TRANSCRIPT.
-
-DO NOT generate the mind map from a meeting summary.
-
-DO NOT expect a summary to be provided.
-
-The transcript itself is the source of truth.
-
-============================================================
-
-OUTPUT
-
-============================================================
-
-Return ONLY valid JSON.
-
-The structure must be:
-
-{
-
-  "title": "Main Meeting Topic",
-
-  "children": [
-
-    {
-
-      "title": "Major Topic",
-
-      "children": [
-
-        {
-
-          "title": "Important Detail"
-
-        }
-
-      ]
-
-    }
-
-  ]
-
-}
-
-Every node MUST contain:
-
-"title"
-
-A node MAY contain:
-
-"children"
-
-Do not add any other fields.
-
-Do not add markdown.
-
-Do not add explanations outside the JSON.
-
-Do not copy the example information into the output unless
-
-that information actually exists in the transcript.
-
-JSON STRICTNESS RULES:
-
-Return syntactically valid JSON.
-
-Every opening { must have a matching }.
-
-Every opening [ must have a matching ].
-
-Every property must be separated by a comma.
-
-All strings must use double quotes.
-
-Never place an unescaped double quote inside a title.
-
-Do not use trailing commas.
-
-Do not output comments.
-
-Do not output markdown fences.
-
-Do not output any text before or after the JSON.
-
-Keep node titles concise.
-
-Maximum 6 top-level branches.
-
-Maximum 5 children per branch.
-
-Maximum 3 hierarchy levels below the root.
-
-"""
-
-# ============================================================
-
-# MIND MAP VALIDATION
-
-# ============================================================
-
-def _clean_mindmap_node(node):
+    """Recursively validate and normalize mindmap nodes."""
 
     if not isinstance(node, dict):
 
-        raise ValueError(
+        raise ValueError("Every mindmap node must be an object.")
 
-            "Invalid mind-map node. "
+    title = node.get("title")
 
-            "Expected a JSON object."
+    if not isinstance(title, str) or not title.strip():
 
-        )
+        raise ValueError("Every mindmap node must have a non-empty title.")
 
-    title = node.get("title", "")
-
-    if not isinstance(title, str):
-
-        raise ValueError(
-
-            "Invalid mind-map node title."
-
-        )
-
-    title = title.strip()
-
-    if not title:
-
-        raise ValueError(
-
-            "Mind-map node title cannot be empty."
-
-        )
-
-    cleaned_node = {
-
-        "title": title
-
-    }
-
-    children = node.get(
-
-        "children",
-
-        [],
-
-    )
-
-    if children is None:
-
-        children = []
+    children = node.get("children", [])
 
     if not isinstance(children, list):
 
         raise ValueError(
 
-            "Mind-map children must be a list."
+            f"Children for node {title!r} must be a list."
 
         )
 
-    cleaned_children = []
+    cleaned = {
 
-    for child in children:
+        "title": title.strip(),
 
-        cleaned_children.append(
+        "children": [
 
             _clean_mindmap_node(child)
 
-        )
+            for child in children
 
-    if cleaned_children:
+        ],
 
-        cleaned_node["children"] = cleaned_children
+    }
 
-    return cleaned_node
-
-# ============================================================
-
-# ========================================================
-
-# ROBUST MIND-MAP JSON PARSING
-
-# ========================================================
-
-def _extract_json_object(text):
-
-    """
-
-    Extract the outermost JSON object from the LLM response.
-
-    Handles:
-
-    - plain JSON
-
-    - ```json ... ``` markdown fences
-
-    - surrounding explanatory text
-
-    """
-
-    text = (text or "").strip()
-
-    if not text:
-
-        return ""
-
-    # Remove opening markdown code fence.
-
-    text = re.sub(
-
-        r"^\s*```(?:json)?\s*",
-
-        "",
-
-        text,
-
-        flags=re.IGNORECASE,
-
-    )
-
-    # Remove closing markdown code fence.
-
-    text = re.sub(
-
-        r"\s*```\s*$",
-
-        "",
-
-        text,
-
-    ).strip()
-
-    # Already a complete JSON object.
-
-    if text.startswith("{") and text.endswith("}"):
-
-        return text
-
-    # Extract the outer JSON object if the model added
-
-    # explanatory text before or after it.
-
-    first_brace = text.find("{")
-
-    last_brace = text.rfind("}")
-
-    if first_brace >= 0 and last_brace > first_brace:
-
-        return text[first_brace:last_brace + 1].strip()
-
-    return text
-
-def _parse_mindmap_json(text):
-
-    """
-
-    Parse the LLM response as JSON.
-
-    """
-
-    cleaned = _extract_json_object(text)
-
-    if not cleaned:
-
-        raise json.JSONDecodeError(
-
-            "Empty mind-map response",
-
-            "",
-
-            0,
-
-        )
-
-    return json.loads(cleaned)
-
-# GENERATE MIND MAP
+    return cleaned
 
 # ============================================================
 
-def generate_mindmap(transcript: str, _llm_call=call_mistral, _llm_model=MISTRAL_MODEL):
+# MINDMAP GENERATION
 
-    """
+# ============================================================
 
-    Generate a mind map directly from the complete transcript.
+MINDMAP_SYSTEM_PROMPT = """
 
-    This is completely independent from
+You are MeetMind, a meeting mindmap generator.
 
-    generate_meeting_summary().
+Generate a hierarchical mindmap directly from the complete transcript.
 
-    The meeting summary is NOT generated first.
+Do not generate the mindmap from a summary.
 
-    The transcript is sent directly to Mistral 128B.
+Use only information supported by the transcript.
 
-    """
+Do not invent names, decisions, tasks, deadlines, or facts.
+
+Keep node titles concise and meaningful.
+
+Every node must contain:
+
+\\- title: a string
+
+\\- children: an array of child nodes, which may be empty
+
+Return exactly one JSON object with a root title and children.
+
+Do not add any other fields.
+
+Do not return reasoning, Markdown, introductions, or explanations.
+
+"""
+
+def generate_mindmap(
+
+    transcript: str,
+
+    _llm_call=call_mistral,
+
+    _llm_model=MISTRAL_MODEL,
+
+):
+
+    """Generate a hierarchical mindmap directly from the transcript."""
 
     transcript = (transcript or "").strip()
 
@@ -2176,83 +1601,37 @@ def generate_mindmap(transcript: str, _llm_call=call_mistral, _llm_model=MISTRAL
 
         raise ValueError(
 
-            "Cannot generate mind map because transcript is empty."
+            "Cannot generate a mindmap because the transcript is empty."
 
         )
 
-    print()
-
-    print("=" * 70)
-
-    print("MEETMIND - MIND MAP GENERATION")
-
-    print("=" * 70)
-
-    print("LLM Model:", _llm_model)
-
-    print("Speaker diarization:", "DISABLED")
-
-    print("Transcript length:", len(transcript), "characters")
-
-    print(
-
-        "Generating mind map directly from COMPLETE transcript..."
-
-    )
-
-    print("=" * 70)
-
     user_prompt = f"""
 
-Analyze the COMPLETE meeting transcript below and generate
+Analyze the complete meeting transcript and create a hierarchical mindmap.
 
-a hierarchical mind map.
+Capture relevant:
 
-IMPORTANT:
+\\- Main topics
 
-The transcript is the source of truth.
+\\- Technical discussions
 
-Generate the mind map DIRECTLY from the transcript.
+\\- Current status
 
-Do NOT generate it from a meeting summary.
+\\- Problems or challenges
 
-Do NOT invent information.
+\\- Decisions
 
-Capture the important:
+\\- Action items
 
-- topics
+\\- Tasks
 
-- technical discussions
+\\- Explicit timelines
 
-- current status
+\\- Next steps
 
-- problems or challenges
+Only include categories supported by the transcript.
 
-- decisions
-
-- action items
-
-- tasks
-
-- explicit timelines
-
-- next steps
-
-Only include categories that are actually supported by
-
-the transcript.
-
-Keep node titles concise.
-
-MEETING TRANSCRIPT
-
-==================
-
-{transcript}
-
-==================
-
-Return ONLY valid JSON in this exact structure:
+Return exactly this structure:
 
 {{
 
@@ -2268,7 +1647,9 @@ Return ONLY valid JSON in this exact structure:
 
         {{
 
-          "title": "Important Detail"
+          "title": "Important Detail",
+
+          "children": []
 
         }}
 
@@ -2280,15 +1661,19 @@ Return ONLY valid JSON in this exact structure:
 
 }}
 
-Every node must contain a "title".
+Every node must contain a title and a children array.
 
-A node may contain "children".
+Do not include fields other than title and children.
 
-Do not add any other fields.
+COMPLETE MEETING TRANSCRIPT:
 
-Do not add markdown.
+\\============================
 
-Do not add explanations.
+{transcript}
+
+\\============================
+
+Return only one valid JSON object.
 
 """
 
@@ -2310,159 +1695,49 @@ Do not add explanations.
 
         raise RuntimeError(
 
-            "Could not connect to Mistral 128B while generating "
-
-            f"the mind map. Make sure the Mistral API is configured "
-
-            f"and model '{MISTRAL_MODEL}' is available. "
-
-            f"Original error: {exc}"
+            f"Mindmap generation failed for {_llm_model}: {exc}"
 
         ) from exc
 
-    content = (content or "").strip()
-
-    if not content:
+    if not isinstance(content, str) or not content.strip():
 
         raise RuntimeError(
 
-            f"{_llm_model} returned an empty mind-map response."
+            f"{_llm_model} returned an empty mindmap response."
 
         )
-
-    # --------------------------------------------------------
-
-    # REMOVE MARKDOWN FENCES
-
-    # --------------------------------------------------------
-
-    if content.startswith("```"):
-
-        content = re.sub(
-
-            r"^```(?:json)?\s*",
-
-            "",
-
-            content,
-
-            flags=re.IGNORECASE,
-
-        )
-
-        content = re.sub(
-
-            r"\s*```$",
-
-            "",
-
-            content,
-
-        ).strip()
-
-    # ========================================================
-
-    # FIRST JSON PARSE
-
-    # --------------------------------------------------------
 
     try:
 
-        mindmap_data = _parse_mindmap_json(
+        mindmap_data = _parse_mindmap_json(content)
 
-            content
-
-        )
-
-    except json.JSONDecodeError as first_error:
-
-        # ----------------------------------------------------
-
-        # AUTOMATIC JSON REPAIR
-
-        # ----------------------------------------------------
-
-        print()
-
-        print("=" * 70)
-
-        print("MIND MAP JSON INVALID")
-
-        print("REQUESTING JSON REPAIR FROM", _llm_model)
-
-        print("=" * 70)
+    except Exception as first_error:
 
         repair_prompt = f"""
 
-The following response was intended to be a JSON mind map,
+Repair the following malformed mindmap response.
 
-but it contains a JSON syntax error.
+Requirements:
 
-Repair ONLY the JSON syntax.
+\\- Preserve the existing information.
 
-IMPORTANT RULES:
+\\- Do not invent new content.
 
-1\\. Preserve all existing information.
+\\- Return one valid JSON object.
 
-2\\. Do NOT invent information.
+\\- The root must contain title and children.
 
-3\\. Do NOT remove valid information.
+\\- Every node must contain title and children.
 
-4\\. Do NOT summarize the content.
+\\- Use only title and children fields.
 
-5\\. Do NOT change node titles unless required for valid JSON.
+\\- Do not include reasoning, Markdown, or explanations.
 
-6\\. Do NOT add markdown.
-
-7\\. Do NOT add explanations.
-
-8\\. Return ONLY valid JSON.
-
-9\\. Every node must contain "title".
-
-10\\. A node may contain "children".
-
-11\\. Do not add fields other than "title" and "children".
-
-12\\. Use double quotes for all JSON strings.
-
-13\\. Do not use trailing commas.
-
-14\\. Properly close every object and array.
-
-Required structure:
-
-{{
-
-  "title": "Main Meeting Topic",
-
-  "children": [
-
-    {{
-
-      "title": "Major Topic",
-
-      "children": [
-
-        {{
-
-          "title": "Important Detail"
-
-        }}
-
-      ]
-
-    }}
-
-  ]
-
-}}
-
-INVALID RESPONSE:
+Malformed response:
 
 {content}
 
-Return ONLY the corrected JSON.
+Return only the repaired JSON object.
 
 """
 
@@ -2470,23 +1745,13 @@ Return ONLY the corrected JSON.
 
             repaired_content = _llm_call(
 
-                system_prompt="""
+                system_prompt=(
 
-You are a strict JSON repair engine for MeetMind.
+                    "You are a JSON repair engine. Return only one valid "
 
-Your only task is to repair malformed JSON.
+                    "mindmap JSON object. Do not explain anything."
 
-Preserve the information exactly.
-
-Do not add information.
-
-Do not remove information.
-
-Do not explain anything.
-
-Return ONLY syntactically valid JSON.
-
-""",
+                ),
 
                 user_prompt=repair_prompt,
 
@@ -2496,199 +1761,41 @@ Return ONLY syntactically valid JSON.
 
             )
 
-        except Exception as repair_exc:
+            mindmap_data = _parse_mindmap_json(repaired_content)
+
+        except Exception as repair_error:
 
             raise RuntimeError(
 
-                "Mistral 128B mind-map JSON was invalid "
+                f"{_llm_model} returned invalid mindmap JSON, and "
 
-                "and the automatic JSON repair request failed: "
+                f"automatic repair failed. Original error: {first_error}. "
 
-                f"{repair_exc}"
-
-            ) from repair_exc
-
-        repaired_content = (
-
-            repaired_content or ""
-
-        ).strip()
-
-        if not repaired_content:
-
-            raise RuntimeError(
-
-                "Mistral 128B returned an empty response "
-
-                "during mind-map JSON repair."
-
-            )
-
-        try:
-
-            mindmap_data = _parse_mindmap_json(
-
-                repaired_content
-
-            )
-
-            print()
-
-            print("=" * 70)
-
-            print("MIND MAP JSON REPAIRED SUCCESSFULLY")
-
-            print("=" * 70)
-
-        except json.JSONDecodeError as repair_error:
-
-            print()
-
-            print("=" * 70)
-
-            print("MIND MAP JSON REPAIR FAILED")
-
-            print("=" * 70)
-
-            print(
-
-                "Original JSON error:",
-
-                first_error,
-
-            )
-
-            print(
-
-                "Repair JSON error:",
-
-                repair_error,
-
-            )
-
-            print()
-
-            print("Original response:")
-
-            print(content)
-
-            print()
-
-            print("Repair response:")
-
-            print(repaired_content)
-
-            print("=" * 70)
-
-            raise RuntimeError(
-
-                f"{_llm_model} returned invalid mind-map JSON "
-
-                "and automatic JSON repair also failed: "
-
-                f"{repair_error}"
+                f"Repair error: {repair_error}"
 
             ) from repair_error
 
-    # --------------------------------------------------------
-
-    # VALIDATE ROOT
-
-    # --------------------------------------------------------
-
-    if not isinstance(
-
-        mindmap_data,
-
-        dict,
-
-    ):
-
-        raise RuntimeError(
-
-            "Mistral 128B mind-map response must be a JSON object."
-
-        )
-
-    # --------------------------------------------------------
-
-    # CLEAN / VALIDATE TREE
-
-    # --------------------------------------------------------
-
     try:
 
-        mindmap = _clean_mindmap_node(
-
-            mindmap_data
-
-        )
+        return _clean_mindmap_node(mindmap_data)
 
     except Exception as exc:
 
         raise RuntimeError(
 
-            f"{_llm_model} returned an invalid mind-map structure: "
-
-            f"{exc}"
+            f"{_llm_model} returned an invalid mindmap structure: {exc}"
 
         ) from exc
 
-    # --------------------------------------------------------
-
-    # LOG RESULT
-
-    # --------------------------------------------------------
-
-    print()
-
-    print("=" * 70)
-
-    print("MIND MAP GENERATED SUCCESSFULLY")
-
-    print("=" * 70)
-
-    print()
-
-    print("ROOT:")
-
-    print(mindmap["title"])
-
-    print()
-
-    print(
-
-        "TOP-LEVEL BRANCHES:",
-
-        len(
-
-            mindmap.get(
-
-                "children",
-
-                [],
-
-            )
-
-        ),
-
-    )
-
-    print()
-
-    print("=" * 70)
-
-    return mindmap
-
 # ============================================================
 
-# QWEN3 WRAPPERS
+# QWEN3-27B WRAPPERS
 
 # ============================================================
 
 def generate_meeting_summary_qwen(transcript: str):
 
-    """Generate meeting intelligence using Qwen3-27B via Cloud API."""
+    """Generate meeting intelligence using Qwen3-27B Cloud API."""
 
     return generate_meeting_summary(
 
@@ -2702,7 +1809,7 @@ def generate_meeting_summary_qwen(transcript: str):
 
 def generate_mindmap_qwen(transcript: str):
 
-    """Generate a transcript-grounded mind map using Qwen3-27B Cloud API."""
+    """Generate a mindmap using Qwen3-27B Cloud API."""
 
     return generate_mindmap(
 

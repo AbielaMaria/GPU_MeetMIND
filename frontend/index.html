@@ -3375,13 +3375,46 @@ body.mindmap-expanded {
 
 let websocket = null;
 
+// ============================================================
+// WEBSOCKET RECOVERY STATE
+// ------------------------------------------------------------
+// Option A keeps the original WebSocket architecture. The
+// browser temporarily keeps the complete PCM recording in memory
+// so a new WebSocket can replay the recording after a connection
+// loss. No HTTP upload is used.
+// ============================================================
+
+let recordingPcmChunks = [];
+
+let recordingAudioMode = "microphone";
+
+let connectionLost = false;
+
+let reconnectTimer = null;
+
+let reconnectAttempts = 0;
+
+let reconnecting = false;
+
+let replayingRecording = false;
+
+let stopRequested = false;
+
+let intentionalSocketClose = false;
+
 let audioContext = null;
 
 let microphoneStream = null;
 
+let meetTabStream = null;
+
 let sourceNode = null;
 
+let meetTabSourceNode = null;
+
 let processorNode = null;
+
+let silentGainNode = null;
 
 let isRecording = false;
 
@@ -3875,7 +3908,7 @@ function floatToPCM16(
    WEBSOCKET
 ============================================================ */
 
-async function openWebSocket() {
+function getWebSocketUrl() {
 
     const protocol =
         window.location.protocol ===
@@ -3886,24 +3919,40 @@ async function openWebSocket() {
     const host =
         window.location.host;
 
-    websocket =
-        new WebSocket(
-            `${protocol}://${host}/ws/meeting`
-        );
+    return `${protocol}://${host}/ws/meeting`;
+}
 
-    websocket.binaryType =
-        "arraybuffer";
 
-    await new Promise(
+/* ============================================================
+   CREATE WEBSOCKET CONNECTION
+   ------------------------------------------------------------
+   This creates ONE WebSocket connection. Recovery logic is
+   handled separately so the original recording architecture
+   remains WebSocket-only.
+============================================================ */
+
+function createWebSocketConnection() {
+
+    return new Promise(
         (
             resolve,
             reject
         ) => {
 
+            const socket =
+                new WebSocket(
+                    getWebSocketUrl()
+                );
+
+            socket.binaryType =
+                "arraybuffer";
+
+            websocket = socket;
+
             let settled =
                 false;
 
-            websocket.onopen =
+            socket.onopen =
                 () => {
 
                     if (
@@ -3915,6 +3964,9 @@ async function openWebSocket() {
 
                     settled =
                         true;
+
+                    connectionLost =
+                        false;
 
                     connectionEl.textContent =
                         "Connected";
@@ -3923,36 +3975,37 @@ async function openWebSocket() {
                         "#22c55e";
 
                     log(
-                        "WebSocket connected."
+                        reconnecting
+                            ? "WebSocket reconnected."
+                            : "WebSocket connected."
                     );
 
                     resolve();
                 };
 
+            socket.onmessage =
+                handleServerMessage;
 
-            websocket.onerror =
+            socket.onerror =
                 () => {
 
                     if (
-                        settled
+                        !settled
                     ) {
 
-                        return;
+                        settled =
+                            true;
+
+                        reject(
+                            new Error(
+                                "WebSocket connection failed."
+                            )
+                        );
                     }
-
-                    settled =
-                        true;
-
-                    reject(
-                        new Error(
-                            "WebSocket connection failed."
-                        )
-                    );
                 };
 
-
-            websocket.onclose =
-                () => {
+            socket.onclose =
+                (event) => {
 
                     connectionEl.textContent =
                         "Disconnected";
@@ -3961,11 +4014,42 @@ async function openWebSocket() {
                         "#dc2626";
 
                     log(
-                        "WebSocket closed."
+                        `WebSocket closed. Code=${event.code}, Reason=${event.reason || "(none)"}, Clean=${event.wasClean}`
                     );
 
-                    // Closed before a transcript came back: don't
-                    // leave the transcription loader running.
+                    connectionLost =
+                        true;
+
+                    // ------------------------------------------------
+                    // During an active recording, the microphone keeps
+                    // producing PCM. The chunks are retained locally and
+                    // a new WebSocket will replay the complete recording.
+                    // ------------------------------------------------
+                    if (
+                        isRecording
+                        ||
+                        stopRequested
+                    ) {
+
+                        if (
+                            isRecording
+                        ) {
+
+                            setStatus(
+                                "Internet connection lost. Recording continues locally. Reconnecting..."
+                            );
+
+                            log(
+                                "WebSocket lost. Audio is being retained locally while reconnecting."
+                            );
+                        }
+
+                        scheduleWebSocketReconnect();
+
+                        return;
+                    }
+
+                    // Closed after recording/processing has finished.
                     if (
                         !isRecording
                         &&
@@ -3981,12 +4065,350 @@ async function openWebSocket() {
                         );
                     }
                 };
-
         }
     );
+}
 
-    websocket.onmessage =
-        handleServerMessage;
+
+/* ============================================================
+   SEND START + COMPLETE LOCALLY RETAINED RECORDING
+============================================================ */
+
+async function replayRecordingToWebSocket() {
+
+    if (
+        !websocket
+        ||
+        websocket.readyState !==
+            WebSocket.OPEN
+    ) {
+
+        throw new Error(
+            "WebSocket is not open for recording recovery."
+        );
+    }
+
+    replayingRecording =
+        true;
+
+    try {
+
+        websocket.send(
+            JSON.stringify({
+                command: "start",
+                audio_mode:
+                    recordingAudioMode,
+                audio_sources:
+                    recordingAudioMode ===
+                        "microphone_and_meet_tab"
+                        ? [
+                            "microphone",
+                            "google_meet_tab"
+                        ]
+                        : [
+                            "microphone"
+                        ]
+            })
+        );
+
+        log(
+            `Reconnected WebSocket. Replaying ${recordingPcmChunks.length} buffered PCM chunks...`
+        );
+
+        for (
+            let i = 0;
+            i < recordingPcmChunks.length;
+            i++
+        ) {
+
+            if (
+                !websocket
+                ||
+                websocket.readyState !==
+                    WebSocket.OPEN
+            ) {
+
+                throw new Error(
+                    "WebSocket closed while replaying buffered audio."
+                );
+            }
+
+            websocket.send(
+                recordingPcmChunks[i]
+            );
+
+            // Prevent an extremely large replay from filling the browser's
+            // WebSocket send queue too aggressively. Normal live audio is
+            // still buffered in recordingPcmChunks while this replay runs.
+            if (
+                websocket.bufferedAmount >
+                1024 * 1024
+            ) {
+
+                await waitForWebSocketDrain();
+            }
+        }
+
+        // Any chunks produced while the replay was running were not sent
+        // because replayingRecording was true. Send the tail now.
+        const tailStart =
+            recordingPcmChunks.length;
+
+        // Give the audio callback a chance to append a current chunk before
+        // ending replay. The next audio callback will also send normally.
+        await new Promise(
+            resolve =>
+                setTimeout(resolve, 0)
+        );
+
+        // Send anything appended after the original loop snapshot.
+        // A small fixed-point loop handles chunks added during this pass.
+        let sentCount =
+            Math.min(
+                tailStart,
+                recordingPcmChunks.length
+            );
+
+        while (
+            sentCount <
+            recordingPcmChunks.length
+        ) {
+
+            if (
+                !websocket
+                ||
+                websocket.readyState !==
+                    WebSocket.OPEN
+            ) {
+
+                throw new Error(
+                    "WebSocket closed while sending recovered audio."
+                );
+            }
+
+            websocket.send(
+                recordingPcmChunks[sentCount]
+            );
+
+            sentCount++;
+
+            if (
+                websocket.bufferedAmount >
+                1024 * 1024
+            ) {
+
+                await waitForWebSocketDrain();
+            }
+        }
+
+        log(
+            "Buffered recording replay complete. Live audio can continue."
+        );
+
+    } finally {
+
+        replayingRecording =
+            false;
+    }
+}
+
+
+function waitForWebSocketDrain() {
+
+    return new Promise(
+        resolve => {
+
+            const check =
+                () => {
+
+                    if (
+                        !websocket
+                        ||
+                        websocket.readyState !==
+                            WebSocket.OPEN
+                        ||
+                        websocket.bufferedAmount <=
+                            256 * 1024
+                    ) {
+
+                        resolve();
+                        return;
+                    }
+
+                    setTimeout(
+                        check,
+                        10
+                    );
+                };
+
+            check();
+        }
+    );
+}
+
+
+/* ============================================================
+   RECONNECT
+============================================================ */
+
+function scheduleWebSocketReconnect() {
+
+    if (
+        reconnectTimer
+        ||
+        reconnecting
+    ) {
+
+        return;
+    }
+
+    if (
+        !isRecording
+        &&
+        !stopRequested
+    ) {
+
+        return;
+    }
+
+    const delay =
+        Math.min(
+            1000 *
+                Math.pow(
+                    2,
+                    reconnectAttempts
+                ),
+            10000
+        );
+
+    reconnectAttempts++;
+
+    log(
+        `WebSocket reconnect attempt ${reconnectAttempts} in ${Math.round(delay / 1000)}s...`
+    );
+
+    reconnectTimer =
+        setTimeout(
+            async () => {
+
+                reconnectTimer =
+                    null;
+
+                await reconnectWebSocket();
+            },
+            delay
+        );
+}
+
+
+async function reconnectWebSocket() {
+
+    if (
+        !isRecording
+        &&
+        !stopRequested
+    ) {
+
+        return;
+    }
+
+    if (
+        reconnecting
+    ) {
+
+        return;
+    }
+
+    reconnecting =
+        true;
+
+    try {
+
+        await createWebSocketConnection();
+
+        await replayRecordingToWebSocket();
+
+        reconnectAttempts =
+            0;
+
+        connectionLost =
+            false;
+
+        if (
+            stopRequested
+        ) {
+
+            websocket.send(
+                JSON.stringify({
+                    command: "stop"
+                })
+            );
+
+            stopRequested =
+                false;
+
+            log(
+                "Recovered WebSocket connected. Stop command sent. Waiting for Parrotlet..."
+            );
+
+        } else {
+
+            setStatus(
+                "Recording system microphone" +
+                (
+                    recordingAudioMode ===
+                    "microphone_and_meet_tab"
+                        ? " + Google Meet tab audio"
+                        : ""
+                ) +
+                "..."
+            );
+
+            log(
+                "Recording resumed after WebSocket reconnection."
+            );
+        }
+
+    } catch (error) {
+
+        log(
+            `WebSocket reconnect failed: ${error.message}`
+        );
+
+        reconnecting =
+            false;
+
+        scheduleWebSocketReconnect();
+
+        return;
+
+    } finally {
+
+        reconnecting =
+            false;
+    }
+}
+
+
+/* ============================================================
+   INITIAL WEBSOCKET OPEN
+============================================================ */
+
+async function openWebSocket() {
+
+    reconnectAttempts =
+        0;
+
+    connectionLost =
+        false;
+
+    stopRequested =
+        false;
+
+    reconnecting =
+        false;
+
+    await createWebSocketConnection();
 }
 
 
@@ -7008,60 +7430,37 @@ searchNextBtn.addEventListener(
 
 async function startRecording() {
 
-    if (
-        isRecording
-    ) {
-
+    if (isRecording) {
         return;
     }
 
+    recordBtn.disabled = true;
 
-    recordBtn.disabled =
-        true;
-
-    // Results still being generated belong to the recording being
-    // replaced — bumping the epoch keeps them out of the new one's
-    // panels (see GENERATE).
     sessionEpoch++;
-
     clearReportReady();
-
     clearReportSelection();
 
-    transcript =
-        "";
-
-    currentMeetingId =
-        null;
-
-    currentMeetingDuration =
-        null;
+    transcript = "";
+    currentMeetingId = null;
+    currentMeetingDuration = null;
 
     updateGenerateButton();
 
-
     setStatus(
-        "Requesting microphone..."
+        "Requesting microphone permission..."
     );
 
-
-    transcriptEl.innerHTML =
-        `
+    transcriptEl.innerHTML = `
         <div class="placeholder">
             Recording in progress...
         </div>
-        `;
+    `;
 
     resetTranscriptSearch();
 
-
     modelSlots.forEach(
-        slot => resetSlot(
-            slot,
-            "recording"
-        )
+        slot => resetSlot(slot, "recording")
     );
-
 
     try {
 
@@ -7071,33 +7470,156 @@ async function startRecording() {
 
         await openWebSocket();
 
+        if (!websocket || websocket.readyState !== WebSocket.OPEN) {
+            throw new Error("WebSocket connection failed.");
+        }
 
         /* ----------------------------------------------------
-           Microphone
+           SYSTEM MICROPHONE
+
+           Always requested independently of tab sharing.
+           This is the computer's selected/default microphone
+           (laptop mic, AirPods mic, USB mic, etc.).
         ---------------------------------------------------- */
 
+        setStatus("Requesting system microphone permission...");
+
         microphoneStream =
-            await navigator
-                .mediaDevices
-                .getUserMedia(
-                    {
-                        audio: {
+            await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    channelCount: 1,
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true
+                }
+            });
 
-                            channelCount:
-                                1,
+        const microphoneTracks =
+            microphoneStream.getAudioTracks();
 
-                            echoCancellation:
-                                true,
+        if (!microphoneTracks.length) {
+            throw new Error(
+                "No microphone input was detected."
+            );
+        }
 
-                            noiseSuppression:
-                                true,
+        log(
+            "System microphone: " +
+            microphoneTracks
+                .map(
+                    track =>
+                        `${track.label || "default microphone"}:readyState=${track.readyState}`
+                )
+                .join(" | ")
+        );
 
-                            autoGainControl:
-                                true
+        /* ----------------------------------------------------
+           OPTIONAL GOOGLE MEET TAB AUDIO
+
+           The existing Chrome tab-audio capture is preserved.
+
+           IMPORTANT:
+           - If the user selects a Google Meet tab and enables
+             tab audio, it is mixed with the microphone.
+           - If the user cancels/closes the sharing dialog, the
+             meeting continues with microphone-only recording.
+           - If Chrome returns a display stream without an audio
+             track, microphone-only recording continues.
+        ---------------------------------------------------- */
+
+        let tabAudioAvailable = false;
+
+        setStatus(
+            "Microphone ready. Optional: select Google Meet tab and enable Share tab audio..."
+        );
+
+        try {
+
+            meetTabStream =
+                await navigator.mediaDevices.getDisplayMedia({
+                    video: true,
+                    audio: true
+                });
+
+            const meetAudioTracks =
+                meetTabStream.getAudioTracks();
+
+            if (meetAudioTracks.length) {
+
+                tabAudioAvailable = true;
+
+                log(
+                    "Google Meet tab audio: " +
+                    meetAudioTracks
+                        .map(
+                            track =>
+                                `${track.label || "tab audio"}:readyState=${track.readyState}`
+                        )
+                        .join(" | ")
+                );
+
+                /* We only need Meet audio, not the shared video. */
+                meetTabStream.getVideoTracks().forEach(
+                    track => track.stop()
+                );
+
+                meetAudioTracks.forEach(track => {
+                    track.addEventListener(
+                        "ended",
+                        () => {
+                            log(
+                                "Google Meet tab audio ended. Continuing with microphone."
+                            );
                         }
+                    );
+                });
+
+            } else {
+
+                log(
+                    "Chrome returned no tab-audio track. Continuing with system microphone only."
+                );
+
+                meetTabStream.getTracks().forEach(
+                    track => track.stop()
+                );
+
+                meetTabStream = null;
+            }
+
+        } catch (tabError) {
+
+            /* User cancelling the Chrome sharing dialog must NOT
+               cancel microphone recording. */
+
+            if (
+                tabError &&
+                (
+                    tabError.name === "NotAllowedError" ||
+                    tabError.name === "AbortError"
+                )
+            ) {
+                log(
+                    "Google Meet tab sharing not selected. Continuing with system microphone only."
+                );
+            } else {
+                log(
+                    `Optional tab audio unavailable: ${tabError.message || tabError}. Continuing with microphone.`
+                );
+            }
+
+            if (meetTabStream) {
+                meetTabStream.getTracks().forEach(
+                    track => {
+                        try {
+                            track.stop();
+                        } catch (e) {}
                     }
                 );
 
+                meetTabStream = null;
+            }
+        }
 
         /* ----------------------------------------------------
            Audio Context
@@ -7105,201 +7627,218 @@ async function startRecording() {
 
         audioContext =
             new (
-                window.AudioContext
-                ||
+                window.AudioContext ||
                 window.webkitAudioContext
             )();
 
-
-        if (
-            audioContext.state ===
-            "suspended"
-        ) {
-
+        if (audioContext.state === "suspended") {
             await audioContext.resume();
         }
 
-
         /* ----------------------------------------------------
-           Source
+           Audio sources
+
+           sourceNode        = system microphone
+           meetTabSourceNode = optional Google Meet tab audio
         ---------------------------------------------------- */
 
         sourceNode =
-            audioContext
-                .createMediaStreamSource(
-                    microphoneStream
-                );
+            audioContext.createMediaStreamSource(
+                microphoneStream
+            );
 
+        if (tabAudioAvailable && meetTabStream) {
+
+            meetTabSourceNode =
+                audioContext.createMediaStreamSource(
+                    meetTabStream
+                );
+        }
 
         /* ----------------------------------------------------
            Processor
+
+           If tab audio exists, Web Audio sums microphone +
+           Google Meet audio.
+
+           Otherwise only the microphone is connected.
         ---------------------------------------------------- */
 
         processorNode =
-            audioContext
-                .createScriptProcessor(
-                    4096,
-                    1,
-                    1
-                );
-
+            audioContext.createScriptProcessor(
+                4096,
+                1,
+                1
+            );
 
         processorNode.onaudioprocess =
-            function(
-                event
-            ) {
+            function(event) {
 
                 if (
                     !isRecording
-                    ||
-                    !websocket
-                    ||
-                    websocket.readyState !==
-                        WebSocket.OPEN
                 ) {
-
                     return;
                 }
 
-
                 const input =
-                    event
-                        .inputBuffer
-                        .getChannelData(
-                            0
-                        );
+                    event.inputBuffer.getChannelData(0);
 
+                if (!input || !input.length) {
+                    return;
+                }
 
                 const pcm16k =
                     downsampleBuffer(
                         input,
-
-                        audioContext
-                            .sampleRate,
-
+                        audioContext.sampleRate,
                         16000
                     );
 
+                if (!pcm16k || !pcm16k.length) {
+                    return;
+                }
 
                 const pcmBuffer =
-                    floatToPCM16(
-                        pcm16k
-                    );
+                    floatToPCM16(pcm16k);
 
+                if (!pcmBuffer || !pcmBuffer.byteLength) {
+                    return;
+                }
 
-                websocket.send(
-                    pcmBuffer
+                // Always retain the complete PCM recording locally.
+                // This is the recovery buffer for WebSocket interruptions.
+                recordingPcmChunks.push(
+                    pcmBuffer.slice(0)
                 );
+
+                // Normal live transport. If the WebSocket is unavailable,
+                // the local buffer keeps accumulating until reconnection.
+                if (
+                    websocket
+                    &&
+                    websocket.readyState === WebSocket.OPEN
+                    &&
+                    !connectionLost
+                    &&
+                    !replayingRecording
+                ) {
+                    websocket.send(pcmBuffer);
+                }
             };
 
-
-        sourceNode.connect(
-            processorNode
-        );
-
-
-        /*
-         * Connect processor to destination so that
-         * onaudioprocess continues to run reliably.
-         *
-         * The microphone stream itself is not routed
-         * directly to the speakers.
-         */
-
-        processorNode.connect(
-            audioContext.destination
-        );
-
-
         /* ----------------------------------------------------
-           RECORDING STATE
+           Connect microphone
         ---------------------------------------------------- */
 
-        isRecording =
-            true;
+        sourceNode.connect(processorNode);
 
-        startTimer();
+        /* ----------------------------------------------------
+           Connect optional Meet tab audio
+        ---------------------------------------------------- */
 
+        if (meetTabSourceNode) {
+            meetTabSourceNode.connect(processorNode);
+        }
 
-        /*
-         * IMPORTANT:
-         *
-         * The button MUST remain enabled after recording
-         * starts so the user can click it to stop.
-         */
+        /* ----------------------------------------------------
+           Keep ScriptProcessor active WITHOUT playing audio
+           back through the speakers.
+        ---------------------------------------------------- */
 
-        recordBtn.disabled =
-            false;
+        silentGainNode =
+            audioContext.createGain();
 
-        recordBtn.textContent =
-            "Stop Recording";
+        silentGainNode.gain.value = 0;
 
-        recordBtn.classList.add(
-            "recording"
-        );
+        processorNode.connect(silentGainNode);
+        silentGainNode.connect(audioContext.destination);
 
+        /* ----------------------------------------------------
+           Tell backend to start before enabling audio packets.
+        ---------------------------------------------------- */
 
-        setStatus(
-            "Recording meeting..."
-        );
+        recordingAudioMode =
+            tabAudioAvailable
+                ? "microphone_and_meet_tab"
+                : "microphone";
 
+        recordingPcmChunks = [];
 
         websocket.send(
-            JSON.stringify(
-                {
-                    command:
-                        "start"
-                }
-            )
+            JSON.stringify({
+                command: "start",
+                audio_mode:
+                    recordingAudioMode,
+                audio_sources:
+                    tabAudioAvailable
+                        ? [
+                            "microphone",
+                            "google_meet_tab"
+                        ]
+                        : [
+                            "microphone"
+                        ]
+            })
         );
 
+        /* ----------------------------------------------------
+           Recording state
+        ---------------------------------------------------- */
 
-        log(
-            "Meeting recording started."
-        );
+        isRecording = true;
+        startTimer();
 
-    } catch (
-        error
-    ) {
+        recordBtn.disabled = false;
+        recordBtn.textContent = "Stop Recording";
+        recordBtn.classList.add("recording");
 
-        log(
-            `Start error: ${error.message}`
-        );
+        if (tabAudioAvailable) {
+
+            setStatus(
+                "Recording system microphone + Google Meet tab audio..."
+            );
+
+            log(
+                "Meeting recording started: system microphone + Google Meet tab audio."
+            );
+
+        } else {
+
+            setStatus(
+                "Recording system microphone..."
+            );
+
+            log(
+                "Meeting recording started: system microphone only."
+            );
+        }
+
+    } catch (error) {
+
+        log(`Start error: ${error.message}`);
 
         setStatus(
-            "Could not start recording."
+            error.message || "Could not start recording."
         );
-
 
         cleanupAudio();
 
-
-        if (
-            websocket
-        ) {
-
-            websocket.close();
-
-            websocket =
-                null;
+        if (websocket) {
+            try {
+                websocket.close();
+            } catch (e) {}
+            websocket = null;
         }
 
-
-        isRecording =
-            false;
-
-        recordBtn.disabled =
-            false;
-
-        recordBtn.textContent =
-            "Start Recording";
-
-        recordBtn.classList.remove(
-            "recording"
-        );
+        isRecording = false;
+        stopRequested = false;
+        connectionLost = false;
+        recordingPcmChunks = [];
+        recordBtn.disabled = false;
+        recordBtn.textContent = "Start Recording";
+        recordBtn.classList.remove("recording");
     }
 }
-
 
 /* ============================================================
    AUDIO CLEANUP
@@ -7307,85 +7846,67 @@ async function startRecording() {
 
 function cleanupAudio() {
 
-    if (
-        processorNode
-    ) {
-
+    if (processorNode) {
         try {
-
             processorNode.disconnect();
+        } catch (error) {}
 
-        } catch (
-            error
-        ) {}
-
-        processorNode.onaudioprocess =
-            null;
-
-        processorNode =
-            null;
+        processorNode.onaudioprocess = null;
+        processorNode = null;
     }
 
-
-    if (
-        sourceNode
-    ) {
-
+    if (sourceNode) {
         try {
-
             sourceNode.disconnect();
+        } catch (error) {}
 
-        } catch (
-            error
-        ) {}
-
-        sourceNode =
-            null;
+        sourceNode = null;
     }
 
-
-    if (
-        audioContext
-    ) {
-
+    if (meetTabSourceNode) {
         try {
+            meetTabSourceNode.disconnect();
+        } catch (error) {}
 
-            audioContext.close();
-
-        } catch (
-            error
-        ) {}
-
-        audioContext =
-            null;
+        meetTabSourceNode = null;
     }
 
+    if (silentGainNode) {
+        try {
+            silentGainNode.disconnect();
+        } catch (error) {}
 
-    if (
-        microphoneStream
-    ) {
+        silentGainNode = null;
+    }
 
-        microphoneStream
-            .getTracks()
-            .forEach(
-                track => {
+    if (audioContext) {
+        try {
+            audioContext.close();
+        } catch (error) {}
 
-                    try {
+        audioContext = null;
+    }
 
-                        track.stop();
+    if (microphoneStream) {
+        microphoneStream.getTracks().forEach(track => {
+            try {
+                track.stop();
+            } catch (error) {}
+        });
 
-                    } catch (
-                        error
-                    ) {}
+        microphoneStream = null;
+    }
 
-                }
-            );
+    if (meetTabStream) {
+        meetTabStream.getTracks().forEach(track => {
+            try {
+                track.stop();
+            } catch (error) {}
+        });
 
-        microphoneStream =
-            null;
+        meetTabStream = null;
     }
 }
-
 
 /* ============================================================
    STOP RECORDING
@@ -7402,25 +7923,25 @@ function stopRecording() {
 
 
     /*
-     * Immediately change state so no more audio
-     * packets are sent.
+     * Stop microphone capture immediately. The complete PCM recording
+     * remains in recordingPcmChunks so the browser can establish a fresh
+     * WebSocket, replay the complete recording, and then send STOP.
      */
 
     isRecording =
         false;
 
+    stopRequested =
+        true;
 
     stopTimer();
-
 
     setStatus(
         "Stopping recording and finalizing audio..."
     );
 
-
     recordBtn.disabled =
         true;
-
 
     recordBtn.textContent =
         "Start Recording";
@@ -7429,44 +7950,47 @@ function stopRecording() {
         "recording"
     );
 
-
     cleanupAudio();
 
 
-    /* --------------------------------------------------------
-       Send STOP command
-    -------------------------------------------------------- */
+    /*
+     * IMPORTANT:
+     *
+     * Do not trust the old WebSocket for STOP. Even if its browser
+     * readyState still says OPEN, the underlying network path may already
+     * be broken. A fresh WebSocket is used for finalization so the server
+     * receives the complete locally retained recording.
+     */
 
     if (
         websocket
-        &&
-        websocket.readyState ===
-            WebSocket.OPEN
     ) {
 
-        websocket.send(
-            JSON.stringify(
-                {
-                    command:
-                        "stop"
-                }
-            )
-        );
+        intentionalSocketClose =
+            true;
 
+        try {
+            websocket.close();
+        } catch (error) {}
 
-        log(
-            "Stop command sent. Waiting for Parrotlet..."
-        );
-
-    } else {
-
-        setStatus(
-            "WebSocket connection is not available."
-        );
-
-        recordBtn.disabled =
-            false;
+        websocket =
+            null;
     }
+
+    intentionalSocketClose =
+        false;
+
+    connectionLost =
+        true;
+
+    reconnectAttempts =
+        0;
+
+    log(
+        `Stop requested. ${recordingPcmChunks.length} PCM chunks retained locally. Establishing a fresh WebSocket to finalize the complete recording...`
+    );
+
+    scheduleWebSocketReconnect();
 }
 
 

@@ -882,48 +882,42 @@ MeetMind - Record-then-process WebSocket
 
 Flow:
 
-    Browser microphone
-        ↓
-    PCM16 mono 16 kHz
-        ↓
-    FastAPI WebSocket
-        ↓
-    Complete WAV recording
-        ↓
-    Parrotlet-A 2.5 Pro
-        ↓
-    Complete transcript
-        ↓
-    Frontend displays transcript
-        ↓
-    User clicks "Create Summary"
-        ↓
-    POST /api/meeting/summarize
-        ↓
-    Mistral
-        ↓
-    Meeting intelligence
-
-Speaker diarization:
-    DISABLED
-
-Recording duration:
-    NO AUTOMATIC LIMIT
+Browser microphone
+    |
+    v
+PCM16 mono 16 kHz
+    |
+    v
+FastAPI WebSocket
+    |
+    v
+Complete WAV recording
+    |
+    v
+Parrotlet-A 2.5 Pro
+    |
+    v
+Complete transcript
+    |
+    v
+Frontend displays transcript
 
 Recording continues until the user clicks "Stop Recording".
+
+Speaker diarization: DISABLED
+Recording duration: NO AUTOMATIC LIMIT
 """
 
 import asyncio
 import json
 import uuid
 import wave
-
 from pathlib import Path
+import logging
 
-from fastapi import (
-    WebSocket,
-    WebSocketDisconnect,
-)
+logger = logging.getLogger("meetmind.websocket")
+
+from fastapi import WebSocket, WebSocketDisconnect
 
 from parrotlet_transcriber_gpu import (
     MODEL_NAME,
@@ -957,7 +951,7 @@ SAMPLE_WIDTH = 2
 
 
 # ============================================================
-# SEND JSON
+# SEND JSON MESSAGE
 # ============================================================
 
 async def send_message(
@@ -1132,12 +1126,11 @@ async def meeting_websocket(
 
                 if recording and not processing:
 
-                    # ------------------------------------------------
-                    # NO TIME LIMIT
+                    # Every audio packet is accepted
+                    # while recording.
                     #
-                    # Every audio packet is accepted while recording.
-                    # Recording ends ONLY when the STOP command arrives.
-                    # ------------------------------------------------
+                    # Recording ends only when
+                    # the STOP command arrives.
 
                     audio_buffer.extend(
                         audio_bytes
@@ -1313,12 +1306,10 @@ async def meeting_websocket(
                     continue
 
                 # ------------------------------------------------
-                # IMPORTANT:
-                #
                 # Stop accepting new audio immediately.
                 #
-                # The complete audio_buffer accumulated since START
-                # is preserved and processed by Parrotlet.
+                # The complete audio_buffer accumulated since
+                # START is preserved and processed by Parrotlet.
                 # ------------------------------------------------
 
                 recording = False
@@ -1400,7 +1391,8 @@ async def meeting_websocket(
                     /
                     (
                         SAMPLE_RATE
-                        * SAMPLE_WIDTH
+                        *
+                        SAMPLE_WIDTH
                     )
                 )
 
