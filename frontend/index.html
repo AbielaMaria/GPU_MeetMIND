@@ -438,6 +438,45 @@ button:disabled {
     background: var(--danger-hover);
 }
 
+/* Uploaded recordings use the same visual treatment as Start Recording. */
+#uploadRecordingBtn {
+    background: var(--danger);
+    color: #fff;
+    box-shadow: var(--shadow-sm);
+    height: var(--control-h);
+    padding: 0 16px;
+    font-size: 13px;
+}
+
+#uploadRecordingBtn::before {
+    content: "";
+    -webkit-mask-image: var(--icon-download);
+    mask-image: var(--icon-download);
+}
+
+#uploadRecordingBtn:hover {
+    background: var(--danger-hover);
+}
+
+.upload-recording-group {
+    margin-left: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 5px;
+}
+
+.upload-recording-help {
+    color: var(--text-muted);
+    font-size: 11px;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+#recordingFileInput {
+    display: none;
+}
+
 #recordBtn.recording {
     background: var(--text-primary);
     color: var(--bg-elevated);
@@ -2077,6 +2116,15 @@ mark.transcript-match.current {
         flex: 1 1 auto;
     }
 
+    .upload-recording-group {
+        margin-left: 0;
+        align-items: flex-start;
+    }
+
+    #uploadRecordingBtn {
+        flex: 0 0 auto;
+    }
+
     .panel-body {
         max-height: 60vh;
     }
@@ -3025,6 +3073,23 @@ body.mindmap-expanded {
                 00:00
             </span>
 
+            <div class="upload-recording-group">
+                <button
+                    id="uploadRecordingBtn"
+                    type="button"
+                    title="Upload an existing audio recording (maximum 500 MB)"
+                >
+                    Upload Recording
+                </button>
+                <div class="upload-recording-help">Maximum file size: 500 MB</div>
+                <input
+                    id="recordingFileInput"
+                    type="file"
+                    accept="audio/*,.wav,.mp3,.m4a,.aac,.flac,.mpeg,.ogg,.opus,.webm,.mp4"
+                    aria-label="Choose an audio recording"
+                >
+            </div>
+
         </div>
 
 
@@ -3454,6 +3519,14 @@ const recordBtn =
     document.getElementById(
         "recordBtn"
     );
+
+const uploadRecordingBtn =
+    document.getElementById("uploadRecordingBtn");
+
+const recordingFileInput =
+    document.getElementById("recordingFileInput");
+
+const MAX_UPLOAD_BYTES = 500 * 1024 * 1024;
 
 const generateBtn =
     document.getElementById(
@@ -12135,6 +12208,131 @@ document.addEventListener(
         }
     }
 );
+
+
+async function uploadExistingRecording(file) {
+
+    if (!file) return;
+
+    if (isRecording) {
+        setStatus("Stop the current live recording before uploading a file.");
+        return;
+    }
+
+    if (file.size > MAX_UPLOAD_BYTES) {
+        setStatus("This file exceeds the 500 MB upload limit. Choose a smaller recording.");
+        log(`Upload rejected: ${file.name} is larger than 500 MB.`);
+        return;
+    }
+
+    if (!file.size) {
+        setStatus("The selected file is empty. Choose a valid audio recording.");
+        return;
+    }
+
+    
+    const allowedExtensions = /\.(wav|mp3|m4a|aac|flac|ogg|opus|webm|mp4|mpeg)$/i;
+
+    if (!allowedExtensions.test(file.name)) {
+        setStatus(
+            "Unsupported file type. Choose WAV, MP3, M4A, AAC, FLAC, OGG, OPUS, WEBM, MP4, or MPEG audio."
+        );
+        return;
+    }
+
+
+    sessionEpoch++;
+    const uploadEpoch = sessionEpoch;
+    clearReportReady();
+    clearReportSelection();
+    transcript = "";
+    currentMeetingId = null;
+    currentMeetingDuration = null;
+    updateGenerateButton();
+    resetTranscriptSearch();
+    transcriptEl.innerHTML = `<div class="placeholder">Uploading recording and preparing transcription...</div>`;
+    modelSlots.forEach(slot => resetSlot(slot, "recording"));
+
+    const originalButtonText = "Upload Recording";
+    uploadRecordingBtn.disabled = true;
+    recordBtn.disabled = true;
+    uploadRecordingBtn.textContent = "Uploading & Transcribing...";
+    setStatus(`Uploading ${file.name} and transcribing with Parrotlet...`);
+    log(`Audio upload started: ${file.name} (${(file.size / (1024 * 1024)).toFixed(1)} MB).`);
+
+    try {
+        const formData = new FormData();
+        formData.append("audio", file, file.name);
+
+        const response = await fetch("/api/meeting/upload-recording", {
+            method: "POST",
+            body: formData,
+            credentials: "same-origin"
+        });
+
+        let data;
+        try {
+            data = await response.json();
+        } catch (_) {
+            data = {};
+        }
+
+        if (!response.ok) {
+            const detail = data.detail || data.message || `Upload failed (HTTP ${response.status}).`;
+            throw new Error(detail);
+        }
+
+        if (uploadEpoch !== sessionEpoch) return;
+
+        transcript = (data.transcript || "").trim();
+        currentMeetingId = data.meeting_id || null;
+        currentMeetingDuration = Number(data.duration) || null;
+
+        renderTranscript(transcript);
+        resetTranscriptSearch();
+        updateGenerateButton();
+
+        if (currentMeetingDuration !== null) {
+            const totalSeconds = Math.max(0, Math.floor(currentMeetingDuration));
+            const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, "0");
+            const seconds = (totalSeconds % 60).toString().padStart(2, "0");
+            timerEl.textContent = `${minutes}:${seconds}`;
+        }
+
+        if (transcript) {
+            setStatus("Transcript ready. Choose the model(s) and click Generate.");
+            log(`Upload transcription complete: ${transcript.length} transcript characters.`);
+            document.dispatchEvent(new CustomEvent("meetmind:results-changed", { detail: { meetingId: currentMeetingId } }));
+        } else {
+            setStatus("Transcription finished, but no speech was detected in this recording.");
+            log("Upload transcription finished with an empty transcript.");
+        }
+    } catch (error) {
+        if (uploadEpoch === sessionEpoch) {
+            setStatus(error.message || "Could not upload or transcribe this recording.");
+            log(`Upload error: ${error.message || error}`);
+            transcriptEl.innerHTML = `<div class="placeholder">Upload failed. Select the file and try again.</div>`;
+        }
+    } finally {
+        uploadRecordingBtn.disabled = false;
+        recordBtn.disabled = false;
+        uploadRecordingBtn.textContent = originalButtonText;
+        recordingFileInput.value = "";
+    }
+}
+
+uploadRecordingBtn.addEventListener("click", function() {
+    if (isRecording) {
+        setStatus("Stop the current live recording before uploading a file.");
+        return;
+    }
+    recordingFileInput.click();
+});
+
+recordingFileInput.addEventListener("change", function() {
+    const file = recordingFileInput.files && recordingFileInput.files[0];
+    if (file) uploadExistingRecording(file);
+});
 
 
 recordBtn.addEventListener(
