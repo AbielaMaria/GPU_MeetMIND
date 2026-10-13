@@ -56,3 +56,10 @@ tmp/
 # OS files
 .DS_Store
 Thumbs.db
+
+# MeetMind recordings and temporary test artifacts
+backend/recordings/
+probe_endpoints.py
+probe_output.txt
+probe_real_meeting.py
+probe_real_output.txt
