@@ -62,49 +62,60 @@ from fastapi.staticfiles import StaticFiles
 
 from pydantic import BaseModel
 
+from dotenv import load_dotenv
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+load_dotenv(PROJECT_ROOT / ".env")
+
+
 from meeting_websocket import (
 
-    meeting_websocket,
+       meeting_websocket,
 
-    MODEL_NAME,
+       MODEL_NAME,
 
-    SAMPLE_RATE,
+       SAMPLE_RATE,
 
-    CHANNELS,
+       CHANNELS,
 
-    SAMPLE_WIDTH,
+       SAMPLE_WIDTH,
 
-    RECORDINGS_DIR,
+       RECORDINGS_DIR,
 
-    save_wav,
+       save_wav,
 
-    transcribe_audio,
+       transcribe_audio,
 
 )
 
 from meeting_intelligence import (
 
-    generate_meeting_summary,
+       generate_meeting_summary,
 
-    generate_meeting_summary_qwen,
+       generate_meeting_summary_qwen,
 
-    generate_mindmap,
+       generate_mindmap,
 
-    generate_mindmap_qwen,
+       generate_mindmap_qwen,
 
-    generate_doctor_prescription,
+       generate_doctor_prescription,
 
-    generate_doctor_prescription_qwen,
+       generate_doctor_prescription_qwen,
 
-    MISTRAL_MODEL,
+       MISTRAL_MODEL,
 
-    QWEN_MODEL,
+       QWEN_MODEL,
 
 )
 
 import database as db
 
 import auth
+
+# Independent Interview Template API; existing MOM and mind-map routes are unchanged.
+
+from interview_routes import interview_router
 
 # ============================================================
 
@@ -114,9 +125,9 @@ import auth
 
 logging.basicConfig(
 
-    level=logging.INFO,
+       level=logging.INFO,
 
-    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+       format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
 
 )
 
@@ -143,29 +154,30 @@ AUTH_FILE = FRONTEND_DIR / "auth.html"
 ADMIN_FILE = FRONTEND_DIR / "admin.html"
 
 ASSETS_DIR = FRONTEND_DIR / "assets"
+
 DOCTOR_PROFILES_DIR = BASE_DIR / "doctor_profiles"
 
 logger.info(
 
-    "Backend directory: %s",
+       "Backend directory: %s",
 
-    BASE_DIR,
-
-)
-
-logger.info(
-
-    "Project root: %s",
-
-    PROJECT_ROOT,
+       BASE_DIR,
 
 )
 
 logger.info(
 
-    "Frontend directory: %s",
+       "Project root: %s",
 
-    FRONTEND_DIR,
+       PROJECT_ROOT,
+
+)
+
+logger.info(
+
+       "Frontend directory: %s",
+
+       FRONTEND_DIR,
 
 )
 
@@ -177,19 +189,23 @@ logger.info(
 
 app = FastAPI(
 
-    title="MeetMind",
+       title="MeetMind",
 
-    description=(
+       description=(
 
-        "AI Meeting Intelligence using "
+           "AI Meeting Intelligence using "
 
-        "Parrotlet-A 2.5 Pro and Mistral 128B"
+           "Parrotlet-A 2.5 Pro and Mistral 128B"
 
-    ),
+       ),
 
-    version="3.0.0",
+       version="3.0.0",
 
 )
+
+# Register the independent Interview Template endpoint.
+
+app.include_router(interview_router)
 
 # ============================================================
 
@@ -199,15 +215,15 @@ app = FastAPI(
 
 app.add_middleware(
 
-    CORSMiddleware,
+       CORSMiddleware,
 
-    allow_origins=["*"],
+       allow_origins=["*"],
 
-    allow_credentials=True,
+       allow_credentials=True,
 
-    allow_methods=["*"],
+       allow_methods=["*"],
 
-    allow_headers=["*"],
+       allow_headers=["*"],
 
 )
 
@@ -221,13 +237,13 @@ app.add_middleware(
 
 def _init_auth():
 
-    db.init_db()
+       db.init_db()
 
-    db.ensure_seed_admin(
+       db.ensure_seed_admin(
 
-        auth.hash_password("admin123")
+           auth.hash_password("admin123")
 
-    )
+       )
 
 # ============================================================
 
@@ -237,7 +253,7 @@ def _init_auth():
 
 app.include_router(
 
-    auth.router
+       auth.router
 
 )
 
@@ -249,44 +265,43 @@ app.include_router(
 
 class DoctorPrescriptionRequest(BaseModel):
 
-    transcript: str
+       transcript: str
 
-    model: str = "mistral"
-
+       model: str = "mistral"
 
 class SummaryRequest(BaseModel):
 
-    transcript: str
+       transcript: str
 
-    meeting_id: Optional[int] = None
+       meeting_id: Optional[int] = None
 
-    # Length of the recording in seconds (from the websocket's
+       # Length of the recording in seconds (from the websocket's
 
-    # final_transcript). Stored on the meeting when this request creates it.
+       # final_transcript). Stored on the meeting when this request creates it.
 
-    duration_seconds: Optional[float] = None
+       duration_seconds: Optional[float] = None
 
-    # Select the LLM used for meeting intelligence.
+       # Select the LLM used for meeting intelligence.
 
-    # Supported values: the keys of LLM_MODELS ("mistral", "qwen").
+       # Supported values: the keys of LLM_MODELS ("mistral", "qwen").
 
-    model: str = "mistral"
+       model: str = "mistral"
 
 class MindMapRequest(BaseModel):
 
-    transcript: str
+       transcript: str
 
-    meeting_id: Optional[int] = None
+       meeting_id: Optional[int] = None
 
-    # Length of the recording in seconds — see SummaryRequest.
+       # Length of the recording in seconds — see SummaryRequest.
 
-    duration_seconds: Optional[float] = None
+       duration_seconds: Optional[float] = None
 
-    # Select the LLM used for mind-map generation.
+       # Select the LLM used for mind-map generation.
 
-    # Supported values: the keys of LLM_MODELS ("mistral", "qwen").
+       # Supported values: the keys of LLM_MODELS ("mistral", "qwen").
 
-    model: str = "mistral"
+       model: str = "mistral"
 
 # Fields the meeting-intelligence editor
 
@@ -298,29 +313,29 @@ class MindMapRequest(BaseModel):
 
 class MeetingUpdateRequest(BaseModel):
 
-    title: Optional[str] = None
+       title: Optional[str] = None
 
-    objective: Optional[str] = None
+       objective: Optional[str] = None
 
-    meeting_summary: Optional[str] = None
+       meeting_summary: Optional[str] = None
 
-    tasks_assigned: Optional[List[Any]] = None
+       tasks_assigned: Optional[List[Any]] = None
 
-    decision_points: Optional[List[Any]] = None
+       decision_points: Optional[List[Any]] = None
 
-    objections: Optional[List[Any]] = None
+       objections: Optional[List[Any]] = None
 
-    action_items: Optional[List[Any]] = None
+       action_items: Optional[List[Any]] = None
 
-    mindmap: Optional[Any] = None
+       mindmap: Optional[Any] = None
 
-    # Which model's result these edits belong to. Defaults to the
+       # Which model's result these edits belong to. Defaults to the
 
-    # first entry of LLM_MODELS for clients that predate per-model
+       # first entry of LLM_MODELS for clients that predate per-model
 
-    # results.
+       # results.
 
-    model: Optional[str] = None
+       model: Optional[str] = None
 
 # ============================================================
 
@@ -340,29 +355,29 @@ class MeetingUpdateRequest(BaseModel):
 
 LLM_MODELS = {
 
-    "mistral": {
+       "mistral": {
 
-        "label": "Mistral 128B",
+           "label": "Mistral 128B",
 
-        "model_id": MISTRAL_MODEL,
+           "model_id": MISTRAL_MODEL,
 
-        "summarize": generate_meeting_summary,
+           "summarize": generate_meeting_summary,
 
-        "mindmap": generate_mindmap,
+           "mindmap": generate_mindmap,
 
-    },
+       },
 
-    "qwen": {
+       "qwen": {
 
-        "label": "Qwen3 27B",
+           "label": "Qwen3 27B",
 
-        "model_id": QWEN_MODEL,
+           "model_id": QWEN_MODEL,
 
-        "summarize": generate_meeting_summary_qwen,
+           "summarize": generate_meeting_summary_qwen,
 
-        "mindmap": generate_mindmap_qwen,
+           "mindmap": generate_mindmap_qwen,
 
-    },
+       },
 
 }
 
@@ -370,25 +385,25 @@ DEFAULT_LLM_MODEL = next(iter(LLM_MODELS))
 
 def _resolve_model(
 
-    name: Optional[str],
+       name: Optional[str],
 
 ) -> str:
 
-    key = (name or DEFAULT_LLM_MODEL).strip().lower()
+       key = (name or DEFAULT_LLM_MODEL).strip().lower()
 
-    if key not in LLM_MODELS:
+       if key not in LLM_MODELS:
 
-        raise ValueError(
+           raise ValueError(
 
-            "Unsupported model. Use one of: "
+               "Unsupported model. Use one of: "
 
-            + ", ".join(f"'{k}'" for k in LLM_MODELS)
+               + ", ".join(f"'{k}'" for k in LLM_MODELS)
 
-            + "."
+               + "."
 
-        )
+           )
 
-    return key
+       return key
 
 # ============================================================
 
@@ -398,19 +413,19 @@ def _resolve_model(
 
 if ASSETS_DIR.exists():
 
-    app.mount(
+       app.mount(
 
-        "/assets",
+           "/assets",
 
-        StaticFiles(
+           StaticFiles(
 
-            directory=ASSETS_DIR
+               directory=ASSETS_DIR
 
-        ),
+           ),
 
-        name="assets",
+           name="assets",
 
-    )
+       )
 
 # ============================================================
 
@@ -422,51 +437,51 @@ if ASSETS_DIR.exists():
 
 async def _no_stale_cache(
 
-    request: Request,
+       request: Request,
 
-    call_next,
+       call_next,
 
 ):
 
-    response = await call_next(request)
+       response = await call_next(request)
 
-    path = request.url.path
+       path = request.url.path
 
-    if (
+       if (
 
-        path.startswith("/assets/")
+           path.startswith("/assets/")
 
-        or not path.startswith("/api/")
+           or not path.startswith("/api/")
 
-    ):
+       ):
 
-        response.headers[
+           response.headers[
 
-            "Cache-Control"
+               "Cache-Control"
 
-        ] = (
+           ] = (
 
-            "no-store, "
+               "no-store, "
 
-            "no-cache, "
+               "no-cache, "
 
-            "must-revalidate"
+               "must-revalidate"
 
-        )
+           )
 
-        response.headers[
+           response.headers[
 
-            "Pragma"
+               "Pragma"
 
-        ] = "no-cache"
+           ] = "no-cache"
 
-        response.headers[
+           response.headers[
 
-            "Expires"
+               "Expires"
 
-        ] = "0"
+           ] = "0"
 
-    return response
+       return response
 
 # ============================================================
 
@@ -476,27 +491,27 @@ async def _no_stale_cache(
 
 def _serve(page: Path) -> FileResponse:
 
-    if not page.exists():
+       if not page.exists():
 
-        raise HTTPException(
+           raise HTTPException(
 
-            status_code=404,
+               status_code=404,
 
-            detail=(
+               detail=(
 
-                f"Frontend file not found: {page}"
+                   f"Frontend file not found: {page}"
 
-            ),
+               ),
 
-        )
+           )
 
-    return FileResponse(
+       return FileResponse(
 
-        page,
+           page,
 
-        media_type="text/html",
+           media_type="text/html",
 
-    )
+       )
 
 # ============================================================
 
@@ -508,11 +523,11 @@ def _serve(page: Path) -> FileResponse:
 
 async def home():
 
-    return _serve(
+       return _serve(
 
-        LANDING_FILE
+           LANDING_FILE
 
-    )
+       )
 
 # ============================================================
 
@@ -524,33 +539,33 @@ async def home():
 
 async def app_view(
 
-    request: Request,
+       request: Request,
 
 ):
 
-    # Admins land on /admin by default
+       # Admins land on /admin by default
 
-    # but can still open the recorder.
+       # but can still open the recorder.
 
-    user = auth.get_current_user(
+       user = auth.get_current_user(
 
-        request
+           request
 
-    )
+       )
 
-    if not user:
+       if not user:
 
-        return RedirectResponse(
+           return RedirectResponse(
 
-            url="/sign-in?next=/app"
+               url="/sign-in?next=/app"
 
-        )
+           )
 
-    return _serve(
+       return _serve(
 
-        INDEX_FILE
+           INDEX_FILE
 
-    )
+       )
 
 # ============================================================
 
@@ -560,29 +575,29 @@ async def app_view(
 
 def _redirect_if_already_signed_in(
 
-    request: Request,
+       request: Request,
 
 ):
 
-    user = auth.get_current_user(
+       user = auth.get_current_user(
 
-        request
+           request
 
-    )
+       )
 
-    if user:
+       if user:
 
-        return RedirectResponse(
+           return RedirectResponse(
 
-            url=auth.landing_path_for_role(
+               url=auth.landing_path_for_role(
 
-                user["role"]
+                   user["role"]
 
-            )
+               )
 
-        )
+           )
 
-    return None
+       return None
 
 # ============================================================
 
@@ -594,21 +609,21 @@ def _redirect_if_already_signed_in(
 
 async def sign_in_view(
 
-    request: Request,
+       request: Request,
 
 ):
 
-    return (
+       return (
 
-        _redirect_if_already_signed_in(
+           _redirect_if_already_signed_in(
 
-            request
+               request
 
-        )
+           )
 
-        or _serve(AUTH_FILE)
+           or _serve(AUTH_FILE)
 
-    )
+       )
 
 # ============================================================
 
@@ -620,21 +635,21 @@ async def sign_in_view(
 
 async def sign_up_view(
 
-    request: Request,
+       request: Request,
 
 ):
 
-    return (
+       return (
 
-        _redirect_if_already_signed_in(
+           _redirect_if_already_signed_in(
 
-            request
+               request
 
-        )
+           )
 
-        or _serve(AUTH_FILE)
+           or _serve(AUTH_FILE)
 
-    )
+       )
 
 # ============================================================
 
@@ -646,21 +661,21 @@ async def sign_up_view(
 
 async def verify_otp_view(
 
-    request: Request,
+       request: Request,
 
 ):
 
-    return (
+       return (
 
-        _redirect_if_already_signed_in(
+           _redirect_if_already_signed_in(
 
-            request
+               request
 
-        )
+           )
 
-        or _serve(AUTH_FILE)
+           or _serve(AUTH_FILE)
 
-    )
+       )
 
 # ============================================================
 
@@ -672,21 +687,21 @@ async def verify_otp_view(
 
 async def account_pending_view(
 
-    request: Request,
+       request: Request,
 
 ):
 
-    return (
+       return (
 
-        _redirect_if_already_signed_in(
+           _redirect_if_already_signed_in(
 
-            request
+               request
 
-        )
+           )
 
-        or _serve(AUTH_FILE)
+           or _serve(AUTH_FILE)
 
-    )
+       )
 
 # ============================================================
 
@@ -698,37 +713,37 @@ async def account_pending_view(
 
 async def admin_view(
 
-    request: Request,
+       request: Request,
 
 ):
 
-    user = auth.get_current_user(
+       user = auth.get_current_user(
 
-        request
+           request
 
-    )
+       )
 
-    if not user:
+       if not user:
 
-        return RedirectResponse(
+           return RedirectResponse(
 
-            url="/sign-in?next=/admin"
+               url="/sign-in?next=/admin"
 
-        )
+           )
 
-    if user["role"] != "admin":
+       if user["role"] != "admin":
 
-        return RedirectResponse(
+           return RedirectResponse(
 
-            url="/app"
+               url="/app"
 
-        )
+           )
 
-    return _serve(
+       return _serve(
 
-        ADMIN_FILE
+           ADMIN_FILE
 
-    )
+       )
 
 # ============================================================
 
@@ -740,35 +755,35 @@ async def admin_view(
 
 async def health():
 
-    return {
+       return {
 
-        "status": "healthy",
+           "status": "healthy",
 
-        "service": "MeetMind",
+           "service": "MeetMind",
 
-        "speech_model": MODEL_NAME,
+           "speech_model": MODEL_NAME,
 
-        "llm_model": {
+           "llm_model": {
 
-            "mistral": MISTRAL_MODEL,
+               "mistral": MISTRAL_MODEL,
 
-            "qwen": QWEN_MODEL,
+               "qwen": QWEN_MODEL,
 
-        },
+           },
 
-        "llm_models": {
+           "llm_models": {
 
-            "mistral": MISTRAL_MODEL,
+               "mistral": MISTRAL_MODEL,
 
-            "qwen": QWEN_MODEL,
+               "qwen": QWEN_MODEL,
 
-        },
+           },
 
-        "sample_rate": SAMPLE_RATE,
+           "sample_rate": SAMPLE_RATE,
 
-        "speaker_diarization": False,
+           "speaker_diarization": False,
 
-    }
+       }
 
 # ============================================================
 
@@ -780,61 +795,61 @@ async def health():
 
 async def api_info():
 
-    return {
+       return {
 
-        "project": "MeetMind",
+           "project": "MeetMind",
 
-        "version": "3.0.0",
+           "version": "3.0.0",
 
-        "pipeline": [
+           "pipeline": [
 
-            "Browser microphone",
+               "Browser microphone",
 
-            "PCM16 mono 16 kHz",
+               "PCM16 mono 16 kHz",
 
-            "Complete meeting recording",
+               "Complete meeting recording",
 
-            "Parrotlet-A 2.5 Pro",
+               "Parrotlet-A 2.5 Pro",
 
-            "Complete transcript",
+               "Complete transcript",
 
-            "User requests summary",
+               "User requests summary",
 
-            "Mistral 128B API / Qwen3-27B API",
+               "Mistral 128B API / Qwen3-27B API",
 
-            "Meeting intelligence",
+               "Meeting intelligence",
 
-        ],
+           ],
 
-        "speech_to_text": MODEL_NAME,
+           "speech_to_text": MODEL_NAME,
 
-        "sample_rate": SAMPLE_RATE,
+           "sample_rate": SAMPLE_RATE,
 
-        "llm": {
+           "llm": {
 
-            "mistral": MISTRAL_MODEL,
+               "mistral": MISTRAL_MODEL,
 
-            "qwen": QWEN_MODEL,
+               "qwen": QWEN_MODEL,
 
-        },
+           },
 
-        "llm_models": {
+           "llm_models": {
 
-            "mistral": MISTRAL_MODEL,
+               "mistral": MISTRAL_MODEL,
 
-            "qwen": QWEN_MODEL,
+               "qwen": QWEN_MODEL,
 
-        },
+           },
 
-        "speaker_diarization": False,
+           "speaker_diarization": False,
 
-        "processing_mode": "record_then_process",
+           "processing_mode": "record_then_process",
 
-        "websocket": "/ws/meeting",
+           "websocket": "/ws/meeting",
 
-        "summary_endpoint": "/api/meeting/summarize",
+           "summary_endpoint": "/api/meeting/summarize",
 
-    }
+       }
 
 # ============================================================
 
@@ -846,23 +861,23 @@ async def api_info():
 
 async def list_models():
 
-    """The generation models, in display order (see LLM_MODELS)."""
+       """The generation models, in display order (see LLM_MODELS)."""
 
-    return [
+       return [
 
-        {
+           {
 
-            "key": key,
+               "key": key,
 
-            "label": entry["label"],
+               "label": entry["label"],
 
-            "modelId": entry["model_id"],
+               "modelId": entry["model_id"],
 
-        }
+           }
 
-        for key, entry in LLM_MODELS.items()
+           for key, entry in LLM_MODELS.items()
 
-    ]
+       ]
 
 # ============================================================
 
@@ -872,107 +887,107 @@ async def list_models():
 
 def _model_tags(
 
-    flags: dict,
+       flags: dict,
 
 ) -> list:
 
-    """
+       """
 
-    [{key, label, hasSummary, hasMindmap}] for the models that have a
+       [{key, label, hasSummary, hasMindmap}] for the models that have a
 
-    result, in LLM_MODELS order (then any model no longer offered).
+       result, in LLM_MODELS order (then any model no longer offered).
 
-    `flags` maps model key -> (has_summary, has_mindmap). This is what
+       \`flags\` maps model key -> (has_summary, has_mindmap). This is what
 
-    the history drawer and admin page show as each meeting's tags.
+       the history drawer and admin page show as each meeting's tags.
 
-    """
+       """
 
-    order = (
+       order = (
 
-        [key for key in LLM_MODELS if key in flags]
+           [key for key in LLM_MODELS if key in flags]
 
-        + [key for key in flags if key not in LLM_MODELS]
+           + [key for key in flags if key not in LLM_MODELS]
 
-    )
+       )
 
-    return [
+       return [
 
-        {
+           {
 
-            "key": key,
+               "key": key,
 
-            "label": LLM_MODELS.get(key, {}).get("label", key),
+               "label": LLM_MODELS.get(key, {}).get("label", key),
 
-            "hasSummary": bool(flags[key][0]),
+               "hasSummary": bool(flags[key][0]),
 
-            "hasMindmap": bool(flags[key][1]),
+               "hasMindmap": bool(flags[key][1]),
 
-        }
+           }
 
-        for key in order
+           for key in order
 
-    ]
+       ]
 
 def _meeting_row(
 
-    row: dict,
+       row: dict,
 
 ) -> dict:
 
-    # db.list_meetings() packs each model as "model:SM" (S/M = 1/0).
+       # db.list_meetings() packs each model as "model:SM" (S/M = 1/0).
 
-    flags = {}
+       flags = {}
 
-    for part in (row.get("result_models") or "").split(","):
+       for part in (row.get("result_models") or "").split(","):
 
-        if ":" in part:
+           if ":" in part:
 
-            key, bits = part.rsplit(":", 1)
+               key, bits = part.rsplit(":", 1)
 
-            flags[key] = (bits[:1] == "1", bits[1:2] == "1")
+               flags[key] = (bits[:1] == "1", bits[1:2] == "1")
 
-    return {
+       return {
 
-        "id": row["id"],
+           "id": row["id"],
 
-        "title": row["title"],
+           "title": row["title"],
 
-        "createdAt": row["created_at"],
+           "createdAt": row["created_at"],
 
-        "durationSeconds": row["duration_seconds"],
+           "durationSeconds": row["duration_seconds"],
 
-        "hasSummary": bool(
+           "hasSummary": bool(
 
-            row["has_summary"]
+               row["has_summary"]
 
-        ),
+           ),
 
-        "hasMindmap": bool(
+           "hasMindmap": bool(
 
-            row["has_mindmap"]
+               row["has_mindmap"]
 
-        ),
+           ),
 
-        "models": _model_tags(
+           "models": _model_tags(
 
-            flags
+               flags
 
-        ),
+           ),
 
-        "transcriptChars": (
+           "transcriptChars": (
 
-            row["transcript_chars"]
+               row["transcript_chars"]
 
-            or 0
+               or 0
 
-        ),
+           ),
 
-        "username": row["username"],
+           "username": row["username"],
 
-        "email": row["email"],
+           "email": row["email"],
 
-    }
+       }
 
 # ============================================================
 
@@ -984,47 +999,47 @@ def _meeting_row(
 
 async def list_meetings(
 
-    request: Request,
+       request: Request,
 
-    scope: str = "mine",
+       scope: str = "mine",
 
 ):
 
-    user = auth.require_user(
+       user = auth.require_user(
 
-        request
+           request
 
-    )
+       )
 
-    if scope == "all":
+       if scope == "all":
 
-        if user["role"] != "admin":
+           if user["role"] != "admin":
 
-            raise HTTPException(
+               raise HTTPException(
 
-                status_code=403,
+                   status_code=403,
 
-                detail="Admin access required.",
+                   detail="Admin access required.",
 
-            )
+               )
 
-        rows = db.list_meetings()
+           rows = db.list_meetings()
 
-    else:
+       else:
 
-        rows = db.list_meetings(
+           rows = db.list_meetings(
 
-            user_id=user["id"]
+               user_id=user["id"]
 
-        )
+           )
 
-    return [
+       return [
 
-        _meeting_row(row)
+           _meeting_row(row)
 
-        for row in rows
+           for row in rows
 
-    ]
+       ]
 
 # ============================================================
 
@@ -1034,249 +1049,249 @@ async def list_meetings(
 
 def _require_meeting_access(
 
-    meeting_id: int,
+       meeting_id: int,
 
-    user: dict,
+       user: dict,
 
 ) -> dict:
 
-    meeting = db.get_meeting(
+       meeting = db.get_meeting(
 
-        meeting_id
+           meeting_id
 
-    )
+       )
 
-    if not meeting:
+       if not meeting:
 
-        raise HTTPException(
+           raise HTTPException(
 
-            status_code=404,
+               status_code=404,
 
-            detail="Meeting not found.",
+               detail="Meeting not found.",
 
-        )
+           )
 
-    if (
+       if (
 
-        meeting["user_id"] != user["id"]
+           meeting["user_id"] != user["id"]
 
-        and user["role"] != "admin"
+           and user["role"] != "admin"
 
-    ):
+       ):
 
-        raise HTTPException(
+           raise HTTPException(
 
-            status_code=403,
+               status_code=403,
 
-            detail=(
+               detail=(
 
-                "You don't have access "
+                   "You don't have access "
 
-                "to that meeting."
+                   "to that meeting."
 
-            ),
+               ),
 
-        )
+           )
 
-    return meeting
+       return meeting
 
 def _load_json(
 
-    value,
+       value,
 
 ):
 
-    if not value:
+       if not value:
 
-        return None
+           return None
 
-    try:
+       try:
 
-        return json.loads(
+           return json.loads(
 
-            value
+               value
 
-        )
+           )
 
-    except ValueError:
+       except ValueError:
 
-        return None
+           return None
 
 def _ordered_results(
 
-    meeting_id: int,
+       meeting_id: int,
 
 ) -> dict:
 
-    """
+       """
 
-    {model: {"summary": ..., "mindmap": ...}} for every model that has a
+       {model: {"summary": ..., "mindmap": ...}} for every model that has a
 
-    result for this meeting. LLM_MODELS order first, then any model no
+       result for this meeting. LLM_MODELS order first, then any model no
 
-    longer in the registry, so its saved results stay visible.
+       longer in the registry, so its saved results stay visible.
 
-    """
+       """
 
-    raw = db.get_meeting_results(
+       raw = db.get_meeting_results(
 
-        meeting_id
+           meeting_id
 
-    )
+       )
 
-    order = (
+       order = (
 
-        [key for key in LLM_MODELS if key in raw]
+           [key for key in LLM_MODELS if key in raw]
 
-        + [key for key in raw if key not in LLM_MODELS]
+           + [key for key in raw if key not in LLM_MODELS]
 
-    )
+       )
 
-    results = {}
+       results = {}
 
-    for key in order:
+       for key in order:
 
-        summary = _load_json(
+           summary = _load_json(
 
-            raw[key]["summary_json"]
+               raw[key]["summary_json"]
 
-        )
+           )
 
-        mindmap = _load_json(
+           mindmap = _load_json(
 
-            raw[key]["mindmap_json"]
+               raw[key]["mindmap_json"]
 
-        )
+           )
 
-        if summary is None and mindmap is None:
+           if summary is None and mindmap is None:
 
-            continue
+               continue
 
-        results[key] = {
+           results[key] = {
 
-            "summary": summary,
+               "summary": summary,
 
-            "mindmap": mindmap,
+               "mindmap": mindmap,
 
-        }
+           }
 
-    return results
+       return results
 
 def _meeting_payload(
 
-    meeting: dict,
+       meeting: dict,
 
 ) -> dict:
 
-    results = _ordered_results(
+       results = _ordered_results(
 
-        meeting["id"]
+           meeting["id"]
 
-    )
+       )
 
-    # `summary` / `mindmap` are the pre-multi-model fields, still read by
+       # \`summary\` / \`mindmap\` are the pre-multi-model fields, still read by
 
-    # the admin page: the first model (in LLM_MODELS order) that has each.
+       # the admin page: the first model (in LLM_MODELS order) that has each.
 
-    summary = next(
+       summary = next(
 
-        (r["summary"] for r in results.values() if r["summary"]),
+           (r["summary"] for r in results.values() if r["summary"]),
 
-        None,
+           None,
 
-    )
+       )
 
-    mindmap = next(
+       mindmap = next(
 
-        (r["mindmap"] for r in results.values() if r["mindmap"]),
+           (r["mindmap"] for r in results.values() if r["mindmap"]),
 
-        None,
+           None,
 
-    )
+       )
 
-    return {
+       return {
 
-        "id": meeting["id"],
+           "id": meeting["id"],
 
-        "title": meeting["title"],
+           "title": meeting["title"],
 
-        "createdAt": meeting["created_at"],
+           "createdAt": meeting["created_at"],
 
-        "durationSeconds": meeting["duration_seconds"],
+           "durationSeconds": meeting["duration_seconds"],
 
-        "transcript": meeting["transcript"],
+           "transcript": meeting["transcript"],
 
-        "results": results,
+           "results": results,
 
-        "models": _model_tags(
+           "models": _model_tags(
 
-            {
+               {
 
-                key: (
+                   key: (
 
-                    result["summary"] is not None,
+                       result["summary"] is not None,
 
-                    result["mindmap"] is not None,
+                       result["mindmap"] is not None,
 
-                )
+                   )
 
-                for key, result in results.items()
+                   for key, result in results.items()
 
-            }
+               }
 
-        ),
+           ),
 
-        "summary": summary,
+           "summary": summary,
 
-        "mindmap": mindmap,
+           "mindmap": mindmap,
 
-        "username": meeting["username"],
+           "username": meeting["username"],
 
-        "email": meeting["email"],
+           "email": meeting["email"],
 
-    }
+       }
 
 def _sync_meeting_title(
 
-    meeting_id: int,
+       meeting_id: int,
 
 ) -> None:
 
-    """
+       """
 
-    The history title follows the summary title of the first model (in
+       The history title follows the summary title of the first model (in
 
-    LLM_MODELS order) that has a summary, so generating or editing a
+       LLM_MODELS order) that has a summary, so generating or editing a
 
-    second model's summary never renames the meeting out from under the
+       second model's summary never renames the meeting out from under the
 
-    primary one. With no summary at all the title is left as it is
+       primary one. With no summary at all the title is left as it is
 
-    ("Untitled Meeting", or whatever the mind-map editor set it to).
+       ("Untitled Meeting", or whatever the mind-map editor set it to).
 
-    """
+       """
 
-    for result in _ordered_results(meeting_id).values():
+       for result in _ordered_results(meeting_id).values():
 
-        title = (
+           title = (
 
-            (result["summary"] or {}).get("title")
+               (result["summary"] or {}).get("title")
 
-            or ""
+               or ""
 
-        ).strip()
+           ).strip()
 
-        if title:
+           if title:
 
-            db.update_meeting(
+               db.update_meeting(
 
-                meeting_id,
+                   meeting_id,
 
-                title=title,
+                   title=title,
 
-            )
+               )
 
-            return
+               return
 
 # ============================================================
 
@@ -1288,31 +1303,31 @@ def _sync_meeting_title(
 
 async def get_meeting(
 
-    meeting_id: int,
+       meeting_id: int,
 
-    request: Request,
+       request: Request,
 
 ):
 
-    user = auth.require_user(
+       user = auth.require_user(
 
-        request
+           request
 
-    )
+       )
 
-    meeting = _require_meeting_access(
+       meeting = _require_meeting_access(
 
-        meeting_id,
+           meeting_id,
 
-        user,
+           user,
 
-    )
+       )
 
-    return _meeting_payload(
+       return _meeting_payload(
 
-        meeting
+           meeting
 
-    )
+       )
 
 # ============================================================
 
@@ -1322,280 +1337,359 @@ async def get_meeting(
 
 @app.patch(
 
-    "/api/meetings/{meeting_id}"
+       "/api/meetings/{meeting_id}"
 
 )
 
 async def update_meeting(
 
-    meeting_id: int,
+       meeting_id: int,
 
-    request: MeetingUpdateRequest,
+       request: MeetingUpdateRequest,
 
-    http_request: Request,
+       http_request: Request,
 
 ):
 
-    """
+       """
 
-    Persists hand-edits made in one model's meeting-intelligence editor
+       Persists hand-edits made in one model's meeting-intelligence editor
 
-    or mind-map editor (frontend/index.html's "Save Changes" buttons).
+       or mind-map editor (frontend/index.html's "Save Changes" buttons).
 
-    Only the owner or an admin may edit.
+       Only the owner or an admin may edit.
 
-    The transcript itself is never touched here.
+       The transcript itself is never touched here.
 
-    """
+       """
 
-    user = auth.require_user(
+       user = auth.require_user(
 
-        http_request
+           http_request
 
-    )
+       )
 
-    _require_meeting_access(
+       _require_meeting_access(
 
-        meeting_id,
+           meeting_id,
 
-        user,
+           user,
 
-    )
+       )
 
-    try:
+       try:
 
-        model = _resolve_model(
+           model = _resolve_model(
 
-            request.model
+               request.model
 
-        )
+           )
 
-    except ValueError as exc:
+       except ValueError as exc:
 
-        raise HTTPException(
+           raise HTTPException(
 
-            status_code=400,
+               status_code=400,
 
-            detail=str(exc),
+               detail=str(exc),
 
-        )
+           )
 
-    updates = request.dict(
+       updates = request.dict(
 
-        exclude_unset=True
+           exclude_unset=True
 
-    )
+       )
 
-    updates.pop("model", None)
+       updates.pop("model", None)
 
-    # Mind maps are a nested tree, not a flat set of fields — persist them
+       # Mind maps are a nested tree, not a flat set of fields — persist them
 
-    # to their own column instead of merging into the summary dict.
+       # to their own column instead of merging into the summary dict.
 
-    mindmap_included = "mindmap" in updates
+       mindmap_included = "mindmap" in updates
 
-    mindmap = updates.pop("mindmap", None)
+       mindmap = updates.pop("mindmap", None)
 
-    # The title may come from either editor. Sent alongside real summary
+       # The title may come from either editor. Sent alongside real summary
 
-    # fields (the summary editor), it is this model's summary title. Sent
+       # fields (the summary editor), it is this model's summary title. Sent
 
-    # alone (the mind-map editor), it may only name the meeting while no
+       # alone (the mind-map editor), it may only name the meeting while no
 
-    # model has a summary yet — after that the summaries own the title.
+       # model has a summary yet — after that the summaries own the title.
 
-    title = updates.pop("title", None)
+       title = updates.pop("title", None)
 
-    existing = db.get_meeting_results(
+       existing = db.get_meeting_results(
 
-        meeting_id
+           meeting_id
 
-    ).get(model, {})
+       ).get(model, {})
 
-    fields = {}
+       fields = {}
 
-    if updates:
+       if updates:
 
-        summary = _load_json(
+           summary = _load_json(
 
-            existing.get("summary_json")
+               existing.get("summary_json")
 
-        ) or {}
+           ) or {}
 
-        summary.update(
+           summary.update(
 
-            updates
+               updates
 
-        )
+           )
 
-        if title:
+           if title:
 
-            summary["title"] = title
+               summary["title"] = title
 
-        fields["summary_json"] = json.dumps(
+           fields["summary_json"] = json.dumps(
 
-            summary
+               summary
 
-        )
+           )
 
-    if mindmap_included:
+       if mindmap_included:
 
-        fields["mindmap_json"] = (
+           fields["mindmap_json"] = (
 
-            json.dumps(mindmap)
+               json.dumps(mindmap)
 
-            if mindmap is not None
+               if mindmap is not None
 
-            else None
+               else None
 
-        )
+           )
 
-    db.save_meeting_result(
+       db.save_meeting_result(
 
-        meeting_id,
+           meeting_id,
 
-        model,
+           model,
 
-        **fields,
+           **fields,
 
-    )
+       )
 
-    if updates:
+       if updates:
 
-        _sync_meeting_title(
+           _sync_meeting_title(
 
-            meeting_id
+               meeting_id
 
-        )
+           )
 
-    elif title and not any(
+       elif title and not any(
 
-        result["summary"]
+           result["summary"]
 
-        for result in _ordered_results(meeting_id).values()
+           for result in _ordered_results(meeting_id).values()
 
-    ):
+       ):
 
-        db.update_meeting(
+           db.update_meeting(
 
-            meeting_id,
+               meeting_id,
 
-            title=title,
+               title=title,
 
-        )
+           )
 
-    return _meeting_payload(
+       return _meeting_payload(
 
-        db.get_meeting(meeting_id)
+           db.get_meeting(meeting_id)
 
-    )
+       )
 
 # ============================================================
+
 # DOCTOR / CLINIC PROFILE
+
 # ============================================================
 
 DOCTOR_PROFILE_IMAGE_MAX_BYTES = 5 * 1024 * 1024
+
 DOCTOR_PROFILE_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 
-
 def _doctor_profile_path(user_id: Any) -> Path:
-    """Return the profile JSON path for the authenticated user."""
-    DOCTOR_PROFILES_DIR.mkdir(parents=True, exist_ok=True)
-    return DOCTOR_PROFILES_DIR / f"{str(user_id)}.json"
 
+       """Return the profile JSON path for the authenticated user."""
+
+       DOCTOR_PROFILES_DIR.mkdir(parents=True, exist_ok=True)
+
+       return DOCTOR_PROFILES_DIR / f"{str(user_id)}.json"
 
 async def _save_doctor_profile_image(
-    upload: Optional[UploadFile], destination_dir: Path, field_name: str
-) -> Optional[str]:
-    """Validate and save an optional doctor profile image."""
-    if upload is None or not upload.filename:
-        return None
-    suffix = Path(upload.filename).suffix.lower()
-    if suffix not in DOCTOR_PROFILE_IMAGE_EXTENSIONS:
-        raise HTTPException(
-            status_code=400,
-            detail=f"{field_name} must be a PNG, JPG, JPEG, or WEBP image.",
-        )
-    data = await upload.read(DOCTOR_PROFILE_IMAGE_MAX_BYTES + 1)
-    if not data:
-        raise HTTPException(status_code=400, detail=f"{field_name} is empty.")
-    if len(data) > DOCTOR_PROFILE_IMAGE_MAX_BYTES:
-        raise HTTPException(status_code=413, detail=f"{field_name} must not exceed 5 MB.")
-    filename = f"{field_name}{suffix}"  # Server-generated; never trust client paths.
-    destination_dir.mkdir(parents=True, exist_ok=True)
-    (destination_dir / filename).write_bytes(data)
-    return filename
 
+       upload: Optional[UploadFile], destination_dir: Path, field_name: str
+
+) -> Optional[str]:
+
+       """Validate and save an optional doctor profile image."""
+
+       if upload is None or not upload.filename:
+
+           return None
+
+       suffix = Path(upload.filename).suffix.lower()
+
+       if suffix not in DOCTOR_PROFILE_IMAGE_EXTENSIONS:
+
+           raise HTTPException(
+
+               status_code=400,
+
+               detail=f"{field_name} must be a PNG, JPG, JPEG, or WEBP image.",
+
+           )
+
+       data = await upload.read(DOCTOR_PROFILE_IMAGE_MAX_BYTES + 1)
+
+       if not data:
+
+           raise HTTPException(status_code=400, detail=f"{field_name} is empty.")
+
+       if len(data) > DOCTOR_PROFILE_IMAGE_MAX_BYTES:
+
+           raise HTTPException(status_code=413, detail=f"{field_name} must not exceed 5 MB.")
+
+       filename = f"{field_name}{suffix}"  # Server-generated; never trust client paths.
+
+       destination_dir.mkdir(parents=True, exist_ok=True)
+
+       (destination_dir / filename).write_bytes(data)
+
+       return filename
 
 @app.get("/api/doctor/profile")
-async def get_doctor_profile(request: Request):
-    """Return the signed-in user's saved doctor/clinic profile, if present."""
-    user = auth.require_user(request)
-    profile_path = _doctor_profile_path(user["id"])
-    if not profile_path.exists():
-        return {"success": True, "profile": None}
-    try:
-        profile = json.loads(profile_path.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as exc:
-        logger.exception("Could not read doctor profile.")
-        raise HTTPException(status_code=500, detail="Could not read saved doctor profile.") from exc
-    return {"success": True, "profile": profile}
 
+async def get_doctor_profile(request: Request):
+
+       """Return the signed-in user's saved doctor/clinic profile, if present."""
+
+       user = auth.require_user(request)
+
+       profile_path = _doctor_profile_path(user["id"])
+
+       if not profile_path.exists():
+
+           return {"success": True, "profile": None}
+
+       try:
+
+           profile = json.loads(profile_path.read_text(encoding="utf-8"))
+
+       except (OSError, ValueError) as exc:
+
+           logger.exception("Could not read doctor profile.")
+
+           raise HTTPException(status_code=500, detail="Could not read saved doctor profile.") from exc
+
+       return {"success": True, "profile": profile}
 
 @app.post("/api/doctor/profile")
+
 async def save_doctor_profile(
-    request: Request,
-    doctor_name: str = Form(...),
-    qualifications: str = Form(""),
-    specialization: str = Form(""),
-    clinic_name: str = Form(""),
-    address: str = Form(""),
-    phone: str = Form(""),
-    email: str = Form(""),
-    timings: str = Form(""),
-    logo: Optional[UploadFile] = File(None),
-    signature: Optional[UploadFile] = File(None),
+
+       request: Request,
+
+       doctor_name: str = Form(...),
+
+       qualifications: str = Form(""),
+
+       specialization: str = Form(""),
+
+       clinic_name: str = Form(""),
+
+       address: str = Form(""),
+
+       phone: str = Form(""),
+
+       email: str = Form(""),
+
+       timings: str = Form(""),
+
+       logo: Optional[UploadFile] = File(None),
+
+       signature: Optional[UploadFile] = File(None),
+
 ):
-    """Save the authenticated user's doctor/clinic profile and optional images."""
-    user = auth.require_user(request)
-    doctor_name = doctor_name.strip()
-    if not doctor_name:
-        raise HTTPException(status_code=400, detail="Doctor name is required.")
 
-    profile_path = _doctor_profile_path(user["id"])
-    profile_dir = DOCTOR_PROFILES_DIR / str(user["id"])
-    existing = {}
-    if profile_path.exists():
-        try:
-            existing = json.loads(profile_path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            existing = {}
+       """Save the authenticated user's doctor/clinic profile and optional images."""
 
-    try:
-        logo_name = await _save_doctor_profile_image(logo, profile_dir, "logo")
-        signature_name = await _save_doctor_profile_image(signature, profile_dir, "signature")
-        profile = {
-            "doctor_name": doctor_name,
-            "qualifications": qualifications.strip(),
-            "specialization": specialization.strip(),
-            "clinic_name": clinic_name.strip(),
-            "address": address.strip(),
-            "phone": phone.strip(),
-            "email": email.strip(),
-            "timings": timings.strip(),
-            "logo": logo_name or existing.get("logo"),
-            "signature": signature_name or existing.get("signature"),
-        }
-        profile_path.write_text(json.dumps(profile, ensure_ascii=False, indent=2), encoding="utf-8")
-    finally:
-        if logo is not None:
-            await logo.close()
-        if signature is not None:
-            await signature.close()
+       user = auth.require_user(request)
 
-    logger.info("Doctor profile saved for user_id=%s", user["id"])
-    return {"success": True, "message": "Doctor profile saved.", "profile": profile}
+       doctor_name = doctor_name.strip()
 
+       if not doctor_name:
+
+           raise HTTPException(status_code=400, detail="Doctor name is required.")
+
+       profile_path = _doctor_profile_path(user["id"])
+
+       profile_dir = DOCTOR_PROFILES_DIR / str(user["id"])
+
+       existing = {}
+
+       if profile_path.exists():
+
+           try:
+
+               existing = json.loads(profile_path.read_text(encoding="utf-8"))
+
+           except (OSError, ValueError):
+
+               existing = {}
+
+       try:
+
+           logo_name = await _save_doctor_profile_image(logo, profile_dir, "logo")
+
+           signature_name = await _save_doctor_profile_image(signature, profile_dir, "signature")
+
+           profile = {
+
+               "doctor_name": doctor_name,
+
+               "qualifications": qualifications.strip(),
+
+               "specialization": specialization.strip(),
+
+               "clinic_name": clinic_name.strip(),
+
+               "address": address.strip(),
+
+               "phone": phone.strip(),
+
+               "email": email.strip(),
+
+               "timings": timings.strip(),
+
+               "logo": logo_name or existing.get("logo"),
+
+               "signature": signature_name or existing.get("signature"),
+
+           }
+
+           profile_path.write_text(json.dumps(profile, ensure_ascii=False, indent=2), encoding="utf-8")
+
+       finally:
+
+           if logo is not None:
+
+               await logo.close()
+
+           if signature is not None:
+
+               await signature.close()
+
+       logger.info("Doctor profile saved for user_id=%s", user["id"])
+
+       return {"success": True, "message": "Doctor profile saved.", "profile": profile}
 
 # ============================================================
 
@@ -1607,15 +1701,15 @@ async def save_doctor_profile(
 
 async def websocket_endpoint(
 
-    websocket: WebSocket,
+       websocket: WebSocket,
 
 ):
 
-    await meeting_websocket(
+       await meeting_websocket(
 
-        websocket
+           websocket
 
-    )
+       )
 
 # ============================================================
 
@@ -1627,31 +1721,31 @@ async def websocket_endpoint(
 
 async def websocket_test(
 
-    websocket: WebSocket,
+       websocket: WebSocket,
 
 ):
 
-    logger.info(
+       logger.info(
 
-        "Test websocket handler reached."
+           "Test websocket handler reached."
 
-    )
+       )
 
-    await websocket.accept()
+       await websocket.accept()
 
-    logger.info(
+       logger.info(
 
-        "Test websocket accepted."
+           "Test websocket accepted."
 
-    )
+       )
 
-    await websocket.send_text(
+       await websocket.send_text(
 
-        "TEST_OK"
+           "TEST_OK"
 
-    )
+       )
 
-    await websocket.close()
+       await websocket.close()
 
 # ============================================================
 
@@ -1661,77 +1755,77 @@ async def websocket_test(
 
 def _resolve_meeting_for_save(
 
-    user: dict,
+       user: dict,
 
-    meeting_id: Optional[int],
+       meeting_id: Optional[int],
 
-    transcript: str,
+       transcript: str,
 
-    duration_seconds: Optional[float] = None,
+       duration_seconds: Optional[float] = None,
 
 ) -> Optional[int]:
 
-    """
+       """
 
-    The meeting row a freshly generated result is saved to, or None to
+       The meeting row a freshly generated result is saved to, or None to
 
-    skip saving. `duration_seconds` (the recording's length) is stored
+       skip saving. \`duration_seconds\` (the recording's length) is stored
 
-    only when this call creates the row.
+       only when this call creates the row.
 
-    An id sent by the client must belong to the user (or the user must be
+       An id sent by the client must belong to the user (or the user must be
 
-    an admin). An invalid one drops the save rather than falling back to
+       an admin). An invalid one drops the save rather than falling back to
 
-    a new row, which would silently duplicate the meeting.
+       a new row, which would silently duplicate the meeting.
 
-    Without an id, this recording has either no row yet, or one that a
+       Without an id, this recording has either no row yet, or one that a
 
-    request still in flight (another model, or the other of summary /
+       request still in flight (another model, or the other of summary /
 
-    mind map) has just opened. db.find_or_create_meeting() joins that row
+       mind map) has just opened. db.find_or_create_meeting() joins that row
 
-    by transcript instead of logging the same meeting a second time.
+       by transcript instead of logging the same meeting a second time.
 
-    """
+       """
 
-    if meeting_id:
+       if meeting_id:
 
-        existing = db.get_meeting(
+           existing = db.get_meeting(
 
-            meeting_id
+               meeting_id
 
-        )
+           )
 
-        if existing and (
+           if existing and (
 
-            existing["user_id"] == user["id"]
+               existing["user_id"] == user["id"]
 
-            or user["role"] == "admin"
+               or user["role"] == "admin"
 
-        ):
+           ):
 
-            return meeting_id
+               return meeting_id
 
-        return None
+           return None
 
-    return db.find_or_create_meeting(
+       return db.find_or_create_meeting(
 
-        user["id"],
+           user["id"],
 
-        transcript,
+           transcript,
 
-        duration_seconds=(
+           duration_seconds=(
 
-            round(duration_seconds)
+               round(duration_seconds)
 
-            if duration_seconds and duration_seconds > 0
+               if duration_seconds and duration_seconds > 0
 
-            else None
+               else None
 
-        ),
+           ),
 
-    )
+       )
 
 # ============================================================
 
@@ -1743,99 +1837,99 @@ def _resolve_meeting_for_save(
 
 def normalize_audio(input_path: Path, output_path: Path) -> Path:
 
-    """Normalize uploaded audio to mono, 16 kHz, signed 16-bit PCM WAV."""
+       """Normalize uploaded audio to mono, 16 kHz, signed 16-bit PCM WAV."""
 
-    ffmpeg_path = shutil.which("ffmpeg")
+       ffmpeg_path = shutil.which("ffmpeg")
 
-    if not ffmpeg_path:
+       if not ffmpeg_path:
 
-        raise RuntimeError(
+           raise RuntimeError(
 
-            "FFmpeg is not installed or is not available in PATH. "
+               "FFmpeg is not installed or is not available in PATH. "
 
-            "Install FFmpeg on the MeetMind backend server and restart the app."
+               "Install FFmpeg on the MeetMind backend server and restart the app."
 
-        )
+           )
 
-    command = [
+       command = [
 
-        ffmpeg_path,
+           ffmpeg_path,
 
-        "-nostdin",
+           "-nostdin",
 
-        "-hide_banner",
+           "-hide_banner",
 
-        "-loglevel", "error",
+           "-loglevel", "error",
 
-        "-y",
+           "-y",
 
-        "-i", str(input_path),
+           "-i", str(input_path),
 
-        "-map", "0:a:0",
+           "-map", "0:a:0",
 
-        "-vn",
+           "-vn",
 
-        "-ac", "1",
+           "-ac", "1",
 
-        "-ar", str(SAMPLE_RATE),
+           "-ar", str(SAMPLE_RATE),
 
-        "-c:a", "pcm_s16le",
+           "-c:a", "pcm_s16le",
 
-        "-f", "wav",
+           "-f", "wav",
 
-        str(output_path),
+           str(output_path),
 
-    ]
+       ]
 
-    result = subprocess.run(
+       result = subprocess.run(
 
-        command,
+           command,
 
-        capture_output=True,
+           capture_output=True,
 
-        text=True,
+           text=True,
 
-        check=False,
+           check=False,
 
-    )
+       )
 
-    if result.returncode != 0:
+       if result.returncode != 0:
 
-        try:
+           try:
 
-            output_path.unlink(missing_ok=True)
+               output_path.unlink(missing_ok=True)
 
-        except OSError:
+           except OSError:
 
-            logger.warning("Could not remove failed normalized audio: %s", output_path)
+               logger.warning("Could not remove failed normalized audio: %s", output_path)
 
-        error_detail = (result.stderr or "").strip()
+           error_detail = (result.stderr or "").strip()
 
-        raise RuntimeError(
+           raise RuntimeError(
 
-            "Audio normalization failed: "
+               "Audio normalization failed: "
 
-            + (error_detail[-1500:] or "Unknown FFmpeg error")
+               + (error_detail[-1500:] or "Unknown FFmpeg error")
 
-        )
+           )
 
-    if not output_path.exists() or output_path.stat().st_size <= 44:
+       if not output_path.exists() or output_path.stat().st_size <= 44:
 
-        raise RuntimeError("Audio normalization produced an empty or invalid WAV file.")
+           raise RuntimeError("Audio normalization produced an empty or invalid WAV file.")
 
-    logger.info(
+       logger.info(
 
-        "Audio normalized: %s -> %s (%d bytes)",
+           "Audio normalized: %s -> %s (%d bytes)",
 
-        input_path.name,
+           input_path.name,
 
-        output_path.name,
+           output_path.name,
 
-        output_path.stat().st_size,
+           output_path.stat().st_size,
 
-    )
+       )
 
-    return output_path
+       return output_path
 
 # ============================================================
 
@@ -1847,245 +1941,245 @@ def normalize_audio(input_path: Path, output_path: Path) -> Path:
 
 async def upload_recording(
 
-    request: Request,
+       request: Request,
 
-    audio: UploadFile = File(...),
+       audio: UploadFile = File(...),
 
 ):
 
-    """Upload an existing audio recording and transcribe it with Parrotlet."""
+       """Upload an existing audio recording and transcribe it with Parrotlet."""
 
-    user = auth.require_user(request)
+       user = auth.require_user(request)
 
-    max_upload_bytes = 500 * 1024 * 1024
+       max_upload_bytes = 500 * 1024 * 1024
 
-    allowed_extensions = {
+       allowed_extensions = {
 
-        ".wav", ".mp3", ".m4a", ".aac", ".flac", ".mpeg",".ogg", ".opus", ".webm", ".mp4"
+           ".wav", ".mp3", ".m4a", ".aac", ".flac", ".mpeg",".ogg", ".opus", ".webm", ".mp4"
 
-    }
+       }
 
-    original_name = audio.filename or "recording.wav"
+       original_name = audio.filename or "recording.wav"
 
-    suffix = Path(original_name).suffix.lower()
+       suffix = Path(original_name).suffix.lower()
 
-    if suffix not in allowed_extensions:
+       if suffix not in allowed_extensions:
 
-        raise HTTPException(
+           raise HTTPException(
 
-            status_code=400,
+               status_code=400,
 
-            detail="Unsupported audio format. Supported formats: WAV, MP3, M4A, AAC, FLAC, MPEG, OGG, OPUS, WEBM, and MP4.",
+               detail="Unsupported audio format. Supported formats: WAV, MP3, M4A, AAC, FLAC, MPEG, OGG, OPUS, WEBM, and MP4.",
 
-        )
+           )
 
-    upload_id = uuid.uuid4().hex
+       upload_id = uuid.uuid4().hex
 
-    audio_path = RECORDINGS_DIR / f"upload_{upload_id}{suffix}"
+       audio_path = RECORDINGS_DIR / f"upload_{upload_id}{suffix}"
 
-    normalized_path = RECORDINGS_DIR / f"upload_{upload_id}_normalized.wav"
+       normalized_path = RECORDINGS_DIR / f"upload_{upload_id}_normalized.wav"
 
-    total_bytes = 0
+       total_bytes = 0
 
-    duration = None
+       duration = None
 
-    try:
+       try:
 
-        # Stream the upload to disk in bounded chunks; never read a 500 MB file
+           # Stream the upload to disk in bounded chunks; never read a 500 MB file
 
-        # into one Python bytes object. The size check is based on actual bytes,
+           # into one Python bytes object. The size check is based on actual bytes,
 
-        # not only the browser-provided Content-Length or MIME type.
+           # not only the browser-provided Content-Length or MIME type.
 
-        with audio_path.open("wb") as output:
+           with audio_path.open("wb") as output:
 
-            while True:
+               while True:
 
-                chunk = await audio.read(1024 * 1024)
+                   chunk = await audio.read(1024 * 1024)
 
-                if not chunk:
+                   if not chunk:
 
-                    break
+                       break
 
-                total_bytes += len(chunk)
+                   total_bytes += len(chunk)
 
-                if total_bytes > max_upload_bytes:
+                   if total_bytes > max_upload_bytes:
 
-                    raise HTTPException(
+                       raise HTTPException(
 
-                        status_code=413,
+                           status_code=413,
 
-                        detail="Recording exceeds the maximum upload size of 500 MB.",
+                           detail="Recording exceeds the maximum upload size of 500 MB.",
 
-                    )
+                       )
 
-                output.write(chunk)
+                   output.write(chunk)
 
-        if total_bytes == 0:
+           if total_bytes == 0:
 
-            raise HTTPException(status_code=400, detail="Uploaded recording is empty.")
+               raise HTTPException(status_code=400, detail="Uploaded recording is empty.")
 
-        logger.info(
+           logger.info(
 
-            "Recording uploaded: %s | bytes=%d | user_id=%s",
+               "Recording uploaded: %s | bytes=%d | user_id=%s",
 
-            audio_path.name,
+               audio_path.name,
 
-            total_bytes,
+               total_bytes,
 
-            user["id"],
+               user["id"],
 
-        )
+           )
 
-        # Normalize every uploaded format before sending it to Parrotlet.
+           # Normalize every uploaded format before sending it to Parrotlet.
 
-        # The live WebSocket recording path remains unchanged.
+           # The live WebSocket recording path remains unchanged.
 
-        await run_in_threadpool(
+           await run_in_threadpool(
 
-            normalize_audio,
+               normalize_audio,
 
-            audio_path,
+               audio_path,
 
-            normalized_path,
+               normalized_path,
 
-        )
+           )
 
-        logger.info(
+           logger.info(
 
-            "Starting Parrotlet transcription on normalized audio: %s",
+               "Starting Parrotlet transcription on normalized audio: %s",
 
-            normalized_path.name,
+               normalized_path.name,
 
-        )
+           )
 
-        transcription = await run_in_threadpool(
+           transcription = await run_in_threadpool(
 
-            transcribe_audio,
+               transcribe_audio,
 
-            str(normalized_path),
+               str(normalized_path),
 
-        )
+           )
 
-        if not isinstance(transcription, dict):
+           if not isinstance(transcription, dict):
 
-            raise RuntimeError("The transcription pipeline returned an invalid result.")
+               raise RuntimeError("The transcription pipeline returned an invalid result.")
 
-        transcript = (transcription.get("text") or "").strip()
+           transcript = (transcription.get("text") or "").strip()
 
-        duration_value = transcription.get("duration")
+           duration_value = transcription.get("duration")
 
-        if duration_value is not None:
+           if duration_value is not None:
 
-            try:
+               try:
 
-                duration = float(duration_value)
+                   duration = float(duration_value)
 
-            except (TypeError, ValueError):
+               except (TypeError, ValueError):
 
-                duration = None
+                   duration = None
 
-        meeting_id = None
+           meeting_id = None
 
-        if transcript:
+           if transcript:
 
-            meeting_id = db.find_or_create_meeting(
+               meeting_id = db.find_or_create_meeting(
 
-                user["id"],
+                   user["id"],
 
-                transcript,
+                   transcript,
 
-                duration_seconds=(
+                   duration_seconds=(
 
-                    round(duration) if duration is not None and duration > 0 else None
+                       round(duration) if duration is not None and duration > 0 else None
 
-                ),
+                   ),
 
-            )
+               )
 
-        logger.info(
+           logger.info(
 
-            "Uploaded recording transcription complete | meeting_id=%s | transcript_chars=%d | duration=%s",
+               "Uploaded recording transcription complete | meeting_id=%s | transcript_chars=%d | duration=%s",
 
-            meeting_id,
+               meeting_id,
 
-            len(transcript),
+               len(transcript),
 
-            f"{duration:.2f}" if duration is not None else "unknown",
+               f"{duration:.2f}" if duration is not None else "unknown",
 
-        )
+           )
 
-        return {
+           return {
 
-            "success": True,
+               "success": True,
 
-            "meeting_id": meeting_id,
+               "meeting_id": meeting_id,
 
-            "transcript": transcript,
+               "transcript": transcript,
 
-            "segments": transcription.get("segments", []),
+               "segments": transcription.get("segments", []),
 
-            "duration": duration,
+               "duration": duration,
 
-            "speech_model": MODEL_NAME,
+               "speech_model": MODEL_NAME,
 
-            "speaker_diarization": False,
+               "speaker_diarization": False,
 
-            "final": True,
+               "final": True,
 
-        }
+           }
 
-    except HTTPException:
+       except HTTPException:
 
-        # Delete rejected/failed partial uploads, but preserve completed recordings.
+           # Delete rejected/failed partial uploads, but preserve completed recordings.
 
-        if audio_path.exists():
+           if audio_path.exists():
 
-            try:
+               try:
 
-                audio_path.unlink()
+                   audio_path.unlink()
 
-            except OSError:
+               except OSError:
 
-                logger.warning("Could not remove partial upload %s", audio_path)
+                   logger.warning("Could not remove partial upload %s", audio_path)
 
-        raise
+           raise
 
-    except Exception as exc:
+       except Exception as exc:
 
-        if audio_path.exists():
+           if audio_path.exists():
 
-            try:
+               try:
 
-                audio_path.unlink()
+                   audio_path.unlink()
 
-            except OSError:
+               except OSError:
 
-                logger.warning("Could not remove failed upload %s", audio_path)
+                   logger.warning("Could not remove failed upload %s", audio_path)
 
-        logger.exception("Uploaded recording processing failed.")
+           logger.exception("Uploaded recording processing failed.")
 
-        raise HTTPException(status_code=500, detail=f"Recording transcription failed: {exc}")
+           raise HTTPException(status_code=500, detail=f"Recording transcription failed: {exc}")
 
-    finally:
+       finally:
 
-        await audio.close()
+           await audio.close()
 
-        if normalized_path.exists():
+           if normalized_path.exists():
 
-            try:
+               try:
 
-                normalized_path.unlink()
+                   normalized_path.unlink()
 
-            except OSError:
+               except OSError:
 
-                logger.warning(
+                   logger.warning(
 
-                    "Could not remove normalized audio file: %s",
+                       "Could not remove normalized audio file: %s",
 
-                    normalized_path,
+                       normalized_path,
 
-                )
+                   )
 
 # ============================================================
 
@@ -2094,290 +2188,316 @@ async def upload_recording(
 # ============================================================
 
 @app.post("/api/doctor/prescription")
+
 async def create_doctor_prescription(request: DoctorPrescriptionRequest, http_request: Request):
-    """Generate a draft prescription separately from MOM summary and mindmap."""
-    transcript = (request.transcript or "").strip()
-    if not transcript:
-        return {"success": False, "error": "Transcript is empty."}
 
-    model = (request.model or "mistral").strip().lower()
-    generators = {
-        "mistral": (generate_doctor_prescription, MISTRAL_MODEL),
-        "qwen": (generate_doctor_prescription_qwen, QWEN_MODEL),
-    }
-    if model not in generators:
-        raise HTTPException(status_code=400, detail="Unsupported prescription model. Use mistral or qwen.")
+       """Generate a draft prescription separately from MOM summary and mindmap."""
 
-    generator, model_id = generators[model]
-    try:
-        prescription = await run_in_threadpool(generator, transcript)
-    except Exception as exc:
-        logger.exception("Doctor prescription draft generation failed (%s).", model)
-        return {"success": False, "error": str(exc)}
+       transcript = (request.transcript or "").strip()
 
-    # Use the signed-in user's saved doctor name only as profile metadata; do not
-    # overwrite a doctor name extracted from the consultation if one is present.
-    try:
-        user = auth.get_current_user(http_request)
-        if user and not prescription.get("doctor_name"):
-            profile_path = _doctor_profile_path(user["id"])
-            if profile_path.exists():
-                profile = json.loads(profile_path.read_text(encoding="utf-8"))
-                prescription["doctor_name"] = profile.get("doctor_name", "") or ""
-    except Exception:
-        logger.debug("Doctor profile could not be applied to prescription draft.", exc_info=True)
+       if not transcript:
 
-    return {"success": True, "model": model, "model_id": model_id, "prescription": prescription,
-            "review_required": True}
+           return {"success": False, "error": "Transcript is empty."}
 
+       model = (request.model or "mistral").strip().lower()
+
+       generators = {
+
+           "mistral": (generate_doctor_prescription, MISTRAL_MODEL),
+
+           "qwen": (generate_doctor_prescription_qwen, QWEN_MODEL),
+
+       }
+
+       if model not in generators:
+
+           raise HTTPException(status_code=400, detail="Unsupported prescription model. Use mistral or qwen.")
+
+       generator, model_id = generators[model]
+
+       try:
+
+           prescription = await run_in_threadpool(generator, transcript)
+
+       except Exception as exc:
+
+           logger.exception("Doctor prescription draft generation failed (%s).", model)
+
+           return {"success": False, "error": str(exc)}
+
+       # Use the signed-in user's saved doctor name only as profile metadata; do not
+
+       # overwrite a doctor name extracted from the consultation if one is present.
+
+       try:
+
+           user = auth.get_current_user(http_request)
+
+           if user and not prescription.get("doctor_name"):
+
+               profile_path = _doctor_profile_path(user["id"])
+
+               if profile_path.exists():
+
+                   profile = json.loads(profile_path.read_text(encoding="utf-8"))
+
+                   prescription["doctor_name"] = profile.get("doctor_name", "") or ""
+
+       except Exception:
+
+           logger.debug("Doctor profile could not be applied to prescription draft.", exc_info=True)
+
+       return {"success": True, "model": model, "model_id": model_id, "prescription": prescription,
+
+               "review_required": True}
 
 @app.post(
 
-    "/api/meeting/summarize"
+       "/api/meeting/summarize"
 
 )
 
 async def create_summary(
 
-    request: SummaryRequest,
+       request: SummaryRequest,
 
-    http_request: Request,
+       http_request: Request,
 
 ):
 
-    transcript = (
+       transcript = (
 
-        request.transcript or ""
+           request.transcript or ""
 
-    ).strip()
+       ).strip()
 
-    logger.info(
+       logger.info(
 
-        "Received meeting summarization request (model: %s).",
+           "Received meeting summarization request (model: %s).",
 
-        request.model,
+           request.model,
 
-    )
+       )
 
-    logger.info(
+       logger.info(
 
-        "Transcript length: %d characters",
+           "Transcript length: %d characters",
 
-        len(transcript),
+           len(transcript),
 
-    )
+       )
 
-    if not transcript:
+       if not transcript:
 
-        return {
+           return {
 
-            "success": False,
+               "success": False,
 
-            "error": "Transcript is empty.",
+               "error": "Transcript is empty.",
 
-        }
+           }
 
-    try:
+       try:
 
-        model = _resolve_model(
+           model = _resolve_model(
 
-            request.model
+               request.model
 
-        )
+           )
 
-        entry = LLM_MODELS[model]
+           entry = LLM_MODELS[model]
 
-        logger.info(
+           logger.info(
 
-            "Generating meeting intelligence using %s: %s",
+               "Generating meeting intelligence using %s: %s",
 
-            entry["label"],
+               entry["label"],
 
-            entry["model_id"],
+               entry["model_id"],
 
-        )
+           )
 
-        # The generators are blocking HTTP calls. Running them on the
+           # The generators are blocking HTTP calls. Running them on the
 
-        # thread pool lets the other models' requests (and every other
+           # thread pool lets the other models' requests (and every other
 
-        # endpoint) proceed while this model is still answering.
+           # endpoint) proceed while this model is still answering.
 
-        result = await run_in_threadpool(
+           result = await run_in_threadpool(
 
-            entry["summarize"],
+               entry["summarize"],
 
-            transcript,
+               transcript,
 
-        )
+           )
 
-        logger.info(
+           logger.info(
 
-            "Meeting intelligence generated successfully."
+               "Meeting intelligence generated successfully."
 
-        )
+           )
 
-    except Exception as exc:
+       except Exception as exc:
 
-        logger.exception(
+           logger.exception(
 
-            "Summary generation failed."
+               "Summary generation failed."
 
-        )
+           )
 
-        return {
+           return {
 
-            "success": False,
+               "success": False,
 
-            "error": str(exc),
+               "error": str(exc),
 
-        }
+           }
 
-    # --------------------------------------------------------
+       # --------------------------------------------------------
 
-    # SUMMARY PAYLOAD
+       # SUMMARY PAYLOAD
 
-    # --------------------------------------------------------
+       # --------------------------------------------------------
 
-    payload = {
+       payload = {
 
-        "success": True,
+           "success": True,
 
-        "model": model,
+           "model": model,
 
-        "title": result.get(
+           "title": result.get(
 
-            "title",
+               "title",
 
-            "Untitled Meeting",
+               "Untitled Meeting",
 
-        ),
+           ),
 
-        "objective": result.get(
+           "objective": result.get(
 
-            "objective",
+               "objective",
 
-            "",
+               "",
 
-        ),
+           ),
 
-        "meeting_summary": result.get(
+           "meeting_summary": result.get(
 
-            "meeting_summary",
+               "meeting_summary",
 
-            "",
+               "",
 
-        ),
+           ),
 
-        "tasks_assigned": result.get(
+           "tasks_assigned": result.get(
 
-            "tasks_assigned",
+               "tasks_assigned",
 
-            [],
+               [],
 
-        ),
+           ),
 
-        "decision_points": result.get(
+           "decision_points": result.get(
 
-            "decision_points",
+               "decision_points",
 
-            [],
+               [],
 
-        ),
+           ),
 
-        "objections": result.get(
+           "objections": result.get(
 
-            "objections",
+               "objections",
 
-            [],
+               [],
 
-        ),
+           ),
 
-        "action_items": result.get(
+           "action_items": result.get(
 
-            "action_items",
+               "action_items",
 
-            [],
+               [],
 
-        ),
+           ),
 
-        "timeline": result.get(
+           "timeline": result.get(
 
-            "timeline",
+               "timeline",
 
-            [],
+               [],
 
-        ),
+           ),
 
-    }
+       }
 
-    # --------------------------------------------------------
+       # --------------------------------------------------------
 
-    # SAVE SUMMARY TO DATABASE (this model's result row)
+       # SAVE SUMMARY TO DATABASE (this model's result row)
 
-    # --------------------------------------------------------
+       # --------------------------------------------------------
 
-    user = auth.get_current_user(
+       user = auth.get_current_user(
 
-        http_request
+           http_request
 
-    )
+       )
 
-    if user:
+       if user:
 
-        try:
+           try:
 
-            meeting_id = _resolve_meeting_for_save(
+               meeting_id = _resolve_meeting_for_save(
 
-                user,
+                   user,
 
-                request.meeting_id,
+                   request.meeting_id,
 
-                transcript,
+                   transcript,
 
-                request.duration_seconds,
+                   request.duration_seconds,
 
-            )
+               )
 
-            if meeting_id:
+               if meeting_id:
 
-                db.save_meeting_result(
+                   db.save_meeting_result(
 
-                    meeting_id,
+                       meeting_id,
 
-                    model,
+                       model,
 
-                    summary_json=json.dumps(
+                       summary_json=json.dumps(
 
-                        payload
+                           payload
 
-                    ),
+                       ),
 
-                )
+                   )
 
-                _sync_meeting_title(
+                   _sync_meeting_title(
 
-                    meeting_id
+                       meeting_id
 
-                )
+                   )
 
-                payload[
+                   payload[
 
-                    "meeting_id"
+                       "meeting_id"
 
-                ] = meeting_id
+                   ] = meeting_id
 
-        except Exception as exc:
+           except Exception as exc:
 
-            logger.exception(
+               logger.exception(
 
-                "Could not save meeting to history: %s",
+                   "Could not save meeting to history: %s",
 
-                exc,
+                   exc,
 
-            )
+               )
 
-    return payload
+       return payload
 
 # ============================================================
 
@@ -2387,189 +2507,189 @@ async def create_summary(
 
 @app.post(
 
-    "/api/meeting/mindmap"
+       "/api/meeting/mindmap"
 
 )
 
 async def create_mindmap(
 
-    request: MindMapRequest,
+       request: MindMapRequest,
 
-    http_request: Request,
+       http_request: Request,
 
 ):
 
-    transcript = (
+       transcript = (
 
-        request.transcript or ""
+           request.transcript or ""
 
-    ).strip()
+       ).strip()
 
-    logger.info(
+       logger.info(
 
-        "Received meeting mind-map generation request (model: %s).",
+           "Received meeting mind-map generation request (model: %s).",
 
-        request.model,
+           request.model,
 
-    )
+       )
 
-    logger.info(
+       logger.info(
 
-        "Transcript length: %d characters",
+           "Transcript length: %d characters",
 
-        len(transcript),
+           len(transcript),
 
-    )
+       )
 
-    # --------------------------------------------------------
+       # --------------------------------------------------------
 
-    # EMPTY TRANSCRIPT
+       # EMPTY TRANSCRIPT
 
-    # --------------------------------------------------------
+       # --------------------------------------------------------
 
-    if not transcript:
+       if not transcript:
 
-        return {
+           return {
 
-            "success": False,
+               "success": False,
 
-            "error": "Transcript is empty.",
+               "error": "Transcript is empty.",
 
-        }
+           }
 
-    # --------------------------------------------------------
+       # --------------------------------------------------------
 
-    # GENERATE MIND MAP
+       # GENERATE MIND MAP
 
-    # --------------------------------------------------------
+       # --------------------------------------------------------
 
-    try:
+       try:
 
-        model = _resolve_model(
+           model = _resolve_model(
 
-            request.model
+               request.model
 
-        )
+           )
 
-        entry = LLM_MODELS[model]
+           entry = LLM_MODELS[model]
 
-        logger.info(
+           logger.info(
 
-            "Generating mind map using %s: %s",
+               "Generating mind map using %s: %s",
 
-            entry["label"],
+               entry["label"],
 
-            entry["model_id"],
+               entry["model_id"],
 
-        )
+           )
 
-        mindmap = await run_in_threadpool(
+           mindmap = await run_in_threadpool(
 
-            entry["mindmap"],
+               entry["mindmap"],
 
-            transcript,
+               transcript,
 
-        )
+           )
 
-        logger.info(
+           logger.info(
 
-            "Mind map generated successfully."
+               "Mind map generated successfully."
 
-        )
+           )
 
-    except Exception as exc:
+       except Exception as exc:
 
-        logger.exception(
+           logger.exception(
 
-            "Mind-map generation failed."
+               "Mind-map generation failed."
 
-        )
+           )
 
-        return {
+           return {
 
-            "success": False,
+               "success": False,
 
-            "error": str(exc),
+               "error": str(exc),
 
-        }
+           }
 
-    payload = {
+       payload = {
 
-        "success": True,
+           "success": True,
 
-        "model": model,
+           "model": model,
 
-        "mindmap": mindmap,
+           "mindmap": mindmap,
 
-    }
+       }
 
-    # --------------------------------------------------------
+       # --------------------------------------------------------
 
-    # SAVE MIND MAP TO DATABASE (best-effort, this model's row)
+       # SAVE MIND MAP TO DATABASE (best-effort, this model's row)
 
-    # --------------------------------------------------------
+       # --------------------------------------------------------
 
-    user = auth.get_current_user(
+       user = auth.get_current_user(
 
-        http_request
+           http_request
 
-    )
+       )
 
-    if user:
+       if user:
 
-        try:
+           try:
 
-            meeting_id = _resolve_meeting_for_save(
+               meeting_id = _resolve_meeting_for_save(
 
-                user,
+                   user,
 
-                request.meeting_id,
+                   request.meeting_id,
 
-                transcript,
+                   transcript,
 
-                request.duration_seconds,
+                   request.duration_seconds,
 
-            )
+               )
 
-            if meeting_id:
+               if meeting_id:
 
-                db.save_meeting_result(
+                   db.save_meeting_result(
 
-                    meeting_id,
+                       meeting_id,
 
-                    model,
+                       model,
 
-                    mindmap_json=json.dumps(
+                       mindmap_json=json.dumps(
 
-                        mindmap
+                           mindmap
 
-                    ),
+                       ),
 
-                )
+                   )
 
-                # Echo it back the way create_summary() does, so the
+                   # Echo it back the way create_summary() does, so the
 
-                # client can trust this field rather than having to
+                   # client can trust this field rather than having to
 
-                # remember what it sent.
+                   # remember what it sent.
 
-                payload[
+                   payload[
 
-                    "meeting_id"
+                       "meeting_id"
 
-                ] = meeting_id
+                   ] = meeting_id
 
-        except Exception as exc:
+           except Exception as exc:
 
-            logger.exception(
+               logger.exception(
 
-                "Could not save mind map to history: %s",
+                   "Could not save mind map to history: %s",
 
-                exc,
+                   exc,
 
-            )
+               )
 
-    return payload
+       return payload
 
 # ============================================================
 
@@ -2581,97 +2701,97 @@ async def create_mindmap(
 
 async def startup_event():
 
-    logger.info(
+       logger.info(
 
-        "=" * 70
+           "=" * 70
 
-    )
+       )
 
-    logger.info(
+       logger.info(
 
-        "MEETMIND BACKEND STARTED"
+           "MEETMIND BACKEND STARTED"
 
-    )
+       )
 
-    logger.info(
+       logger.info(
 
-        "=" * 70
+           "=" * 70
 
-    )
+       )
 
-    logger.info(
+       logger.info(
 
-        "LLM models: %s",
+           "LLM models: %s",
 
-        ", ".join(
+           ", ".join(
 
-            f"{key} ({entry['label']}: {entry['model_id']})"
+               f"{key} ({entry['label']}: {entry['model_id']})"
 
-            for key, entry in LLM_MODELS.items()
+               for key, entry in LLM_MODELS.items()
 
-        ),
+           ),
 
-    )
+       )
 
-    logger.info(
+       logger.info(
 
-        "ASR model: %s",
+           "ASR model: %s",
 
-        MODEL_NAME,
+           MODEL_NAME,
 
-    )
+       )
 
-    logger.info(
+       logger.info(
 
-        "Sample rate: %s Hz",
+           "Sample rate: %s Hz",
 
-        SAMPLE_RATE,
+           SAMPLE_RATE,
 
-    )
+       )
 
-    logger.info(
+       logger.info(
 
-        "Speaker diarization: DISABLED"
+           "Speaker diarization: DISABLED"
 
-    )
+       )
 
-    logger.info(
+       logger.info(
 
-        "WebSocket endpoint: /ws/meeting"
+           "WebSocket endpoint: /ws/meeting"
 
-    )
+       )
 
-    logger.info(
+       logger.info(
 
-        "WebSocket diagnostic endpoint: /ws/test"
+           "WebSocket diagnostic endpoint: /ws/test"
 
-    )
+       )
 
-    logger.info(
+       logger.info(
 
-        "Summary endpoint: /api/meeting/summarize"
+           "Summary endpoint: /api/meeting/summarize"
 
-    )
+       )
 
-    logger.info(
+       logger.info(
 
-        "Mind-map endpoint: /api/meeting/mindmap"
+           "Mind-map endpoint: /api/meeting/mindmap"
 
-    )
+       )
 
-    logger.info(
+       logger.info(
 
-        "Frontend directory: %s",
+           "Frontend directory: %s",
 
-        FRONTEND_DIR,
+           FRONTEND_DIR,
 
-    )
+       )
 
-    logger.info(
+       logger.info(
 
-        "=" * 70
+           "=" * 70
 
-    )
+       )
 
 # ============================================================
 
@@ -2683,8 +2803,8 @@ async def startup_event():
 
 async def shutdown_event():
 
-    logger.info(
+       logger.info(
 
-        "MeetMind backend shutting down."
+           "MeetMind backend shutting down."
 
-    )
+       )
