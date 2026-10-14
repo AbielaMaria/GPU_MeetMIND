@@ -2995,6 +2995,163 @@ body.mindmap-expanded {
     }
 }
 
+
+
+/* ---------- Template selector + Doctor Prescription ---------- */
+.template-selector {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 9px;
+    padding: 14px 16px;
+    margin: 18px 0 0;
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    background: var(--bg-elevated);
+}
+.template-selector-label {
+    margin-right: 5px;
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .08em;
+}
+.template-choice {
+    min-height: 34px;
+    padding: 7px 13px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-full);
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+}
+.template-choice.active {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: #fff;
+}
+/* Both template buttons use the same active accent styling. */
+.doctor-profile-card, .prescription-editor-card {
+    margin-top: 18px;
+}
+.doctor-profile-card[hidden], .prescription-editor-card[hidden] {
+    display: none !important;
+}
+.doctor-profile-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 13px 14px;
+}
+.doctor-profile-grid .field-full { grid-column: 1 / -1; }
+.doctor-profile-grid label, .prescription-form label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 500;
+}
+.doctor-profile-grid input, .doctor-profile-grid textarea,
+.prescription-form input, .prescription-form textarea, .prescription-form select {
+    width: 100%;
+    min-width: 0;
+    padding: 10px 11px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    font: inherit;
+}
+.doctor-profile-grid input[type="file"] { padding: 8px; }
+.doctor-profile-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 9px;
+    margin-top: 16px;
+}
+.doctor-profile-actions .primary-action {
+    background: var(--accent);
+    color: white;
+}
+.doctor-profile-note {
+    margin: 0 0 18px;
+    color: var(--text-muted);
+    font-size: 12px;
+}
+.prescription-form {
+    display: grid;
+    gap: 16px;
+}
+.prescription-fields-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+.prescription-fields-grid .field-full { grid-column: 1 / -1; }
+.prescription-section-title {
+    margin: 0 0 10px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+.medicine-table-wrap { overflow-x: auto; }
+.prescription-medicine-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 650px;
+}
+.prescription-medicine-table th, .prescription-medicine-table td {
+    padding: 8px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    vertical-align: top;
+}
+.prescription-medicine-table th {
+    color: var(--text-muted);
+    font-size: 10px;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+}
+.prescription-medicine-table input {
+    width: 100%;
+    min-width: 90px;
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    font: inherit;
+}
+.prescription-warning {
+    padding: 11px 13px;
+    border: 1px solid #f0c7c3;
+    border-radius: var(--r-sm);
+    background: var(--danger-soft);
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+@media (max-width: 620px) {
+    .doctor-profile-grid, .prescription-fields-grid { grid-template-columns: 1fr; }
+    .doctor-profile-grid .field-full, .prescription-fields-grid .field-full { grid-column: auto; }
+}
+
+
+
+/* Doctor Prescription mode: keep transcription available, but hide MOM-only
+   model intelligence, mind-map and combined report-builder sections. */
+body[data-meetmind-template="doctor"] #modelGrid,
+body[data-meetmind-template="doctor"] #reportBuilder,
+body[data-meetmind-template="doctor"] .panel--transcript .intelligence-actions {
+    display: none !important;
+}
+
+body[data-meetmind-template="doctor"] .prescription-editor-card {
+    display: block;
+}
+body[data-meetmind-template="doctor"] #doctorProfileCard[hidden],
+body[data-meetmind-template="doctor"] #prescriptionEditorCard[hidden] {
+    display: none !important;
+}
+
 </style>
 
 </head>
@@ -3060,6 +3217,17 @@ body.mindmap-expanded {
         </header>
 
 
+
+        <section class="template-selector" aria-label="Choose output template">
+            <span class="template-selector-label">TEMPLATE</span>
+            <button type="button" class="template-choice active"
+                    data-template="mom" aria-pressed="true"
+                    onclick="selectMeetMindTemplate('mom')">Meeting (MOM)</button>
+            <button type="button" class="template-choice"
+                    data-template="doctor" aria-pressed="false"
+                    onclick="selectMeetMindTemplate('doctor')">Doctor Prescription</button>
+        </section>
+
         <div class="controls">
 
             <button
@@ -3092,6 +3260,51 @@ body.mindmap-expanded {
 
         </div>
 
+
+
+        <section id="doctorProfileCard" class="card doctor-profile-card" hidden>
+            <div class="panel-head"><h2>Doctor / Clinic Profile</h2></div>
+            <p class="doctor-profile-note">Enter the details to appear on the prescription. These details will appear on the downloaded prescription.</p>
+            <form id="doctorProfileForm">
+                <div class="doctor-profile-grid">
+                    <label>Doctor name
+                        <input name="doctor_name" required placeholder="Dr. S. Meenakshi">
+                    </label>
+                    <label>Qualifications
+                        <input name="qualifications" placeholder="MBBS, MD (General Medicine)">
+                    </label>
+                    <label>Specialization
+                        <input name="specialization" placeholder="Consultant Physician">
+                    </label>
+                    <label>Clinic / hospital name
+                        <input name="clinic_name" placeholder="Sunrise Family Clinic">
+                    </label>
+                    <label class="field-full">Address
+                        <textarea name="address" rows="2" placeholder="Clinic address"></textarea>
+                    </label>
+                    <label>Phone
+                        <input name="phone" type="tel" placeholder="+91 98765 43210">
+                    </label>
+                    <label>Email
+                        <input name="email" type="email" placeholder="clinic@example.com">
+                    </label>
+                    <label class="field-full">Timings
+                        <input name="timings" placeholder="Mon–Sat · 10 AM–1 PM, 5 PM–8 PM">
+                    </label>
+                    <label>Logo (optional)
+                        <input name="logo" type="file" accept=".png,.jpg,.jpeg,image/png,image/jpeg">
+                    </label>
+                    <label>Signature / stamp (optional)
+                        <input name="signature" type="file" accept="image/*">
+                    </label>
+                </div>
+                <div class="doctor-profile-actions">
+                    <button type="submit" class="primary-action">Save profile</button>
+                    <button type="reset">Reset</button>
+                </div>
+                <div id="doctorProfileStatus" class="meta" role="status"></div>
+            </form>
+        </section>
 
         <div id="status">
             Ready to record.
@@ -3234,6 +3447,81 @@ body.mindmap-expanded {
          BUILDER script. Only the ticked tiles go into the PDF:
          every summary first, then every mind map.
     =================================================== -->
+
+
+    <section id="prescriptionEditorCard" class="card prescription-editor-card" hidden>
+        <div class="panel-head"><h2>Doctor Prescription — Review & Edit</h2></div>
+        <p class="doctor-profile-note">Review all extracted information. Confirm every diagnosis, vital sign and medicine before issuing the prescription.</p>
+        <form id="prescriptionForm" class="prescription-form">
+            <div class="doctor-profile-actions">
+                <button type="button" id="generatePrescriptionBtn" class="primary-action">Generate Draft from Transcript</button>
+                <button type="button" id="downloadPrescriptionBtn" class="btn-primary">Download Prescription</button>
+                <span id="prescriptionGenerationStatus" class="meta" role="status"></span>
+            </div>
+            <div>
+                <h3 class="prescription-section-title">Patient Details</h3>
+                <div class="prescription-fields-grid">
+                    <label>Patient name<input name="patient_name"></label>
+                    <label>Age / Sex<input name="age_sex" placeholder="e.g. 45 / Male"></label>
+                    <label>Visit date<input name="visit_date" type="date"></label>
+                    <label>Doctor<input name="doctor_name"></label>
+                    <label class="field-full">Chief complaint<textarea name="chief_complaint" rows="2"></textarea></label>
+                    <label class="field-full">Symptoms & history<textarea name="symptoms_history" rows="3"></textarea></label>
+                    <label class="field-full">Allergies<input name="allergies" placeholder="Patient-reported allergy status"></label>
+                </div>
+            </div>
+            <div>
+                <h3 class="prescription-section-title">Examination & Vitals</h3>
+                <div class="prescription-fields-grid">
+                    <label>Temperature<input name="temperature"></label>
+                    <label>Blood pressure<input name="blood_pressure"></label>
+                    <label>Pulse rate<input name="pulse_rate"></label>
+                    <label>SpO₂<input name="spo2"></label>
+                    <label class="field-full">Examination findings<textarea name="examination_findings" rows="2"></textarea></label>
+                </div>
+            </div>
+            <div>
+                <h3 class="prescription-section-title">Diagnosis / Assessment</h3>
+                <textarea name="diagnosis" rows="3" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-surface);color:var(--text-primary);font:inherit"></textarea>
+            </div>
+            <div>
+                <h3 class="prescription-section-title">Medicines Prescribed</h3>
+                <div class="medicine-table-wrap">
+                    <table class="prescription-medicine-table">
+                        <thead><tr><th>Medicine</th><th>Dose</th><th>Route</th><th>Frequency</th><th>Duration</th><th>Instructions</th></tr></thead>
+                        <tbody id="prescriptionMedicineRows">
+                            <tr>
+                                <td><input name="medicine[]" aria-label="Medicine"></td>
+                                <td><input name="dose[]" aria-label="Dose"></td>
+                                <td><input name="route[]" aria-label="Route"></td>
+                                <td><input name="frequency[]" aria-label="Frequency"></td>
+                                <td><input name="duration[]" aria-label="Duration"></td>
+                                <td><input name="instructions[]" aria-label="Instructions"></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <button type="button" id="addMedicineRowBtn" style="margin-top:10px">+ Add medicine</button>
+            </div>
+            <div>
+                <h3 class="prescription-section-title">Tests / Investigations Advised</h3>
+                <textarea name="tests_advised" rows="2" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-surface);color:var(--text-primary);font:inherit"></textarea>
+            </div>
+            <div>
+                <h3 class="prescription-section-title">Advice</h3>
+                <textarea name="advice" rows="3" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-surface);color:var(--text-primary);font:inherit"></textarea>
+            </div>
+            <div>
+                <h3 class="prescription-section-title">Warning Signs — Return If</h3>
+                <textarea name="warning_signs" rows="2" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--danger-soft);color:var(--text-primary);font:inherit"></textarea>
+            </div>
+            <div>
+                <h3 class="prescription-section-title">Next Visit</h3>
+                <input name="next_visit" placeholder="Follow-up date and instructions" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-surface);color:var(--text-primary);font:inherit">
+            </div>
+            <div class="prescription-warning">Clinical safety: this is a draft for clinician review, not an automatically authorized prescription. Do not issue until all details are verified.</div>
+        </form>
+    </section>
 
     <section
         id="reportBuilder"
@@ -12770,6 +13058,344 @@ window.meetmindHistory = {
         return isAnyGenerating();
     }
 };
+
+
+
+
+/* ============================================================
+   TEMPLATE SELECTION — additive to the existing MOM recorder
+============================================================ */
+let selectedMeetMindTemplate = "mom";
+
+function selectMeetMindTemplate(template) {
+    if (template !== "mom" && template !== "doctor") return;
+
+    // Do not switch output templates while a recording is running.
+    if (typeof isRecording !== "undefined" && isRecording && template !== selectedMeetMindTemplate) {
+        setStatus("Stop the current recording before switching templates.");
+        return;
+    }
+
+    selectedMeetMindTemplate = template;
+    document.body.dataset.meetmindTemplate = template;
+
+    document.querySelectorAll(".template-choice").forEach(button => {
+        const active = button.dataset.template === template;
+        button.classList.toggle("active", active);
+        button.setAttribute("aria-pressed", String(active));
+    });
+
+    const profile = document.getElementById("doctorProfileCard");
+    const prescriptionEditor = document.getElementById("prescriptionEditorCard");
+    if (profile) profile.hidden = template !== "doctor";
+    if (prescriptionEditor) prescriptionEditor.hidden = template !== "doctor";
+
+    // MOM remains the default existing workflow. Selecting Doctor
+    // Prescription opens its profile and starts the same recorder.
+    if (template === "doctor") {
+        if (typeof isRecording !== "undefined" && !isRecording) {
+            startRecording();
+        }
+    }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    const profileForm = document.getElementById("doctorProfileForm");
+    const profileStatus = document.getElementById("doctorProfileStatus");
+    const medicineRows = document.getElementById("prescriptionMedicineRows");
+    const addMedicineBtn = document.getElementById("addMedicineRowBtn");
+    const prescriptionForm = document.getElementById("prescriptionForm");
+
+    // Load the signed-in user's saved doctor/clinic details into the profile
+    // form and the prescription's doctor field. This is additive to MOM logic.
+    if (profileForm) {
+        fetch("/api/doctor/profile", { credentials: "same-origin" })
+            .then(response => {
+                if (!response.ok) throw new Error("Could not load doctor profile");
+                return response.json();
+            })
+            .then(data => {
+                const profile = data && data.profile;
+                if (!profile) return;
+                Object.entries(profile).forEach(([key, value]) => {
+                    const field = profileForm.elements.namedItem(key);
+                    if (field && field.type !== "file" && value != null) field.value = value;
+                });
+                const prescriptionDoctor = prescriptionForm?.elements.namedItem("doctor_name");
+                if (prescriptionDoctor && !prescriptionDoctor.value) {
+                    prescriptionDoctor.value = profile.doctor_name || "";
+                }
+            })
+            .catch(error => console.debug("No saved doctor profile loaded:", error));
+    }
+
+    if (profileForm) {
+        profileForm.addEventListener("submit", async event => {
+            event.preventDefault();
+            const values = Object.fromEntries(new FormData(profileForm));
+            const logo = profileForm.elements.logo?.files?.[0];
+            const signature = profileForm.elements.signature?.files?.[0];
+
+            const payload = new FormData();
+            Object.entries(values).forEach(([key, value]) => {
+                if (key !== "logo" && key !== "signature") payload.append(key, String(value ?? ""));
+            });
+            if (logo) payload.append("logo", logo);
+            if (signature) payload.append("signature", signature);
+
+            try {
+                const response = await fetch("/api/doctor/profile", {
+                    method: "POST",
+                    body: payload,
+                    credentials: "same-origin"
+                });
+                if (!response.ok) throw new Error(await response.text());
+                const result = await response.json();
+                const prescriptionDoctor = prescriptionForm?.elements.namedItem("doctor_name");
+                if (prescriptionDoctor) prescriptionDoctor.value = result.profile?.doctor_name || values.doctor_name || "";
+                if (profileStatus) profileStatus.textContent = "Profile saved.";
+            } catch (error) {
+                console.error("Doctor profile save failed:", error);
+                if (profileStatus) profileStatus.textContent =
+                    "Profile was not saved. Check your sign-in session and try again.";
+            }
+        });
+    }
+
+    if (addMedicineBtn && medicineRows) {
+        addMedicineBtn.addEventListener("click", () => {
+            const row = document.createElement("tr");
+            ["medicine", "dose", "route", "frequency", "duration", "instructions"].forEach(name => {
+                const cell = document.createElement("td");
+                const input = document.createElement("input");
+                input.name = name + "[]";
+                input.setAttribute("aria-label", name);
+                cell.appendChild(input);
+                row.appendChild(cell);
+            });
+            medicineRows.appendChild(row);
+        });
+    }
+
+    const generatePrescriptionBtn = document.getElementById("generatePrescriptionBtn");
+    const prescriptionStatus = document.getElementById("prescriptionGenerationStatus");
+    if (generatePrescriptionBtn && prescriptionForm) {
+        generatePrescriptionBtn.addEventListener("click", async () => {
+            const transcriptText = (typeof transcript === "string" ? transcript : "").trim();
+            if (!transcriptText) {
+                if (prescriptionStatus) prescriptionStatus.textContent = "Record or upload a consultation before generating a draft.";
+                return;
+            }
+            generatePrescriptionBtn.disabled = true;
+            if (prescriptionStatus) prescriptionStatus.textContent = "Generating draft for clinician review…";
+            try {
+                const response = await fetch("/api/doctor/prescription", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    credentials: "same-origin",
+                    body: JSON.stringify({ transcript: transcriptText, model: "mistral" })
+                });
+                const result = await response.json();
+                if (!response.ok || !result.success || !result.prescription) {
+                    throw new Error(result.error || result.detail || "Prescription generation failed.");
+                }
+                const data = result.prescription;
+                const scalarFields = [
+                    "patient_name", "age_sex", "visit_date", "doctor_name", "chief_complaint",
+                    "symptoms_history", "allergies", "temperature", "blood_pressure", "pulse_rate", "spo2",
+                    "examination_findings", "diagnosis", "tests_advised", "advice", "warning_signs", "next_visit"
+                ];
+                scalarFields.forEach(name => {
+                    const field = prescriptionForm.elements.namedItem(name);
+                    if (field && typeof data[name] === "string") field.value = data[name];
+                });
+                if (medicineRows) {
+                    medicineRows.replaceChildren();
+                    const medicines = Array.isArray(data.medicines) ? data.medicines : [];
+                    (medicines.length ? medicines : [{}]).forEach(medicine => {
+                        const row = document.createElement("tr");
+                        ["medicine", "dose", "route", "frequency", "duration", "instructions"].forEach(name => {
+                            const cell = document.createElement("td");
+                            const input = document.createElement("input");
+                            input.name = name + "[]";
+                            input.setAttribute("aria-label", name);
+                            input.value = typeof medicine[name] === "string" ? medicine[name] : "";
+                            cell.appendChild(input);
+                            row.appendChild(cell);
+                        });
+                        medicineRows.appendChild(row);
+                    });
+                }
+                if (prescriptionStatus) prescriptionStatus.textContent = "Draft generated. Verify every clinical detail before use.";
+            } catch (error) {
+                console.error("Prescription generation failed:", error);
+                if (prescriptionStatus) prescriptionStatus.textContent = error.message || "Prescription generation failed.";
+            } finally {
+                generatePrescriptionBtn.disabled = false;
+            }
+        });
+    }
+
+    // Download only the doctor prescription; do not use the MOM report builder.
+    const downloadPrescriptionBtn = document.getElementById("downloadPrescriptionBtn");
+    if (downloadPrescriptionBtn && prescriptionForm) {
+        downloadPrescriptionBtn.addEventListener("click", () => {
+            const status = document.getElementById("prescriptionGenerationStatus");
+            if (!window.jspdf || !window.jspdf.jsPDF) {
+                if (status) status.textContent = "PDF library is unavailable. Refresh the page and try again.";
+                return;
+            }
+
+            const doc = new window.jspdf.jsPDF({ unit: "mm", format: "a4" });
+            const pageWidth = doc.internal.pageSize.getWidth();
+            const pageHeight = doc.internal.pageSize.getHeight();
+            const margin = 16;
+            const contentWidth = pageWidth - margin * 2;
+            let y = 18;
+            const profileForm = document.getElementById("doctorProfileForm");
+            const getValue = (form, name) => {
+                const field = form?.elements.namedItem(name);
+                return field && typeof field.value === "string" ? field.value.trim() : "";
+            };
+            const profile = {
+                doctor_name: getValue(profileForm, "doctor_name") || getValue(prescriptionForm, "doctor_name"),
+                qualifications: getValue(profileForm, "qualifications"),
+                specialization: getValue(profileForm, "specialization"),
+                clinic_name: getValue(profileForm, "clinic_name"),
+                address: getValue(profileForm, "address"),
+                phone: getValue(profileForm, "phone"),
+                email: getValue(profileForm, "email"),
+                timings: getValue(profileForm, "timings")
+            };
+            const value = name => getValue(prescriptionForm, name);
+            const addPageIfNeeded = needed => {
+                if (y + needed > pageHeight - 16) {
+                    doc.addPage();
+                    y = 18;
+                }
+            };
+            const writeLine = (text, options = {}) => {
+                if (!text) return;
+                const fontSize = options.fontSize || 10;
+                doc.setFont("helvetica", options.bold ? "bold" : "normal");
+                doc.setFontSize(fontSize);
+                const lines = doc.splitTextToSize(String(text), contentWidth);
+                const lineHeight = fontSize * 0.42 + 1.8;
+                addPageIfNeeded(lines.length * lineHeight + 1);
+                doc.text(lines, margin, y);
+                y += lines.length * lineHeight + (options.gapAfter ?? 1.5);
+            };
+            const section = title => {
+                y += 2;
+                addPageIfNeeded(10);
+                doc.setFont("helvetica", "bold");
+                doc.setFontSize(11);
+                doc.text(title, margin, y);
+                y += 2;
+                doc.setDrawColor(205, 205, 220);
+                doc.line(margin, y, pageWidth - margin, y);
+                y += 5;
+            };
+            const field = (label, name) => {
+                const v = value(name);
+                if (v) writeLine(`${label}: ${v}`);
+            };
+
+            // Header and clinic identity
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(18);
+            doc.text(profile.clinic_name || "MEDICAL PRESCRIPTION", margin, y);
+            y += 8;
+            if (profile.doctor_name) writeLine(profile.doctor_name, { bold: true, fontSize: 12, gapAfter: 1 });
+            if (profile.qualifications) writeLine(profile.qualifications, { fontSize: 9, gapAfter: 1 });
+            if (profile.specialization) writeLine(profile.specialization, { fontSize: 9, gapAfter: 1 });
+            if (profile.address) writeLine(profile.address, { fontSize: 9, gapAfter: 1 });
+            const contact = [profile.phone, profile.email, profile.timings].filter(Boolean).join(" | ");
+            if (contact) writeLine(contact, { fontSize: 8.5, gapAfter: 3 });
+            doc.setDrawColor(105, 85, 235);
+            doc.setLineWidth(0.8);
+            doc.line(margin, y, pageWidth - margin, y);
+            y += 7;
+
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(15);
+            doc.text("PRESCRIPTION", margin, y);
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(9);
+            const visitDate = value("visit_date");
+            doc.text(`Date: ${visitDate || "Not entered"}`, pageWidth - margin, y, { align: "right" });
+            y += 8;
+
+            section("PATIENT DETAILS");
+            field("Patient name", "patient_name");
+            field("Age / Sex", "age_sex");
+            field("Chief complaint", "chief_complaint");
+            field("Symptoms & history", "symptoms_history");
+            field("Allergies", "allergies");
+
+            section("EXAMINATION & VITALS");
+            field("Temperature", "temperature");
+            field("Blood pressure", "blood_pressure");
+            field("Pulse rate", "pulse_rate");
+            field("SpO₂", "spo2");
+            field("Examination findings", "examination_findings");
+
+            section("DIAGNOSIS / ASSESSMENT");
+            writeLine(value("diagnosis") || "Not entered");
+
+            section("MEDICINES PRESCRIBED");
+            const medicineData = [];
+            if (medicineRows) {
+                Array.from(medicineRows.querySelectorAll("tr")).forEach(row => {
+                    const cells = Array.from(row.querySelectorAll("input")).map(input => input.value.trim());
+                    if (cells.some(Boolean)) medicineData.push(cells);
+                });
+            }
+            if (!medicineData.length) {
+                writeLine("No medicines entered. Verify with the prescribing clinician.");
+            } else {
+                medicineData.forEach((cells, index) => {
+                    writeLine(`${index + 1}. ${cells[0] || "Medicine not entered"}`, { bold: true, gapAfter: 1 });
+                    const details = [
+                        cells[1] ? `Dose: ${cells[1]}` : "",
+                        cells[2] ? `Route: ${cells[2]}` : "",
+                        cells[3] ? `Frequency: ${cells[3]}` : "",
+                        cells[4] ? `Duration: ${cells[4]}` : "",
+                        cells[5] ? `Instructions: ${cells[5]}` : ""
+                    ].filter(Boolean).join(" | ");
+                    if (details) writeLine(details, { fontSize: 9, gapAfter: 3 });
+                });
+            }
+
+            section("TESTS / INVESTIGATIONS ADVISED");
+            writeLine(value("tests_advised") || "Not entered");
+            section("ADVICE");
+            writeLine(value("advice") || "Not entered");
+            if (value("warning_signs")) {
+                section("WARNING SIGNS — RETURN IF");
+                writeLine(value("warning_signs"));
+            }
+            if (value("next_visit")) {
+                section("NEXT VISIT");
+                writeLine(value("next_visit"));
+            }
+
+            y += 7;
+            addPageIfNeeded(24);
+            doc.setFont("helvetica", "italic");
+            doc.setFontSize(8);
+            doc.text("Draft for clinician review. Verify all clinical details before signing or issuing.", margin, y);
+            y += 12;
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(9);
+            doc.text("Doctor's signature / stamp: ______________________________", margin, y);
+
+            const patient = value("patient_name").replace(/[^a-z0-9_-]+/gi, "_").replace(/^_+|_+$/g, "");
+            doc.save(`Prescription${patient ? "_" + patient : ""}.pdf`);
+            if (status) status.textContent = "Prescription PDF downloaded. Verify all details before issuing.";
+        });
+    }
+});
 
 
 </script>
