@@ -54,10 +54,12 @@ DOCTOR_PROFILE_TEXT_FIELDS = (
     "timings",
 )
 
-# Audio tables and the column naming their parent row.
+# Audio tables and the column naming their parent row. interview_audio is
+# created by interview_database.py, which owns the Interview template tables.
 _AUDIO_TABLES = {
     "meeting_audio": "meeting_id",
     "doctor_audio": "consultation_id",
+    "interview_audio": "interview_id",
 }
 
 
@@ -228,7 +230,8 @@ def _create_meeting_results_table(conn):
     )
 
 
-# Columns shared by meeting_audio and doctor_audio. The parent id is the
+# Columns shared by meeting_audio, doctor_audio and interview_audio
+# (interview_database.py). The parent id is the
 # INTEGER PRIMARY KEY, so it is also the row's rowid — which is what
 # sqlite3's incremental blob I/O (Connection.blobopen) needs to stream a
 # byte range without loading the whole recording into memory.
@@ -596,7 +599,7 @@ def save_meeting_result(meeting_id, model, **fields):
 
 
 # ============================================================
-# RECORDINGS (meeting_audio / doctor_audio)
+# RECORDINGS (meeting_audio / doctor_audio / interview_audio)
 # ============================================================
 
 def _audio_table(table):

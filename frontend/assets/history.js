@@ -11,8 +11,10 @@
 
    It follows the page's template: in the Doctor–Patient template
    it lists the user's consultations (/api/doctor/consultations)
-   instead, and opens them through bridge.loadConsultation(). The
-   two histories are stored and shown separately — never mixed.
+   instead, and opens them through bridge.loadConsultation(); in
+   the Interview template, the user's interviews
+   (/api/interview/interviews) through bridge.loadInterview(). The
+   three histories are stored and shown separately — never mixed.
 
    This file builds its own markup and never touches the
    recorder's ids, classes or state directly.
@@ -28,10 +30,18 @@
 
     var openMeetingId = null;
 
-    /* "doctor" (consultations) or "meeting", from the page's template. */
+    /* "doctor" (consultations), "interview" or "meeting", from the page's template. */
     function mode() {
-        return document.body.dataset.meetmindTemplate === "doctor" ? "doctor" : "meeting";
+        var template = document.body.dataset.meetmindTemplate;
+        return template === "doctor" || template === "interview" ? template : "meeting";
     }
+
+    /* Per mode: list endpoint, item endpoint and the bridge loader. */
+    var SOURCES = {
+        meeting: { list: "/api/meetings", item: "/api/meetings/", load: "load" },
+        doctor: { list: "/api/doctor/consultations", item: "/api/doctor/consultations/", load: "loadConsultation" },
+        interview: { list: "/api/interview/interviews", item: "/api/interview/interviews/", load: "loadInterview" }
+    };
 
     var WORDS = {
         meeting: {
@@ -59,6 +69,19 @@
             busyGenerating: "A prescription is still being drafted. Open the saved consultation anyway?",
             open: "Open consultation",
             cantOpen: "Could not open that consultation. Please try again."
+        },
+        interview: {
+            heading: "Past interviews",
+            sub: "Your saved interviews, evaluations and recordings",
+            one: "saved interview",
+            many: "saved interviews",
+            empty: "No saved interviews yet. Record or upload an interview in the Interview template — it will appear here.",
+            failed: "Could not load your interviews.",
+            viewing: "Viewing saved interview",
+            untitled: "Untitled interview",
+            busyGenerating: "An interview is still being evaluated. Open the saved interview anyway?",
+            open: "Open interview",
+            cantOpen: "Could not open that interview. Please try again."
         }
     };
 
@@ -184,6 +207,47 @@
         return c.ageSex ? name + " (" + c.ageSex + ")" : name;
     }
 
+    /* An interview's tags: its score, evaluation status and recording. */
+    function interviewTags(i) {
+        var wrap = el("span", "history-tags");
+        var tag;
+        if (i.evaluationStatus && i.scorePercent != null) {
+            tag = el("span", "history-tag history-tag--score", i.scorePercent + "%");
+            tag.title = "Overall score across " + (i.totalQuestions || 0) + " question" +
+                (i.totalQuestions === 1 ? "" : "s");
+            wrap.appendChild(tag);
+        }
+        if (i.evaluationStatus === "final") {
+            tag = el("span", "history-tag history-tag--final", "Report · final");
+            tag.title = "Report downloaded" + (i.finalizedAt ? " on " + fmtDate(i.finalizedAt) : "");
+        } else if (i.evaluationStatus === "draft") {
+            tag = el("span", "history-tag history-tag--draft", "Evaluation · draft");
+            tag.title = "Evaluated, report not downloaded yet";
+        } else {
+            tag = el("span", "history-tag history-tag--none", "Not evaluated");
+        }
+        wrap.appendChild(tag);
+        if (i.hasAudio) wrap.appendChild(audioTag());
+        return wrap;
+    }
+
+    /* What an interview is listed as: candidate · position, else its title. */
+    function interviewTitle(i) {
+        return [i.candidateName, i.position].filter(Boolean).join(" · ") || i.title || words().untitled;
+    }
+
+    function itemTitle(item) {
+        if (mode() === "doctor") return consultationTitle(item);
+        if (mode() === "interview") return interviewTitle(item);
+        return item.title || words().untitled;
+    }
+
+    function itemTags(item) {
+        if (mode() === "doctor") return consultationTags(item);
+        if (mode() === "interview") return interviewTags(item);
+        return modelTags(item.models, item.hasAudio);
+    }
+
     /* ---- build the drawer ------------------------------ */
 
     var scrim = el("div", "history-scrim");
@@ -236,24 +300,45 @@
         anchor.parentNode.insertBefore(viewing, anchor);
     }
 
-    function showViewingBar(item) {
-        var doctor = mode() === "doctor";
-        var rx = item.prescription || {};
-        viewingText.innerHTML = "";
-        viewingText.appendChild(el("span", "history-viewing-label", words().viewing));
-        viewingText.appendChild(el("strong", null, doctor
-            ? consultationTitle({ patientName: rx.patient_name, ageSex: rx.age_sex, title: item.title })
-            : (item.title || words().untitled)));
-        viewingText.appendChild(el("span", "history-viewing-date",
-            withDuration(fmtDate(item.createdAt), item.durationSeconds)));
-        viewingTags.innerHTML = "";
-        viewingTags.appendChild(doctor
-            ? consultationTags({
+    /* A full saved item (GET …/{id}) in the shape the list rows use. */
+    function asListRow(item) {
+        if (mode() === "doctor") {
+            var rx = item.prescription || {};
+            return {
+                patientName: rx.patient_name,
+                ageSex: rx.age_sex,
+                title: item.title,
                 prescriptionStatus: rx.status,
                 finalizedAt: rx.finalizedAt,
                 hasAudio: item.hasAudio
-            })
-            : modelTags(item.models, item.hasAudio));
+            };
+        }
+        if (mode() === "interview") {
+            var setup = item.setup || {};
+            var ev = item.evaluation;
+            return {
+                candidateName: setup.candidate_name,
+                position: setup.position,
+                title: item.title,
+                evaluationStatus: ev ? ev.status : null,
+                scorePercent: ev && ev.scoring ? ev.scoring.score_percent : null,
+                totalQuestions: ev && ev.scoring ? ev.scoring.total_questions : 0,
+                finalizedAt: ev ? ev.finalizedAt : null,
+                hasAudio: item.hasAudio
+            };
+        }
+        return item;
+    }
+
+    function showViewingBar(item) {
+        var row = asListRow(item);
+        viewingText.innerHTML = "";
+        viewingText.appendChild(el("span", "history-viewing-label", words().viewing));
+        viewingText.appendChild(el("strong", null, itemTitle(row)));
+        viewingText.appendChild(el("span", "history-viewing-date",
+            withDuration(fmtDate(item.createdAt), item.durationSeconds)));
+        viewingTags.innerHTML = "";
+        viewingTags.appendChild(itemTags(row));
         viewing.classList.add("is-shown");
     }
 
@@ -285,6 +370,15 @@
         if (mode() !== "doctor" || !openMeetingId || String(id) !== String(openMeetingId)) return;
         api("/api/doctor/consultations/" + encodeURIComponent(id)).then(function (c) {
             if (String(c.id) === String(openMeetingId)) showViewingBar(c);
+        }).catch(function () {});
+    });
+
+    // The interview on screen was evaluated, edited or its setup saved.
+    document.addEventListener("meetmind:interview-changed", function (e) {
+        var id = e.detail && e.detail.interviewId;
+        if (mode() !== "interview" || !openMeetingId || String(id) !== String(openMeetingId)) return;
+        api("/api/interview/interviews/" + encodeURIComponent(id)).then(function (i) {
+            if (mode() === "interview" && String(i.id) === String(openMeetingId)) showViewingBar(i);
         }).catch(function () {});
     });
 
@@ -367,21 +461,22 @@
     }
 
     function renderItem(m) {
-        var doctor = mode() === "doctor";
         var item = el("button", "history-item");
         item.type = "button";
         item.dataset.id = m.id;
 
-        item.appendChild(el("span", "history-item-title",
-            doctor ? consultationTitle(m) : (m.title || words().untitled)));
+        item.appendChild(el("span", "history-item-title", itemTitle(m)));
 
         var d = new Date(m.createdAt);
         item.appendChild(el("span", "history-item-time",
             withDuration(isNaN(d) ? "" : fmtTime(d), m.durationSeconds)));
-        if (doctor && m.diagnosis) {
-            item.appendChild(el("span", "history-item-note", m.diagnosis));
+        var note = mode() === "doctor" ? m.diagnosis
+            : mode() === "interview" ? [m.interviewType, (m.requiredSkills || []).join(", ")].filter(Boolean).join(" · ")
+            : "";
+        if (note) {
+            item.appendChild(el("span", "history-item-note", note));
         }
-        item.appendChild(doctor ? consultationTags(m) : modelTags(m.models, m.hasAudio));
+        item.appendChild(itemTags(m));
 
         item.addEventListener("click", function () { openMeeting(m.id); });
         return item;
@@ -393,7 +488,7 @@
         showLoading();
         var request = ++listRequest;
 
-        api(mode() === "doctor" ? "/api/doctor/consultations" : "/api/meetings").then(function (meetings) {
+        api(SOURCES[mode()].list).then(function (meetings) {
             // A template switch while this was loading started a new list.
             if (request !== listRequest) return;
             list.innerHTML = "";
@@ -442,7 +537,7 @@
                 return ok && D.confirm({
                     title: "Recording in progress",
                     message: "A recording is in progress. Open the saved " +
-                        (mode() === "doctor" ? "consultation" : "meeting") + " anyway?",
+                        words().untitled.replace(/^Untitled /, "") + " anyway?",
                     confirmText: words().open
                 });
             });
@@ -461,15 +556,15 @@
             });
         }
 
-        var doctor = mode() === "doctor";
+        var source = SOURCES[mode()];
+        var openedIn = mode();
 
         proceed.then(function (ok) {
             if (!ok) return;
-            api(doctor
-                ? "/api/doctor/consultations/" + encodeURIComponent(id)
-                : "/api/meetings/" + encodeURIComponent(id)
-            ).then(function (meeting) {
-                if (doctor) bridge.loadConsultation(meeting); else bridge.load(meeting);
+            api(source.item + encodeURIComponent(id)).then(function (meeting) {
+                // A template switch while this was loading: it belongs to the other history.
+                if (mode() !== openedIn) return;
+                bridge[source.load](meeting);
                 openMeetingId = meeting.id;
                 showViewingBar(meeting);
                 markActive();
@@ -479,7 +574,7 @@
 
             }).catch(function () {
                 D.alert({
-                    title: doctor ? "Couldn't open consultation" : "Couldn't open meeting",
+                    title: words().open.replace(/^Open/, "Couldn't open"),
                     message: words().cantOpen
                 });
             });

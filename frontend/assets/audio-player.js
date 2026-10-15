@@ -2,9 +2,12 @@
    MeetMind — recording player
    ------------------------------------------------------------
    A small, self-contained player for recordings stored in the
-   database (GET /api/meetings/{id}/audio and
-   /api/doctor/consultations/{id}/audio — both answer HTTP Range
+   database (GET /api/meetings/{id}/audio,
+   /api/doctor/consultations/{id}/audio and
+   /api/interview/interviews/{id}/audio — all answer HTTP Range
    requests, so seeking works without downloading everything).
+   Options: { teal: true } (consultations), { indigo: true }
+   (interviews).
 
    Controls: play / pause, back 10 s, forward 10 s, a seek bar
    (with buffered progress), elapsed / total time, playback speed
@@ -76,7 +79,8 @@
     function create(options) {
         options = options || {};
 
-        var root = el("div", "mm-player" + (options.teal ? " mm-player--teal" : ""));
+        var root = el("div", "mm-player" + (options.teal ? " mm-player--teal" : "") +
+            (options.indigo ? " mm-player--indigo" : ""));
         root.setAttribute("role", "group");
         root.setAttribute("aria-label", "Recording player");
         root.dataset.state = "idle";

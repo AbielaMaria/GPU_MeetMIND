@@ -9,13 +9,23 @@ stored instead, so a recording is never lost because of compression.
 
 Transcription never reads these copies: Parrotlet keeps working on its
 own WAV (live) / normalized WAV (upload), exactly as before.
+
+It also serves them back (audio_fields / audio_response), for every
+template's history: meetings and consultations from app.py, interviews
+from interview_routes.py.
 """
 
 import logging
+import re
 import shutil
 import subprocess
 import tempfile
 from pathlib import Path
+
+from fastapi import HTTPException, Request
+from fastapi.responses import Response, StreamingResponse
+
+import database as db
 
 logger = logging.getLogger("meetmind.audio")
 
@@ -94,3 +104,71 @@ def prepare_for_storage(source: Path) -> tuple:
             ext.upper(),
         )
         return source.read_bytes(), MIME_BY_EXT.get(ext, "application/octet-stream"), ext
+
+
+# ============================================================
+# PLAYBACK (meeting_audio / doctor_audio / interview_audio)
+# ============================================================
+
+_RANGE_PATTERN = re.compile(r"bytes=(\d*)-(\d*)")
+
+
+def audio_fields(table: str, parent_id: int, url: str) -> dict:
+    """`hasAudio` / `audio` for a meeting, consultation or interview payload."""
+    meta = db.get_audio_meta(table, parent_id)
+    if not meta:
+        return {"hasAudio": False, "audio": None}
+    return {
+        "hasAudio": True,
+        "audio": {
+            "url": url,
+            "mimeType": meta["mime_type"],
+            "sizeBytes": meta["size_bytes"],
+            "source": meta["source"],
+            "originalFilename": meta["original_filename"],
+        },
+    }
+
+
+def audio_response(request: Request, table: str, parent_id: int, filename_stem: str):
+    """
+    Stream a stored recording, honouring a single HTTP Range request so the
+    audio player can seek (and the browser can read the duration) without
+    downloading the whole file first.
+    """
+    meta = db.get_audio_meta(table, parent_id)
+    if not meta:
+        raise HTTPException(status_code=404, detail="No recording is stored for this item.")
+
+    size = meta["size_bytes"]
+    start, end = 0, size - 1
+    status_code = 200
+    headers = {
+        "Accept-Ranges": "bytes",
+        "Content-Disposition": f'inline; filename="{filename_stem}.{meta["file_ext"]}"',
+        "Cache-Control": "private, max-age=3600",
+    }
+
+    range_header = (request.headers.get("range") or "").strip()
+    if range_header:
+        match = _RANGE_PATTERN.fullmatch(range_header)
+        valid = bool(match and (match.group(1) or match.group(2)))
+        if valid:
+            if match.group(1):
+                start = int(match.group(1))
+                end = int(match.group(2)) if match.group(2) else size - 1
+            else:
+                start = max(0, size - int(match.group(2)))
+            end = min(end, size - 1)
+        if not valid or start >= size or start > end:
+            return Response(status_code=416, headers={"Content-Range": f"bytes */{size}"})
+        status_code = 206
+        headers["Content-Range"] = f"bytes {start}-{end}/{size}"
+
+    headers["Content-Length"] = str(end - start + 1)
+    return StreamingResponse(
+        db.iter_audio(table, parent_id, start, end),
+        status_code=status_code,
+        media_type=meta["mime_type"],
+        headers=headers,
+    )

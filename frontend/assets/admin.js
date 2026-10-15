@@ -56,7 +56,7 @@
         "Add, edit and delete any account, including changing emails and passwords",
         "Verify or unverify other accounts (unverified accounts are signed out immediately)",
         "Give or remove the admin role on other accounts",
-        "View every user's meetings: transcripts, summaries and mind maps"
+        "View every user's meetings, consultations and interviews, with their recordings and reports"
     ];
 
     // Cache of the last fetched list, so opening the edit dialog
@@ -1527,6 +1527,327 @@
         csPlayer.clear();
     });
 
+    /* ============================================================
+       INTERVIEWS — every user's Interview template sessions
+       ------------------------------------------------------------
+       Read-only, like consultations. An interview is shown with its
+       recording, its evaluation report on that interviewer's
+       letterhead (assets/interview-report.js — the same page the
+       interviewer downloads) and its transcript.
+       /api/interview/interviews?scope=all.
+    ============================================================ */
+
+    var ivBody = document.getElementById("interviewRows");
+    var ivSearch = document.getElementById("interviewSearch");
+    var ivCount = document.getElementById("interviewCount");
+    var ivUserFilter = document.getElementById("interviewUserFilter");
+    var ivStatusFilter = document.getElementById("interviewStatusFilter");
+    var ivTypeFilter = document.getElementById("interviewTypeFilter");
+    var ivDateFrom = document.getElementById("interviewDateFrom");
+    var ivDateTo = document.getElementById("interviewDateTo");
+    var ivFilterReset = document.getElementById("interviewFilterReset");
+    var ivPagination = document.getElementById("interviewPagination");
+    var statInterviews = document.getElementById("statInterviews");
+    var statInterviewsBy = document.getElementById("statInterviewsBy");
+    var interviewPage = 1;
+    var INTERVIEWS_PER_PAGE = 10;
+
+    var allInterviews = [];
+    var interviewsLoaded = false;
+
+    function interviewName(i) {
+        return i.candidateName || i.title || "Untitled interview";
+    }
+
+    function evalPill(status) {
+        if (status === "final") return '<span class="pill rx-pill rx-final" title="Report downloaded by the interviewer">Report · final</span>';
+        if (status === "draft") return '<span class="pill rx-pill rx-draft" title="Evaluated, report not downloaded yet">Evaluation · draft</span>';
+        return '<span class="pill rx-pill rx-none">Not evaluated</span>';
+    }
+
+    function renderInterviewStats() {
+        statInterviews.textContent = interviewsLoaded ? allInterviews.length : "—";
+        var evaluated = allInterviews.filter(function (i) { return i.evaluationStatus; });
+        var scored = evaluated.filter(function (i) { return i.scorePercent != null; });
+        var avg = scored.length
+            ? Math.round(scored.reduce(function (sum, i) { return sum + i.scorePercent; }, 0) / scored.length)
+            : null;
+        statInterviewsBy.textContent = allInterviews.length
+            ? evaluated.length + " evaluated" + (avg == null ? "" : " · avg score " + avg + "%")
+            : "";
+    }
+
+    function populateInterviewUserFilter() {
+        var current = ivUserFilter.value;
+        var seen = {};
+        var options = [];
+        allInterviews.forEach(function (i) {
+            var key = i.email || i.username;
+            if (key && !seen[key]) {
+                seen[key] = true;
+                options.push({ value: key, label: i.username || i.email });
+            }
+        });
+        options.sort(function (a, b) { return a.label.localeCompare(b.label); });
+        ivUserFilter.innerHTML = '<option value="">All interviewers</option>' +
+            options.map(function (o) {
+                return '<option value="' + esc(o.value) + '">' + esc(o.label) + "</option>";
+            }).join("");
+        if (current && seen[current]) ivUserFilter.value = current;
+    }
+
+    function renderInterviews() {
+        var q = ivSearch.value.trim().toLowerCase();
+        var userVal = ivUserFilter.value;
+        var statusVal = ivStatusFilter.value;
+        var typeVal = ivTypeFilter.value;
+        var fromVal = ivDateFrom.value;
+        var toVal = ivDateTo.value;
+
+        var rows = allInterviews.filter(function (i) {
+            if (q && [interviewName(i), i.position, (i.requiredSkills || []).join(" "), i.username, i.email].join(" ")
+                    .toLowerCase().indexOf(q) === -1) return false;
+            if (userVal && (i.email || i.username) !== userVal) return false;
+            if (statusVal === "none" ? i.evaluationStatus : (statusVal && i.evaluationStatus !== statusVal)) return false;
+            if (typeVal && i.interviewType !== typeVal) return false;
+            if (fromVal || toVal) {
+                var d = new Date(i.createdAt);
+                if (isNaN(d)) return false;
+                if (fromVal && d < new Date(fromVal + "T00:00:00")) return false;
+                if (toVal && d > new Date(toVal + "T23:59:59")) return false;
+            }
+            return true;
+        });
+
+        var totalPages = Math.max(1, Math.ceil(rows.length / INTERVIEWS_PER_PAGE));
+        if (interviewPage > totalPages) interviewPage = totalPages;
+        if (interviewPage < 1) interviewPage = 1;
+        var pageRows = rows.slice((interviewPage - 1) * INTERVIEWS_PER_PAGE, interviewPage * INTERVIEWS_PER_PAGE);
+
+        if (!rows.length) {
+            ivBody.innerHTML = '<tr><td colspan="7"><div class="table-empty">' +
+                (allInterviews.length
+                    ? "No interviews match your filters."
+                    : "No interviews have been recorded yet.") +
+                "</div></td></tr>";
+        } else {
+            ivBody.innerHTML = pageRows.map(function (i) {
+                var sub = [i.position, i.interviewType].filter(Boolean).join(" · ");
+                return "<tr>" +
+                    "<td><strong>" + esc(interviewName(i)) + "</strong>" +
+                        (sub ? '<div class="cell-sub">' + esc(sub) + "</div>" : "") + "</td>" +
+                    "<td>" + esc(i.username || "") +
+                        ' <span class="hint">' + esc(i.email || "") + "</span></td>" +
+                    "<td>" + fmtDateTime(i.createdAt) + "</td>" +
+                    "<td>" + (fmtDuration(i.durationSeconds) || '<span class="hint">—</span>') + "</td>" +
+                    "<td>" + (i.evaluationStatus && i.scorePercent != null
+                        ? '<span class="pill iv-score" title="' + esc(i.totalQuestions) + ' questions">' + esc(i.scorePercent) + "%</span>"
+                        : '<span class="hint">—</span>') + "</td>" +
+                    '<td><div class="model-tags">' + (i.hasAudio ? AUDIO_PILL : "") +
+                        evalPill(i.evaluationStatus) + "</div></td>" +
+                    '<td class="cell-actions">' +
+                        '<button class="row-btn" data-view-interview="' + esc(i.id) + '">View</button>' +
+                    "</td>" +
+                "</tr>";
+            }).join("");
+        }
+
+        ivCount.textContent = rows.length + " of " + allInterviews.length +
+            " interview" + (allInterviews.length === 1 ? "" : "s");
+
+        renderPagination(ivPagination, interviewPage, totalPages, function (p) {
+            interviewPage = p;
+            renderInterviews();
+        });
+    }
+
+    function loadInterviews() {
+        return api("/api/interview/interviews?scope=all").then(function (interviews) {
+            allInterviews = interviews;
+            interviewsLoaded = true;
+            populateInterviewUserFilter();
+            syncDropdowns();
+            renderInterviews();
+            renderInterviewStats();
+        }).catch(function () {
+            ivBody.innerHTML = '<tr><td colspan="7"><div class="table-empty">' +
+                "Could not load interviews.</div></td></tr>";
+        });
+    }
+
+    function onInterviewFilterChange() { interviewPage = 1; renderInterviews(); }
+
+    ivSearch.addEventListener("input", onInterviewFilterChange);
+    ivUserFilter.addEventListener("change", onInterviewFilterChange);
+    ivStatusFilter.addEventListener("change", onInterviewFilterChange);
+    ivTypeFilter.addEventListener("change", onInterviewFilterChange);
+    ivDateFrom.addEventListener("change", onInterviewFilterChange);
+    ivDateTo.addEventListener("change", onInterviewFilterChange);
+
+    ivFilterReset.addEventListener("click", function () {
+        ivSearch.value = "";
+        ivUserFilter.value = "";
+        ivStatusFilter.value = "";
+        ivTypeFilter.value = "";
+        ivDateFrom.value = "";
+        ivDateTo.value = "";
+        interviewPage = 1;
+        syncDropdowns();
+        renderInterviews();
+    });
+
+    enhanceSelect(ivUserFilter);
+    enhanceSelect(ivStatusFilter);
+    enhanceSelect(ivTypeFilter);
+
+    /* ---- interview viewer ---- */
+
+    var ivDialog = document.getElementById("interviewDialog");
+    var ivTitle = document.getElementById("interviewDialogTitle");
+    var ivMeta = document.getElementById("interviewDialogMeta");
+    var ivReportPane = document.getElementById("interviewReportPane");
+    var ivTranscriptPane = document.getElementById("interviewTranscriptPane");
+    var ivExpandBtn = document.getElementById("interviewExpandBtn");
+    var ivDownloadBtn = document.getElementById("interviewDownloadBtn");
+    var ivPlayer = makePlayer("interviewPlayerSlot", false);
+    ivPlayer.el.classList.add("mm-player--indigo");
+    var ivSheet = null;
+    var viewedInterview = null;
+
+    var ivTranscript = makeTranscriptSearch({
+        input: document.getElementById("interviewTranscriptSearch"),
+        prev: document.getElementById("interviewSearchPrev"),
+        next: document.getElementById("interviewSearchNext"),
+        count: document.getElementById("interviewSearchCount"),
+        pre: document.getElementById("interviewTranscriptText"),
+        text: function () { return (viewedInterview && viewedInterview.transcript) || ""; }
+    });
+
+    /* The A4 report is laid out at full width and scaled to the pane. */
+    function fitInterviewSheet() {
+        if (!ivSheet || ivReportPane.hidden) return;
+        var paper = ivReportPane.querySelector(".consult-paper");
+        var width = paper.clientWidth;
+        if (!width) return;
+        var scale = Math.min(1, width / 794);
+        ivSheet.el.style.transform = "scale(" + scale + ")";
+        paper.style.height = Math.ceil(ivSheet.el.offsetHeight * scale) + "px";
+    }
+
+    if (window.ResizeObserver) new ResizeObserver(fitInterviewSheet).observe(ivReportPane);
+
+    function renderInterviewReportPane(i) {
+        ivSheet = null;
+        ivReportPane.innerHTML = "";
+        ivDownloadBtn.hidden = true;
+        var ev = i.evaluation;
+        if (!ev || !window.MeetMindInterviewReport) {
+            ivReportPane.innerHTML = '<div class="meeting-none">' +
+                "This interview hasn't been evaluated yet.</div>";
+            return;
+        }
+        var info = document.createElement("div");
+        info.className = "consult-rx-info";
+        info.innerHTML = evalPill(ev.status) +
+            '<span class="hint">' +
+            (ev.status === "final"
+                ? "Downloaded by the interviewer " + esc(fmtDateTime(ev.finalizedAt)) + " — this is the copy they issued."
+                : "Saved " + esc(fmtDateTime(ev.updatedAt)) + " — not downloaded as final yet.") +
+            (ev.modelLabel ? " Evaluated by " + esc(ev.modelLabel) + "." : "") +
+            "</span>";
+        ivReportPane.appendChild(info);
+
+        var desk = document.createElement("div");
+        desk.className = "consult-desk interview-desk";
+        var paper = document.createElement("div");
+        paper.className = "consult-paper";
+        desk.appendChild(paper);
+        ivReportPane.appendChild(desk);
+
+        ivSheet = window.MeetMindInterviewReport.createSheet();
+        ivSheet.setProfile(i.interviewerProfile);
+        ivSheet.setData(ev, { interviewId: i.id, createdAt: i.createdAt, durationSeconds: i.durationSeconds });
+        paper.appendChild(ivSheet.el);
+        ivDownloadBtn.hidden = false;
+        requestAnimationFrame(fitInterviewSheet);
+    }
+
+    function showInterviewTab(which) {
+        ivReportPane.hidden = which !== "report";
+        ivTranscriptPane.hidden = which !== "transcript";
+        ivDialog.querySelectorAll("[data-itab]").forEach(function (t) {
+            var active = t.getAttribute("data-itab") === which;
+            t.classList.toggle("is-active", active);
+            t.setAttribute("aria-selected", String(active));
+        });
+        if (which === "report") requestAnimationFrame(fitInterviewSheet);
+    }
+
+    ivDialog.querySelectorAll("[data-itab]").forEach(function (tab) {
+        tab.addEventListener("click", function () { showInterviewTab(tab.getAttribute("data-itab")); });
+    });
+
+    function setInterviewExpanded(expanded) {
+        ivDialog.classList.toggle("is-expanded", expanded);
+        ivExpandBtn.setAttribute("aria-pressed", String(expanded));
+        ivExpandBtn.setAttribute("aria-label", expanded ? "Exit full view" : "Expand the viewer");
+        ivExpandBtn.title = expanded ? "Exit full view" : "Expand";
+        requestAnimationFrame(fitInterviewSheet);
+    }
+
+    ivExpandBtn.addEventListener("click", function () {
+        setInterviewExpanded(!ivDialog.classList.contains("is-expanded"));
+    });
+
+    function openInterview(id) {
+        api("/api/interview/interviews/" + encodeURIComponent(id)).then(function (i) {
+            viewedInterview = i;
+            var setup = i.setup || {};
+            ivTitle.textContent = [setup.candidate_name || i.title || "Untitled interview", setup.position]
+                .filter(Boolean).join(" · ");
+            var length = fmtDuration(i.durationSeconds);
+            ivMeta.textContent = "Recorded by " + (i.username || "") + " · " + (i.email || "") +
+                " · " + fmtDateTime(i.createdAt) + (length ? " · " + length : "");
+
+            showPlayer(ivPlayer, i.hasAudio && i.audio, "Interview recording", "interview_" + i.id);
+            ivTranscript.reset();
+            renderInterviewReportPane(i);
+            setInterviewExpanded(false);
+            showInterviewTab("report");
+            ivDialog.showModal();
+            requestAnimationFrame(fitInterviewSheet);
+        }).catch(function () {
+            D.alert({ title: "Couldn't open interview", message: "Could not open that interview. Please try again." });
+        });
+    }
+
+    ivBody.addEventListener("click", function (e) {
+        var btn = e.target.closest("[data-view-interview]");
+        if (btn) openInterview(btn.getAttribute("data-view-interview"));
+    });
+
+    ivDownloadBtn.addEventListener("click", function () {
+        if (!ivSheet) return;
+        ivDownloadBtn.disabled = true;
+        ivSheet.downloadPdf().catch(function (error) {
+            D.alert({ title: "Couldn't create the PDF", message: error.message || "Please try again." });
+        }).then(function () {
+            ivDownloadBtn.disabled = false;
+        });
+    });
+
+    document.getElementById("interviewDialogClose")
+        .addEventListener("click", function () { ivDialog.close(); });
+
+    ivDialog.addEventListener("click", function (e) {
+        if (e.target === ivDialog) ivDialog.close();
+    });
+
+    ivDialog.addEventListener("close", function () {
+        setInterviewExpanded(false);
+        ivPlayer.clear();
+    });
+
     /* ---- boot -------------------------------------- */
 
     if (A) {
@@ -1540,6 +1861,7 @@
             render();
             loadMeetings().then(loadModelCatalog);
             loadConsults();
+            loadInterviews();
         });
     }
 

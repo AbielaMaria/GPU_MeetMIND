@@ -1,0 +1,586 @@
+/* ============================================================
+   MeetMind — interview evaluation report sheet
+   (assets/interview-report.js)
+   ------------------------------------------------------------
+   An A4-width (794 px) page on the interviewer's letterhead. It is
+   paper: always light, whatever the app theme, so the screen preview
+   and the PDF look the same. Indigo accent, to tell it apart from
+   the Doctor–Patient template's teal prescription.
+============================================================ */
+
+.ivr-sheet {
+    --ivr-ink: #1b1d3a;
+    --ivr-text: #2f3350;
+    --ivr-muted: #7a7f9a;
+    --ivr-accent: #4f46e5;
+    --ivr-accent-deep: #312e81;
+    --ivr-accent-bright: #818cf8;
+    --ivr-soft: #f1f2fd;
+    --ivr-line: #e1e3f3;
+    --ivr-correct: #15803d;
+    --ivr-correct-soft: #eaf6ee;
+    --ivr-partial: #b45309;
+    --ivr-partial-soft: #fdf3e4;
+    --ivr-incorrect: #b91c1c;
+    --ivr-incorrect-soft: #fdecec;
+    --ivr-unknown: #64748b;
+    --ivr-unknown-soft: #eef1f5;
+
+    position: relative;
+    width: 794px;
+    max-width: 100%;
+    margin: 0 auto;
+    background: #fff;
+    color: var(--ivr-text);
+    font-family: Inter, "Segoe UI", Arial, sans-serif;
+    font-size: 12.5px;
+    line-height: 1.55;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, .06), 0 12px 32px -12px rgba(15, 23, 42, .25);
+    overflow: hidden;
+}
+
+.ivr-sheet--export {
+    max-width: none;
+    box-shadow: none;
+}
+
+.ivr-sheet p {
+    margin: 0;
+}
+
+.ivr-muted {
+    color: var(--ivr-muted);
+}
+
+.ivr-band {
+    height: 8px;
+    background: linear-gradient(90deg, var(--ivr-accent-deep), var(--ivr-accent) 55%, var(--ivr-accent-bright));
+}
+
+/* ---- letterhead ---- */
+
+.ivr-letterhead {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 24px;
+    padding: 26px 44px 18px;
+}
+
+.ivr-brand {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-width: 0;
+}
+
+.ivr-logo {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 54px;
+    height: 54px;
+    border-radius: 14px;
+    background: linear-gradient(145deg, var(--ivr-accent-bright), var(--ivr-accent-deep));
+    color: #fff;
+}
+
+.ivr-logo svg {
+    width: 26px;
+    height: 26px;
+}
+
+.ivr-logo--image {
+    background: #fff;
+    box-shadow: 0 0 0 1px var(--ivr-line);
+    overflow: hidden;
+}
+
+.ivr-logo--image img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+.ivr-org {
+    margin: 0;
+    color: var(--ivr-ink);
+    font-family: "DM Serif Display", Georgia, serif;
+    font-size: 25px;
+    font-weight: 400;
+    line-height: 1.15;
+}
+
+.ivr-letterhead-empty .ivr-org {
+    color: #b9bcd3;
+}
+
+.ivr-person {
+    margin-top: 3px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ivr-accent-deep);
+}
+
+.ivr-role {
+    font-size: 11.5px;
+    color: var(--ivr-muted);
+}
+
+.ivr-contact {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 3px;
+    max-width: 46%;
+    text-align: right;
+    font-size: 11px;
+    color: var(--ivr-text);
+}
+
+.ivr-contact-line {
+    display: flex;
+    align-items: flex-start;
+    gap: 7px;
+}
+
+.ivr-contact-line svg {
+    flex: none;
+    width: 12px;
+    height: 12px;
+    margin-top: 2px;
+    color: var(--ivr-accent);
+}
+
+/* ---- title bar ---- */
+
+.ivr-titlebar {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 20px;
+    margin: 0 44px;
+    padding: 14px 0 12px;
+    border-top: 2.5px solid var(--ivr-accent);
+    border-bottom: 1px solid var(--ivr-line);
+}
+
+.ivr-title {
+    color: var(--ivr-ink);
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: -.01em;
+}
+
+.ivr-subtitle {
+    font-size: 12px;
+    color: var(--ivr-muted);
+}
+
+.ivr-refs {
+    font-size: 11.5px;
+    text-align: right;
+    color: var(--ivr-ink);
+}
+
+.ivr-k {
+    display: block;
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--ivr-muted);
+}
+
+.ivr-refs .ivr-k {
+    display: inline;
+    margin-right: 4px;
+}
+
+/* ---- body ---- */
+
+.ivr-body {
+    padding: 18px 44px 10px;
+}
+
+.ivr-details {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px 18px;
+    padding: 14px 16px;
+    border: 1px solid var(--ivr-line);
+    border-radius: 10px;
+    background: var(--ivr-soft);
+}
+
+.ivr-detail {
+    min-width: 0;
+}
+
+.ivr-detail--wide {
+    grid-column: 1 / -1;
+}
+
+.ivr-v {
+    display: block;
+    color: var(--ivr-ink);
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.ivr-skills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 3px;
+}
+
+.ivr-skill {
+    padding: 2px 9px;
+    border: 1px solid #cfd2f3;
+    border-radius: 999px;
+    background: #fff;
+    color: var(--ivr-accent-deep);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+/* ---- score ---- */
+
+.ivr-score {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    margin-top: 16px;
+    padding: 16px 18px;
+    border: 1px solid var(--ivr-line);
+    border-radius: 12px;
+}
+
+.ivr-score-ring {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 104px;
+    height: 104px;
+    border-radius: 50%;
+    background:
+        radial-gradient(closest-side, #fff 78%, transparent 79%),
+        conic-gradient(var(--ivr-accent) calc(var(--p) * 1%), var(--ivr-soft) 0);
+}
+
+.ivr-score-value {
+    color: var(--ivr-ink);
+    font-size: 26px;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.ivr-score-value small {
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.ivr-score-label {
+    margin-top: 4px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--ivr-muted);
+}
+
+.ivr-score-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.ivr-bar {
+    display: flex;
+    height: 12px;
+    gap: 2px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: var(--ivr-soft);
+}
+
+.ivr-bar-seg--correct { background: var(--ivr-correct); }
+.ivr-bar-seg--partial { background: #f59e0b; }
+.ivr-bar-seg--incorrect { background: #dc2626; }
+.ivr-bar-seg--unknown { background: #cbd5e1; }
+.ivr-bar-seg--empty { background: var(--ivr-soft); }
+
+.ivr-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    margin-top: 10px;
+    font-size: 11.5px;
+}
+
+.ivr-legend b {
+    color: var(--ivr-ink);
+}
+
+.ivr-dot::before {
+    content: "";
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin-right: 5px;
+    border-radius: 50%;
+    vertical-align: 1px;
+}
+
+.ivr-dot--correct::before { background: var(--ivr-correct); }
+.ivr-dot--partial::before { background: #f59e0b; }
+.ivr-dot--incorrect::before { background: #dc2626; }
+.ivr-dot--unknown::before { background: #cbd5e1; }
+
+.ivr-rule-note {
+    margin-top: 8px !important;
+    font-size: 10px;
+    color: var(--ivr-muted);
+}
+
+/* ---- interviewer decision ---- */
+
+.ivr-decision {
+    margin-top: 14px;
+    padding: 12px 16px;
+    border-left: 4px solid var(--ivr-accent);
+    border-radius: 0 10px 10px 0;
+    background: var(--ivr-soft);
+}
+
+.ivr-decision--strong,
+.ivr-decision--yes { border-left-color: var(--ivr-correct); background: var(--ivr-correct-soft); }
+.ivr-decision--hold { border-left-color: var(--ivr-partial); background: var(--ivr-partial-soft); }
+.ivr-decision--no { border-left-color: var(--ivr-incorrect); background: var(--ivr-incorrect-soft); }
+
+.ivr-decision-value {
+    color: var(--ivr-ink);
+    font-size: 15px;
+    font-weight: 700;
+}
+
+.ivr-decision p {
+    margin-top: 4px;
+}
+
+/* ---- sections ---- */
+
+.ivr-section {
+    margin-top: 18px;
+}
+
+.ivr-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    color: var(--ivr-accent-deep);
+    font-size: 10.5px;
+    font-weight: 800;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+}
+
+.ivr-label::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--ivr-line);
+}
+
+.ivr-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11.5px;
+}
+
+.ivr-table th {
+    padding: 7px 8px;
+    border-bottom: 1.5px solid var(--ivr-accent);
+    background: var(--ivr-soft);
+    color: var(--ivr-ink);
+    font-size: 10.5px;
+    font-weight: 700;
+    text-align: left;
+}
+
+.ivr-table td {
+    padding: 8px;
+    border-bottom: 1px solid var(--ivr-line);
+    vertical-align: top;
+}
+
+.ivr-num {
+    text-align: center !important;
+    white-space: nowrap;
+}
+
+.ivr-strong {
+    color: var(--ivr-ink);
+    font-weight: 700;
+}
+
+.ivr-level,
+.ivr-verdict {
+    display: inline-block;
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-size: 10.5px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.ivr-level--advanced { background: var(--ivr-correct-soft); color: var(--ivr-correct); }
+.ivr-level--intermediate { background: #e8f0fe; color: #1d4ed8; }
+.ivr-level--beginner { background: var(--ivr-partial-soft); color: var(--ivr-partial); }
+.ivr-level--none { background: var(--ivr-unknown-soft); color: var(--ivr-unknown); }
+
+.ivr-verdict--correct { background: var(--ivr-correct-soft); color: var(--ivr-correct); }
+.ivr-verdict--partial { background: var(--ivr-partial-soft); color: var(--ivr-partial); }
+.ivr-verdict--incorrect { background: var(--ivr-incorrect-soft); color: var(--ivr-incorrect); }
+.ivr-verdict--unknown { background: var(--ivr-unknown-soft); color: var(--ivr-unknown); }
+
+/* ---- Q&A ---- */
+
+.ivr-qa {
+    margin-bottom: 10px;
+    padding: 12px 14px;
+    border: 1px solid var(--ivr-line);
+    border-left: 4px solid var(--ivr-unknown);
+    border-radius: 0 10px 10px 0;
+}
+
+.ivr-qa--correct { border-left-color: var(--ivr-correct); }
+.ivr-qa--partial { border-left-color: #f59e0b; }
+.ivr-qa--incorrect { border-left-color: #dc2626; }
+
+.ivr-qa-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.ivr-qa-no {
+    color: var(--ivr-accent);
+    font-weight: 800;
+}
+
+.ivr-qa-skill {
+    flex: 1;
+    min-width: 0;
+    color: var(--ivr-muted);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.ivr-qa-q {
+    margin-bottom: 8px;
+    color: var(--ivr-ink);
+    font-weight: 600;
+}
+
+.ivr-qa-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.ivr-qa-grid p,
+.ivr-qa-remarks p {
+    margin-top: 2px;
+    font-size: 11.5px;
+}
+
+.ivr-qa-remarks {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--ivr-line);
+}
+
+/* ---- strengths / improvements ---- */
+
+.ivr-cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 18px;
+}
+
+.ivr-col ul {
+    margin: 0;
+    padding-left: 18px;
+}
+
+.ivr-col li {
+    margin-bottom: 4px;
+}
+
+.ivr-col--good li::marker { color: var(--ivr-correct); }
+.ivr-col--work li::marker { color: var(--ivr-partial); }
+
+/* ---- signature / footer ---- */
+
+.ivr-sign {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 26px;
+    padding-bottom: 6px;
+}
+
+.ivr-signature {
+    width: 220px;
+    text-align: center;
+}
+
+.ivr-signature-img {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    height: 54px;
+}
+
+.ivr-signature-img img {
+    max-height: 54px;
+    max-width: 180px;
+    object-fit: contain;
+}
+
+.ivr-signature-line {
+    height: 1px;
+    margin: 4px 0 6px;
+    background: var(--ivr-ink);
+}
+
+.ivr-signature-name {
+    color: var(--ivr-ink);
+    font-weight: 700;
+}
+
+.ivr-signature-sub {
+    font-size: 11px;
+    color: var(--ivr-muted);
+}
+
+.ivr-footer {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    margin-top: 16px;
+    padding: 12px 44px 16px;
+    border-top: 1px solid var(--ivr-line);
+    background: var(--ivr-soft);
+    font-size: 10px;
+    color: var(--ivr-muted);
+}
+
+.ivr-footer span:last-child {
+    text-align: right;
+}

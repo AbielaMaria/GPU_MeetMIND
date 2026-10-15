@@ -334,6 +334,12 @@
     box-shadow: inset 0 0 0 1px var(--border);
 }
 
+/* An interview's evaluation score (the Interview template's history). */
+.history-tag--score {
+    background: var(--iv-accent-soft, #eef0fe);
+    color: var(--iv-accent, #4f46e5);
+}
+
 .history-item-note {
     grid-column: 1 / -1;
     margin-top: -4px;

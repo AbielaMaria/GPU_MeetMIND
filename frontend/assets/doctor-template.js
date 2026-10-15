@@ -20,6 +20,9 @@
    Consultations are saved in their own tables (see
    backend/database.py), never in meeting history.
 
+   The template pills (section 1) also switch to the Interview
+   template, whose cards live in assets/interview-template.js.
+
    Hooks it relies on from index.html: selectMeetMindTemplate()
    is called by the template pills; window.meetmindHistory
    (loadConsultation / reset) and window.meetmindRecordingPlayer;
@@ -211,7 +214,9 @@
         if (hintEl) hintEl.textContent = HINTS[template];
         if (subtitleEl) subtitleEl.textContent = SUBTITLES[template];
         if (transcriptTitle) {
-            transcriptTitle.textContent = template === "doctor" ? "Consultation Transcript" : "Complete Transcript";
+            transcriptTitle.textContent = template === "doctor"
+                ? "Consultation Transcript"
+                : (template === "interview" ? "Interview Transcript" : "Complete Transcript");
         }
 
         if (template === "doctor") {
@@ -224,8 +229,12 @@
 
     var TEMPLATE_NAMES = { mom: "Meeting (MOM)", doctor: "Doctor–Patient", interview: "Interview" };
 
+    // What each template saves a recording as (its history: "past …s").
+    var ITEM_NAMES = { mom: "meeting", doctor: "consultation", interview: "interview" };
+
     function hasContentOnScreen() {
-        return !!currentTranscript() || !!state.prescription || !!state.consultationId;
+        return !!currentTranscript() || !!state.prescription || !!state.consultationId ||
+            !!(window.meetmindInterview && window.meetmindInterview.hasContent());
     }
 
     window.selectMeetMindTemplate = function (template) {
@@ -243,11 +252,11 @@
 
         var proceed = Promise.resolve(true);
         if (hasContentOnScreen()) {
-            var from = state.template === "doctor" ? "consultation" : "meeting";
+            var from = ITEM_NAMES[state.template];
             proceed = D ? D.confirm({
                 title: "Switch to " + TEMPLATE_NAMES[template] + "?",
-                message: "This clears the current " + from + " from the screen. It stays saved in your " +
-                    (from === "consultation" ? "past consultations." : "past meetings."),
+                message: "This clears the current " + from + " from the screen. It stays saved in your past " +
+                    from + "s.",
                 confirmText: "Switch template"
             }) : Promise.resolve(window.confirm("Switch template? The current screen will be cleared."));
         }

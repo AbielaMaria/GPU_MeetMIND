@@ -1,7 +1,7 @@
 /* ============================================================
    MeetMind — recording player (assets/audio-player.js)
    ------------------------------------------------------------
-   Used on the recorder page (meetings and consultations) and in
+   Used on the recorder page (meetings, consultations, interviews) and in
    the admin viewers. Only theme tokens from index.html /
    theme.css, so it follows light and dark mode.
 ============================================================ */
@@ -41,6 +41,21 @@
     --mm-player-accent: #2dd4bf;
     background:
         linear-gradient(180deg, rgba(45, 212, 191, .08), transparent 70%),
+        var(--bg-surface);
+}
+
+/* Interview recordings (Interview template). */
+.mm-player--indigo {
+    --mm-player-accent: #4f46e5;
+    background:
+        linear-gradient(180deg, rgba(79, 70, 229, .07), transparent 70%),
+        var(--bg-surface);
+}
+
+:root[data-theme="dark"] .mm-player--indigo {
+    --mm-player-accent: #a5b4fc;
+    background:
+        linear-gradient(180deg, rgba(129, 140, 248, .09), transparent 70%),
         var(--bg-surface);
 }
 

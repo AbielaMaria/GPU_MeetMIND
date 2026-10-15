@@ -110,10 +110,11 @@ import auth
 
 import audio_storage
 
-# Independent Interview Template API (BharatAI Qwen); the MOM, mind-map and
+import interview_database as interview_db
 
-# doctor routes are unchanged. interview_analysis reads its settings from the
-
+# Interview template: its own tables (interview_database.py), routes
+# (interview_routes.py, /api/interview/*) and BharatAI Qwen evaluation
+# (interview_analysis.py). interview_analysis reads its settings from the
 # environment at import time, so .env is loaded first.
 
 from dotenv import load_dotenv
@@ -243,6 +244,8 @@ def _init_auth():
 
     db.init_db()
 
+    interview_db.init_db()
+
     db.ensure_seed_admin(
 
         auth.hash_password("admin123")
@@ -263,7 +266,7 @@ app.include_router(
 
 )
 
-# Interview Template: POST /api/interview/analyze
+# Interview template: profile, evaluation and saved interviews (/api/interview/*)
 
 app.include_router(
 
@@ -1277,7 +1280,7 @@ def _meeting_payload(
 
         "mindmap": mindmap,
 
-        **_audio_fields(
+        **audio_storage.audio_fields(
             "meeting_audio",
             meeting["id"],
             f"/api/meetings/{meeting['id']}/audio",
@@ -1370,77 +1373,15 @@ async def get_meeting(
 # ============================================================
 # RECORDING PLAYBACK (meeting_audio / doctor_audio)
 # ============================================================
-
-_RANGE_PATTERN = re.compile(r"bytes=(\d*)-(\d*)")
-
-
-def _audio_fields(table: str, parent_id: int, url: str) -> dict:
-    """`hasAudio` / `audio` for a meeting or consultation payload."""
-    meta = db.get_audio_meta(table, parent_id)
-    if not meta:
-        return {"hasAudio": False, "audio": None}
-    return {
-        "hasAudio": True,
-        "audio": {
-            "url": url,
-            "mimeType": meta["mime_type"],
-            "sizeBytes": meta["size_bytes"],
-            "source": meta["source"],
-            "originalFilename": meta["original_filename"],
-        },
-    }
-
-
-def _audio_response(request: Request, table: str, parent_id: int, filename_stem: str):
-    """
-    Stream a stored recording, honouring a single HTTP Range request so the
-    audio player can seek (and the browser can read the duration) without
-    downloading the whole file first.
-    """
-    meta = db.get_audio_meta(table, parent_id)
-    if not meta:
-        raise HTTPException(status_code=404, detail="No recording is stored for this item.")
-
-    size = meta["size_bytes"]
-    start, end = 0, size - 1
-    status_code = 200
-    headers = {
-        "Accept-Ranges": "bytes",
-        "Content-Disposition": f'inline; filename="{filename_stem}.{meta["file_ext"]}"',
-        "Cache-Control": "private, max-age=3600",
-    }
-
-    range_header = (request.headers.get("range") or "").strip()
-    if range_header:
-        match = _RANGE_PATTERN.fullmatch(range_header)
-        valid = bool(match and (match.group(1) or match.group(2)))
-        if valid:
-            if match.group(1):
-                start = int(match.group(1))
-                end = int(match.group(2)) if match.group(2) else size - 1
-            else:
-                start = max(0, size - int(match.group(2)))
-            end = min(end, size - 1)
-        if not valid or start >= size or start > end:
-            return Response(status_code=416, headers={"Content-Range": f"bytes */{size}"})
-        status_code = 206
-        headers["Content-Range"] = f"bytes {start}-{end}/{size}"
-
-    headers["Content-Length"] = str(end - start + 1)
-    return StreamingResponse(
-        db.iter_audio(table, parent_id, start, end),
-        status_code=status_code,
-        media_type=meta["mime_type"],
-        headers=headers,
-    )
-
+# Streaming (with HTTP Range support) lives in audio_storage.py, shared
+# with the Interview template's routes (interview_routes.py).
 
 @app.get("/api/meetings/{meeting_id}/audio")
 async def get_meeting_audio(meeting_id: int, request: Request):
     """The meeting's stored recording (owner or admin)."""
     user = auth.require_user(request)
     _require_meeting_access(meeting_id, user)
-    return _audio_response(request, "meeting_audio", meeting_id, f"meeting_{meeting_id}")
+    return audio_storage.audio_response(request, "meeting_audio", meeting_id, f"meeting_{meeting_id}")
 
 # ============================================================
 
@@ -2051,8 +1992,17 @@ def normalize_audio(input_path: Path, output_path: Path) -> Path:
 # ============================================================
 
 def _template_of(value: Optional[str]) -> str:
-    """"doctor" for the Doctor–Patient template, else "meeting"."""
-    return "doctor" if (value or "").strip().lower() == "doctor" else "meeting"
+    """"doctor" / "interview" for those templates, else "meeting"."""
+    value = (value or "").strip().lower()
+    return value if value in ("doctor", "interview") else "meeting"
+
+
+# Per template: the audio table and the key its saved id is returned under.
+_TEMPLATE_STORAGE = {
+    "meeting": ("meeting_audio", "meeting_id"),
+    "doctor": ("doctor_audio", "consultation_id"),
+    "interview": ("interview_audio", "interview_id"),
+}
 
 
 def _store_recording(
@@ -2067,12 +2017,14 @@ def _store_recording(
 ) -> dict:
     """
     Save a transcribed recording — live or uploaded — to the history of the
-    template it was made in: a meeting (meetings + meeting_audio) or a
-    consultation (doctor_consultations + doctor_audio). The two never share
-    rows. Returns the id it was saved under and whether the audio made it:
+    template it was made in: a meeting (meetings + meeting_audio), a
+    consultation (doctor_consultations + doctor_audio) or an interview
+    (interviews + interview_audio). They never share rows. Returns the id
+    it was saved under and whether the audio made it:
 
         {"template": "meeting", "meeting_id": 12, "has_audio": True}
         {"template": "doctor", "consultation_id": 4, "has_audio": True}
+        {"template": "interview", "interview_id": 7, "has_audio": True}
 
     Once the audio is in the database the file on disk is deleted; if
     storing it fails, the file is kept so the recording isn't lost.
@@ -2088,14 +2040,16 @@ def _store_recording(
         parent_id = db.find_or_create_consultation(
             user["id"], transcript, duration_seconds=duration_seconds
         )
-        saved = {"template": template, "consultation_id": parent_id}
-        table = "doctor_audio"
+    elif template == "interview":
+        parent_id = interview_db.find_or_create_interview(
+            user["id"], transcript, duration_seconds=duration_seconds
+        )
     else:
         parent_id = db.find_or_create_meeting(
             user["id"], transcript, duration_seconds=duration_seconds
         )
-        saved = {"template": template, "meeting_id": parent_id}
-        table = "meeting_audio"
+    table, id_key = _TEMPLATE_STORAGE[template]
+    saved = {"template": template, id_key: parent_id}
 
     try:
         data, mime_type, file_ext = audio_storage.prepare_for_storage(audio_path)
@@ -2113,7 +2067,7 @@ def _store_recording(
 
     logger.info(
         "Recording stored | %s=%s | %s | %d bytes",
-        "consultation_id" if template == "doctor" else "meeting_id",
+        id_key,
         parent_id,
         file_ext,
         len(data),
@@ -2134,7 +2088,8 @@ async def upload_recording(
 
     audio: UploadFile = File(...),
 
-    # "doctor" saves it as a consultation; anything else as a meeting.
+    # "doctor" saves it as a consultation, "interview" as an interview;
+    # anything else as a meeting.
     template: str = Form("meeting"),
 
 ):
@@ -2305,6 +2260,8 @@ async def upload_recording(
             "meeting_id": saved.get("meeting_id"),
 
             "consultation_id": saved.get("consultation_id"),
+
+            "interview_id": saved.get("interview_id"),
 
             "has_audio": saved.get("has_audio", False),
 
@@ -2541,7 +2498,7 @@ def _consultation_payload(consultation: dict) -> dict:
         "durationSeconds": consultation["duration_seconds"],
         "transcript": consultation["transcript"],
         "prescription": _prescription_payload(db.get_prescription(consultation["id"])),
-        **_audio_fields(
+        **audio_storage.audio_fields(
             "doctor_audio",
             consultation["id"],
             f"/api/doctor/consultations/{consultation['id']}/audio",
@@ -2578,7 +2535,7 @@ async def get_consultation(consultation_id: int, request: Request):
 async def get_consultation_audio(consultation_id: int, request: Request):
     user = auth.require_user(request)
     _require_consultation_access(consultation_id, user)
-    return _audio_response(
+    return audio_storage.audio_response(
         request, "doctor_audio", consultation_id, f"consultation_{consultation_id}"
     )
 

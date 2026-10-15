@@ -1022,8 +1022,8 @@ async def meeting_websocket(
         uuid.uuid4()
     )
 
-    # Which template the recording was started in ("meeting" or
-    # "doctor"); decides where persist() saves it.
+    # Which template the recording was started in ("meeting", "doctor"
+    # or "interview"); decides where persist() saves it.
     current_template = "meeting"
 
     audio_buffer = bytearray()
@@ -1238,8 +1238,8 @@ async def meeting_websocket(
                 )
 
                 current_template = (
-                    "doctor"
-                    if command.get("template") == "doctor"
+                    command.get("template")
+                    if command.get("template") in ("doctor", "interview")
                     else "meeting"
                 )
 
@@ -1718,6 +1718,9 @@ async def process_recording(
             "consultation_id":
                 saved.get("consultation_id"),
 
+            "interview_id":
+                saved.get("interview_id"),
+
             "has_audio":
                 bool(saved.get("has_audio")),
         },
@@ -1742,6 +1745,10 @@ async def process_recording(
                         "Transcript complete. "
                         "You can now generate the prescription."
                         if template == "doctor"
+                        else
+                        "Transcript complete. "
+                        "You can now evaluate the interview."
+                        if template == "interview"
                         else
                         "Transcript complete. "
                         "You can now create the meeting summary."

@@ -7,8 +7,9 @@
      backend/database.py), via the admin-only /api/users endpoints
      in backend/auth.py; changes here affect who can sign in,
      everywhere. Below them, read-only views of every user's
-     meetings and doctor consultations (with their recordings and
-     prescriptions).
+     meetings, doctor consultations (with their recordings and
+     prescriptions) and interviews (with their recordings and
+     evaluation reports).
 ============================================================ -->
 <html lang="en">
 
@@ -43,9 +44,10 @@
     <script src="assets/auth-store.js?v=4"></script>
 
     <link rel="stylesheet" href="assets/theme.css">
-    <link rel="stylesheet" href="assets/admin.css?v=5">
-    <link rel="stylesheet" href="assets/audio-player.css?v=1">
+    <link rel="stylesheet" href="assets/admin.css?v=6">
+    <link rel="stylesheet" href="assets/audio-player.css?v=2">
     <link rel="stylesheet" href="assets/prescription.css?v=1">
+    <link rel="stylesheet" href="assets/interview-report.css?v=1">
 
 </head>
 
@@ -144,6 +146,17 @@
                     <span class="stat-value" id="statConsultations">—</span>
                     <span class="stat-label">Doctor consultations</span>
                     <span class="stat-breakdown" id="statConsultationsBy"></span>
+                </span>
+            </div>
+
+            <div class="stat-card">
+                <span class="stat-icon stat-icon-interview" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/><rect width="20" height="14" x="2" y="6" rx="2"/></svg>
+                </span>
+                <span class="stat-info">
+                    <span class="stat-value" id="statInterviews">—</span>
+                    <span class="stat-label">Interviews</span>
+                    <span class="stat-breakdown" id="statInterviewsBy"></span>
                 </span>
             </div>
 
@@ -332,6 +345,73 @@
 
         </section>
 
+
+        <!-- ---------- interviews (Interview template) ---------- -->
+        <section class="panel">
+
+            <div class="panel-hd">
+                <h2>Interviews</h2>
+                <span class="hint" id="interviewCount"></span>
+            </div>
+
+            <div class="panel-bd">
+
+                <div class="table-tools">
+                    <div class="search-wrap">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                        <input type="search" id="interviewSearch" placeholder="Search candidate, position, skill or interviewer…" autocomplete="off">
+                    </div>
+                    <select id="interviewUserFilter" aria-label="Filter by interviewer">
+                        <option value="">All interviewers</option>
+                    </select>
+                    <select id="interviewStatusFilter" aria-label="Filter by evaluation">
+                        <option value="">Any evaluation</option>
+                        <option value="final">Final (downloaded)</option>
+                        <option value="draft">Draft only</option>
+                        <option value="none">Not evaluated</option>
+                    </select>
+                    <select id="interviewTypeFilter" aria-label="Filter by interview type">
+                        <option value="">All types</option>
+                        <option value="Technical">Technical</option>
+                        <option value="HR">HR</option>
+                        <option value="Behavioral">Behavioral</option>
+                        <option value="Mixed">Mixed</option>
+                    </select>
+                    <label class="date-field">
+                        <span class="date-field-label">From</span>
+                        <input type="date" id="interviewDateFrom" aria-label="From date">
+                    </label>
+                    <label class="date-field">
+                        <span class="date-field-label">To</span>
+                        <input type="date" id="interviewDateTo" aria-label="To date">
+                    </label>
+                    <span class="spacer"></span>
+                    <button class="btn btn-ghost" id="interviewFilterReset" type="button">Reset filters</button>
+                </div>
+
+                <div class="table-scroll">
+                    <table class="data">
+                        <thead>
+                            <tr>
+                                <th>Candidate</th>
+                                <th>Interviewer</th>
+                                <th>Recorded</th>
+                                <th>Duration</th>
+                                <th>Score</th>
+                                <th>Contents</th>
+                                <th class="col-actions">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="interviewRows"></tbody>
+                    </table>
+                </div>
+
+                <div class="pagination" id="interviewPagination"></div>
+
+            </div>
+
+        </section>
+
     </main>
 
 </div>
@@ -479,11 +559,54 @@
     </form>
 </dialog>
 
+<!-- ---------- interview viewer: evaluation report, recording, transcript ---------- -->
+<dialog id="interviewDialog" class="user-dialog meeting-dialog consult-dialog" aria-labelledby="interviewDialogTitle">
+    <form method="dialog">
+
+        <div class="meeting-head">
+            <div class="meeting-head-text">
+                <h3 id="interviewDialogTitle">Interview</h3>
+                <p class="hint" id="interviewDialogMeta"></p>
+            </div>
+            <button class="btn-tool btn-icon meeting-expand" id="interviewExpandBtn" type="button"
+                aria-pressed="false" aria-label="Expand the viewer" title="Expand"></button>
+        </div>
+
+        <div class="dialog-player" id="interviewPlayerSlot"></div>
+
+        <div class="meeting-tabs" role="tablist">
+            <button class="meeting-tab is-active" type="button" data-itab="report" role="tab" aria-selected="true">Evaluation report</button>
+            <button class="meeting-tab" type="button" data-itab="transcript" role="tab" aria-selected="false">Transcript</button>
+        </div>
+
+        <div class="meeting-pane consult-pane--rx" id="interviewReportPane"></div>
+        <div class="meeting-pane meeting-pane--transcript" id="interviewTranscriptPane" hidden>
+            <div class="transcript-tools">
+                <div class="search-wrap">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                    <input type="search" id="interviewTranscriptSearch" placeholder="Search transcript…" autocomplete="off" aria-label="Search transcript">
+                </div>
+                <button class="btn-tool btn-icon search-prev" id="interviewSearchPrev" type="button" aria-label="Previous match" title="Previous match" disabled></button>
+                <button class="btn-tool btn-icon search-next" id="interviewSearchNext" type="button" aria-label="Next match" title="Next match" disabled></button>
+                <span class="search-count" id="interviewSearchCount" aria-live="polite">0 matches</span>
+            </div>
+            <pre class="meeting-transcript" id="interviewTranscriptText"></pre>
+        </div>
+
+        <div class="dialog-actions">
+            <button class="btn btn-secondary" type="button" id="interviewDownloadBtn">Download PDF</button>
+            <button class="btn btn-secondary" type="button" id="interviewDialogClose">Close</button>
+        </div>
+
+    </form>
+</dialog>
+
 <script src="assets/theme.js?v=3"></script>
-<script src="assets/audio-player.js?v=1"></script>
+<script src="assets/audio-player.js?v=2"></script>
 <script src="assets/prescription.js?v=1"></script>
+<script src="assets/interview-report.js?v=1"></script>
 <script src="assets/dialog.js?v=3"></script>
-<script src="assets/admin.js?v=11"></script>
+<script src="assets/admin.js?v=12"></script>
 
 </body>
 </html>

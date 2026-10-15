@@ -87,6 +87,16 @@
     }
 }
 
+/* Three pills don't fit a phone's width on one line: let them wrap
+   instead of pushing the page sideways. */
+@media (max-width: 480px) {
+    .template-pills {
+        flex-wrap: wrap;
+        max-width: 100%;
+        border-radius: 18px;
+    }
+}
+
 .template-pills button.template-choice svg {
     width: 15px;
     height: 15px;

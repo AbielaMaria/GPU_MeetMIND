@@ -48,10 +48,12 @@
          defined at the end of this file. -->
     <link rel="stylesheet" href="/assets/history.css?v=5">
 
-    <!-- Recording player (meetings + consultations) and the Doctor–Patient
-         template: its prescription sheet / PDF and its own cards. -->
-    <script src="/assets/audio-player.js?v=1"></script>
+    <!-- Recording player (meetings, consultations, interviews), the
+         Doctor–Patient template's prescription sheet / PDF and the
+         Interview template's evaluation report sheet / PDF. -->
+    <script src="/assets/audio-player.js?v=2"></script>
     <script src="/assets/prescription.js?v=1"></script>
+    <script src="/assets/interview-report.js?v=1"></script>
 
     <!-- PDF export (Download PDF button). Loaded from CDN; no app
          logic depends on it until the user clicks Download PDF. -->
@@ -3007,10 +3009,11 @@ body.mindmap-expanded {
 </style>
 
 <!-- After the inline styles, so these components' rules win ties with them. -->
-<link rel="stylesheet" href="/assets/audio-player.css?v=1">
+<link rel="stylesheet" href="/assets/audio-player.css?v=2">
 <link rel="stylesheet" href="/assets/prescription.css?v=1">
-<link rel="stylesheet" href="/assets/doctor-template.css?v=1">
-<link rel="stylesheet" href="/assets/interview-template.css?v=1">
+<link rel="stylesheet" href="/assets/doctor-template.css?v=2">
+<link rel="stylesheet" href="/assets/interview-report.css?v=1">
+<link rel="stylesheet" href="/assets/interview-template.css?v=2">
 
 </head>
 
@@ -4650,6 +4653,18 @@ function handleServerMessage(
                     recordingPlayer.show("consultation", data.consultation_id);
                 }
 
+            } else if (data.template === "interview") {
+
+                if (window.meetmindInterview) {
+                    window.meetmindInterview.onTranscribed({
+                        interviewId: data.interview_id || null
+                    });
+                }
+
+                if (data.has_audio) {
+                    recordingPlayer.show("interview", data.interview_id);
+                }
+
             } else {
 
                 if (data.saved_meeting_id) {
@@ -4677,9 +4692,9 @@ function handleServerMessage(
             if (transcript) {
 
                 setStatus(
-                    data.template === "doctor"
-                        ? "Transcript ready. Click Generate Prescription to draft the prescription."
-                        : "Transcript ready. Choose the model(s) and click Generate."
+                    transcriptReadyMessage(
+                        data.template
+                    )
                 );
 
             } else {
@@ -12378,6 +12393,11 @@ async function uploadExistingRecording(file) {
                 window.meetmindDoctor.onTranscribed({ consultationId: data.consultation_id || null });
             }
             if (data.has_audio) recordingPlayer.show("consultation", data.consultation_id);
+        } else if (data.template === "interview") {
+            if (window.meetmindInterview) {
+                window.meetmindInterview.onTranscribed({ interviewId: data.interview_id || null });
+            }
+            if (data.has_audio) recordingPlayer.show("interview", data.interview_id);
         } else if (data.has_audio) {
             recordingPlayer.show("meeting", data.meeting_id);
         }
@@ -12394,11 +12414,7 @@ async function uploadExistingRecording(file) {
         }
 
         if (transcript) {
-            setStatus(
-                data.template === "doctor"
-                    ? "Transcript ready. Click Generate Prescription to draft the prescription."
-                    : "Transcript ready. Choose the model(s) and click Generate."
-            );
+            setStatus(transcriptReadyMessage(data.template));
             log(`Upload transcription complete: ${transcript.length} transcript characters.`);
             document.dispatchEvent(new CustomEvent("meetmind:results-changed", { detail: { meetingId: currentMeetingId } }));
         } else {
@@ -12700,8 +12716,10 @@ function savedMeetingResults(
 /* ============================================================
    TEMPLATE + SAVED RECORDING
    ------------------------------------------------------------
-   activeTemplate(): which template the page is in ("meeting" or
-   "doctor"; the pills live in assets/doctor-template.js).
+   activeTemplate(): which template the page is in ("meeting",
+   "doctor" or "interview"; the pills live in
+   assets/doctor-template.js). The server saves a recording to that
+   template's own history.
 
    recordingPlayer: the player at the top of the transcript panel
    for the recording stored with the meeting / consultation on
@@ -12711,8 +12729,11 @@ function savedMeetingResults(
 
 function activeTemplate() {
 
-    return document.body.dataset.meetmindTemplate === "doctor"
-        ? "doctor"
+    const template =
+        document.body.dataset.meetmindTemplate;
+
+    return template === "doctor" || template === "interview"
+        ? template
         : "meeting";
 }
 
@@ -12754,8 +12775,8 @@ const recordingPlayer = (() => {
 
     return {
 
-        /* kind: "meeting" | "consultation"; audio: the payload's
-           `audio` object, or just enough to know it exists. */
+        /* kind: "meeting" | "consultation" | "interview"; audio: the
+           payload's `audio` object, or just enough to know it exists. */
         show: function (kind, id, audio) {
 
             if (!player || !id) return;
@@ -12763,16 +12784,26 @@ const recordingPlayer = (() => {
             const consultation =
                 kind === "consultation";
 
+            const interview =
+                kind === "interview";
+
             const url =
                 (audio && audio.url)
                 ||
                 (consultation
                     ? `/api/doctor/consultations/${id}/audio`
-                    : `/api/meetings/${id}/audio`);
+                    : interview
+                        ? `/api/interview/interviews/${id}/audio`
+                        : `/api/meetings/${id}/audio`);
 
             player.el.classList.toggle(
                 "mm-player--teal",
                 consultation
+            );
+
+            player.el.classList.toggle(
+                "mm-player--indigo",
+                interview
             );
 
             const parts = [
@@ -12793,13 +12824,15 @@ const recordingPlayer = (() => {
                     title:
                         consultation
                             ? "Consultation recording"
-                            : "Meeting recording",
+                            : interview
+                                ? "Interview recording"
+                                : "Meeting recording",
                     meta:
                         parts.length
                             ? parts.join(" · ")
-                            : "Saved with this " + (consultation ? "consultation" : "meeting"),
+                            : "Saved with this " + (consultation ? "consultation" : interview ? "interview" : "meeting"),
                     downloadName:
-                        (consultation ? "consultation_" : "meeting_") + id
+                        (consultation ? "consultation_" : interview ? "interview_" : "meeting_") + id
                 }
             );
         },
@@ -12825,9 +12858,28 @@ function startNewSession() {
         window.meetmindDoctor.clearForNewRecording();
     }
 
+    if (window.meetmindInterview) {
+        window.meetmindInterview.clearForNewRecording();
+    }
+
     document.dispatchEvent(
         new CustomEvent("meetmind:new-session")
     );
+}
+
+
+/* The status line once a recording is transcribed, per template. */
+function transcriptReadyMessage(template) {
+
+    if (template === "doctor") {
+        return "Transcript ready. Click Generate Prescription to draft the prescription.";
+    }
+
+    if (template === "interview") {
+        return "Transcript ready. Check the required skills, then click Evaluate Interview.";
+    }
+
+    return "Transcript ready. Choose the model(s) and click Generate.";
 }
 
 
@@ -12879,6 +12931,55 @@ window.meetmindHistory = {
 
         setStatus(
             "Viewing a saved consultation."
+        );
+    },
+
+    /* Show a saved interview (Interview template): its transcript
+       here, its setup and evaluation in assets/interview-template.js. */
+    loadInterview: function (interview) {
+
+        sessionEpoch++;
+
+        clearReportReady();
+
+        clearReportSelection();
+
+        transcript =
+            (interview.transcript || "").trim();
+
+        currentMeetingId =
+            null;
+
+        currentMeetingDuration =
+            interview.durationSeconds || null;
+
+        renderTranscript(
+            transcript
+        );
+
+        resetTranscriptSearch();
+
+        modelSlots.forEach(
+            slot => resetSlot(
+                slot,
+                "ready"
+            )
+        );
+
+        updateGenerateButton();
+
+        if (window.meetmindInterview) {
+            window.meetmindInterview.load(interview);
+        }
+
+        if (interview.hasAudio) {
+            recordingPlayer.show("interview", interview.id, interview.audio);
+        } else {
+            recordingPlayer.hide();
+        }
+
+        setStatus(
+            "Viewing a saved interview."
         );
     },
 
@@ -13043,6 +13144,10 @@ window.meetmindHistory = {
             window.meetmindDoctor.reset();
         }
 
+        if (window.meetmindInterview) {
+            window.meetmindInterview.reset();
+        }
+
         updateGenerateButton();
 
         setStatus(
@@ -13064,7 +13169,9 @@ window.meetmindHistory = {
 
         return isAnyGenerating()
             ||
-            !!(window.meetmindDoctor && window.meetmindDoctor.isGenerating());
+            !!(window.meetmindDoctor && window.meetmindDoctor.isGenerating())
+            ||
+            !!(window.meetmindInterview && window.meetmindInterview.isGenerating());
     }
 };
 
@@ -13074,8 +13181,8 @@ window.meetmindHistory = {
 </script>
 
 <script src="/assets/dialog.js?v=3"></script>
-<script src="/assets/history.js?v=7"></script>
-<script src="/assets/doctor-template.js?v=1"></script>
-<script src="/assets/interview-template.js?v=1"></script>
+<script src="/assets/history.js?v=8"></script>
+<script src="/assets/doctor-template.js?v=2"></script>
+<script src="/assets/interview-template.js?v=2"></script>
 </body>
 </html>

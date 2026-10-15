@@ -62,7 +62,7 @@
 
 .stats-grid {
     display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(7, minmax(0, 1fr));
     gap: 16px;
 }
 
@@ -112,6 +112,15 @@
     background: rgba(94, 234, 212, .12);
 }
 
+.stat-icon-interview {
+    color: #4f46e5;
+    background: rgba(79, 70, 229, .12);
+}
+:root[data-theme="dark"] .stat-icon-interview {
+    color: #a5b4fc;
+    background: rgba(129, 140, 248, .14);
+}
+
 .stat-icon-teal {
     color: #0d9488;
     background: rgba(13, 148, 136, .12);
@@ -142,7 +151,11 @@
     font-weight: 500;
 }
 
-@media (max-width: 1500px) {
+@media (max-width: 1700px) {
+    .stats-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+@media (max-width: 1200px) {
     .stats-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
@@ -1604,4 +1617,29 @@ td.cell-actions {
 
 .consult-dialog .dialog-actions [hidden] {
     display: none;
+}
+
+/* interview viewer: the evaluation report, scaled to the pane */
+.pill.iv-score { white-space: nowrap; border-color: transparent; color: #4f46e5; background: rgba(79, 70, 229, .1); font-weight: 700; }
+:root[data-theme="dark"] .pill.iv-score { color: #a5b4fc; background: rgba(129, 140, 248, .14); }
+
+.interview-desk {
+    background:
+        radial-gradient(circle at 20% 0%, rgba(99, 102, 241, .08), transparent 55%),
+        #e9eaf2;
+}
+
+:root[data-theme="dark"] .interview-desk {
+    background:
+        radial-gradient(circle at 20% 0%, rgba(129, 140, 248, .08), transparent 55%),
+        #0e1220;
+}
+
+.consult-paper .ivr-sheet {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 794px;
+    max-width: none;
+    transform-origin: top left;
 }
