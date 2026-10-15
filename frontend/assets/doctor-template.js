@@ -39,12 +39,14 @@
 
     var HINTS = {
         mom: "Summary, decisions, tasks and a mind map for each model, side by side.",
-        doctor: "Transcribe the consultation and draft a prescription on your clinic letterhead."
+        doctor: "Transcribe the consultation and draft a prescription on your clinic letterhead.",
+        interview: "Transcribe an interview and evaluate the candidate against the skills you require."
     };
 
     var SUBTITLES = {
         mom: "AI meeting transcription and meeting intelligence",
-        doctor: "AI consultation transcription and prescription drafting"
+        doctor: "AI consultation transcription and prescription drafting",
+        interview: "AI interview transcription and candidate evaluation"
     };
 
     var ICON = {
@@ -220,12 +222,14 @@
         document.dispatchEvent(new CustomEvent("meetmind:template-changed", { detail: { template: template } }));
     }
 
+    var TEMPLATE_NAMES = { mom: "Meeting (MOM)", doctor: "Doctor–Patient", interview: "Interview" };
+
     function hasContentOnScreen() {
         return !!currentTranscript() || !!state.prescription || !!state.consultationId;
     }
 
     window.selectMeetMindTemplate = function (template) {
-        if (template !== "mom" && template !== "doctor") return;
+        if (!HINTS[template]) return;
         if (template === state.template) return;
 
         if (recorderBusy()) {
@@ -241,7 +245,7 @@
         if (hasContentOnScreen()) {
             var from = state.template === "doctor" ? "consultation" : "meeting";
             proceed = D ? D.confirm({
-                title: template === "doctor" ? "Switch to Doctor–Patient?" : "Switch to Meeting (MOM)?",
+                title: "Switch to " + TEMPLATE_NAMES[template] + "?",
                 message: "This clears the current " + from + " from the screen. It stays saved in your " +
                     (from === "consultation" ? "past consultations." : "past meetings."),
                 confirmText: "Switch template"
@@ -256,13 +260,15 @@
         });
     };
 
-    // Arrow keys move between the two pills (radio-group behaviour).
+    // Arrow keys move between the pills (radio-group behaviour).
     var pills = document.querySelector(".template-pills");
     if (pills) {
         pills.addEventListener("keydown", function (e) {
             if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
             e.preventDefault();
-            var next = state.template === "mom" ? "doctor" : "mom";
+            var order = ["mom", "doctor", "interview"];
+            var step = e.key === "ArrowRight" ? 1 : order.length - 1;
+            var next = order[(order.indexOf(state.template) + step) % order.length];
             window.selectMeetMindTemplate(next);
             var btn = pills.querySelector('[data-template="' + next + '"]');
             if (btn) btn.focus();

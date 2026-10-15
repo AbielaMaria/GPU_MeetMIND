@@ -110,6 +110,18 @@ import auth
 
 import audio_storage
 
+# Independent Interview Template API (BharatAI Qwen); the MOM, mind-map and
+
+# doctor routes are unchanged. interview_analysis reads its settings from the
+
+# environment at import time, so .env is loaded first.
+
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+
+from interview_routes import interview_router
+
 # ============================================================
 
 # LOGGING
@@ -248,6 +260,14 @@ def _init_auth():
 app.include_router(
 
     auth.router
+
+)
+
+# Interview Template: POST /api/interview/analyze
+
+app.include_router(
+
+    interview_router
 
 )
 

@@ -1,0 +1,116 @@
+/* ============================================================
+   MeetMind — Interview Evaluation template (assets/interview-template.js)
+   ------------------------------------------------------------
+   The interview-details card and the report card. Theme tokens
+   (--border, --bg-surface, --accent …) come from index.html.
+============================================================ */
+
+/* Interview mode: transcription stays; the MOM model columns, model
+   picker / Generate Summary button and report builder go. */
+body[data-meetmind-template="interview"] #modelGrid,
+body[data-meetmind-template="interview"] #reportBuilder,
+body[data-meetmind-template="interview"] .panel--transcript .intelligence-actions {
+    display: none !important;
+}
+
+.iv-card[hidden] {
+    display: none !important;
+}
+
+.iv-note {
+    margin: 0 0 14px;
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.iv-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 16px;
+}
+
+.iv-grid label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.iv-grid .iv-span {
+    grid-column: 1 / -1;
+}
+
+.iv-grid textarea,
+.iv-grid select,
+.iv-grid input {
+    width: 100%;
+    padding: 9px 10px;
+    margin-top: 5px;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    font: inherit;
+    font-weight: 400;
+}
+
+.iv-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin: 16px 0;
+}
+
+.iv-btn {
+    padding: 10px 16px;
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.iv-btn-primary {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: #fff;
+}
+
+.iv-btn-primary:hover {
+    background: var(--accent-hover);
+}
+
+.iv-btn:disabled {
+    opacity: .6;
+    cursor: not-allowed;
+}
+
+.iv-status {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+@media (max-width: 650px) {
+    .iv-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ---------------- generated report ---------------- */
+
+.interview-report-table { width:100%; border-collapse:collapse; margin:10px 0 18px; font-size:12px; }
+.interview-report-table th, .interview-report-table td { text-align:left; vertical-align:top; padding:9px; border:1px solid var(--border); }
+.interview-report-table th { background:var(--bg-surface); color:var(--text-primary); }
+.interview-performance-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.interview-performance-metric{padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-surface);text-align:center}
+.interview-performance-metric strong{display:block;font-size:21px;color:var(--accent,#4f46e5);margin-bottom:3px}
+.interview-performance-metric span{font-size:12px;color:var(--text-secondary)}
+.interview-performance-note{font-size:11px;color:var(--text-secondary);margin-top:10px}
+@media(max-width:650px){.interview-performance-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.interview-report-section { margin:16px 0; }
+.interview-report-section h3 { margin:0 0 8px; font-size:14px; }
+.interview-skill { display:inline-block; margin:3px 5px 3px 0; padding:5px 9px; border:1px solid var(--border); border-radius:99px; background:var(--bg-surface); }
