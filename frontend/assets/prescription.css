@@ -1,0 +1,777 @@
+/* ============================================================
+   MeetMind — prescription sheet (assets/prescription.js)
+   ------------------------------------------------------------
+   The A4 letterhead prescription: shown in the Doctor–Patient
+   template's "Download Prescription" card (editable), in the
+   admin consultation viewer (read-only), and rendered to the
+   PDF. It is paper, so its colours are fixed and do not follow
+   the light/dark theme.
+============================================================ */
+
+.rx-sheet {
+    --rx-ink: #17252a;
+    --rx-muted: #5d6f75;
+    --rx-faint: #93a3a8;
+    --rx-teal: #0f766e;
+    --rx-teal-deep: #0b4f4a;
+    --rx-teal-bright: #14b8a6;
+    --rx-teal-soft: #eef8f6;
+    --rx-teal-line: #cfe6e2;
+    --rx-gold: #b98b2c;
+    --rx-red: #b42318;
+    --rx-red-soft: #fff4f2;
+    --rx-red-line: #f5c9c3;
+    --rx-serif: 'DM Serif Display', 'Georgia', 'Times New Roman', serif;
+
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 794px;          /* A4 at 96 dpi */
+    min-height: 1123px;
+    margin: 0 auto;
+    overflow: hidden;
+    background: #ffffff;
+    color: var(--rx-ink);
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.55;
+    text-align: left;
+    border-radius: 3px;
+    box-shadow:
+        0 1px 2px rgba(10, 30, 30, .08),
+        0 24px 60px -24px rgba(10, 30, 30, .45);
+    -webkit-font-smoothing: antialiased;
+}
+
+.rx-sheet *,
+.rx-sheet *::before,
+.rx-sheet *::after {
+    box-sizing: border-box;
+}
+
+/* ---- decoration ---------------------------------------- */
+
+.rx-band {
+    height: 10px;
+    background: linear-gradient(90deg, var(--rx-teal-deep) 0%, var(--rx-teal) 48%, var(--rx-teal-bright) 100%);
+}
+
+.rx-band-gold {
+    height: 2px;
+    background: linear-gradient(90deg, transparent 0%, var(--rx-gold) 18%, var(--rx-gold) 82%, transparent 100%);
+    opacity: .7;
+}
+
+.rx-glow {
+    position: absolute;
+    top: -160px;
+    right: -140px;
+    width: 420px;
+    height: 420px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(20, 184, 166, .12) 0%, rgba(20, 184, 166, 0) 68%);
+    pointer-events: none;
+}
+
+.rx-watermark {
+    position: absolute;
+    left: 50%;
+    top: 54%;
+    transform: translate(-50%, -50%);
+    font-family: var(--rx-serif);
+    font-size: 520px;
+    line-height: 1;
+    color: var(--rx-teal);
+    opacity: .035;
+    pointer-events: none;
+    user-select: none;
+}
+
+/* ---- letterhead ------------------------------------------ */
+
+.rx-letterhead {
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 28px;
+    padding: 26px 44px 16px;
+}
+
+.rx-brand {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    min-width: 0;
+}
+
+.rx-logo {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 68px;
+    height: 68px;
+    border-radius: 50%;
+    background: linear-gradient(145deg, var(--rx-teal-bright), var(--rx-teal-deep));
+    box-shadow: 0 0 0 4px #fff, 0 0 0 5px var(--rx-teal-line), 0 8px 18px -8px rgba(11, 79, 74, .6);
+    color: #fff;
+}
+
+.rx-logo svg {
+    width: 34px;
+    height: 34px;
+}
+
+.rx-logo--image {
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 0 0 1px var(--rx-teal-line), 0 8px 18px -10px rgba(11, 79, 74, .45);
+    overflow: hidden;
+}
+
+.rx-logo--image img {
+    display: block;
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+.rx-doctor {
+    margin: 0;
+    font-family: var(--rx-serif);
+    font-size: 30px;
+    font-weight: 400;
+    line-height: 1.12;
+    letter-spacing: .005em;
+    color: var(--rx-teal-deep);
+    overflow-wrap: anywhere;
+}
+
+.rx-quals {
+    margin-top: 4px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--rx-ink);
+}
+
+.rx-spec {
+    margin-top: 2px;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--rx-teal);
+}
+
+.rx-clinic {
+    flex: none;
+    max-width: 290px;
+    text-align: right;
+}
+
+.rx-clinic-name {
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: -.01em;
+    color: var(--rx-teal-deep);
+}
+
+.rx-clinic-line {
+    display: flex;
+    justify-content: flex-end;
+    align-items: flex-start;
+    gap: 6px;
+    margin-top: 3px;
+    font-size: 11.5px;
+    line-height: 1.45;
+    color: var(--rx-muted);
+    white-space: pre-line;
+}
+
+.rx-clinic-line svg {
+    flex: none;
+    width: 12px;
+    height: 12px;
+    margin-top: 2px;
+    color: var(--rx-teal);
+}
+
+.rx-rule {
+    margin: 0 44px;
+    height: 6px;
+    border-top: 2.5px solid var(--rx-teal);
+    border-bottom: 1px solid var(--rx-teal-line);
+}
+
+/* letterhead with no profile yet */
+.rx-letterhead-empty .rx-doctor {
+    color: var(--rx-faint);
+}
+
+/* ---- patient strip --------------------------------------- */
+
+.rx-body {
+    position: relative;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 20px 44px 0;
+}
+
+.rx-patient {
+    display: grid;
+    grid-template-columns: 2.1fr 1.1fr 1.15fr 1.25fr;
+    border: 1px solid var(--rx-teal-line);
+    border-radius: 12px;
+    background: linear-gradient(180deg, #fbfefd, #ffffff);
+    overflow: hidden;
+}
+
+.rx-patient-cell {
+    min-width: 0;
+    padding: 9px 13px 10px;
+}
+
+.rx-patient-cell + .rx-patient-cell {
+    border-left: 1px solid var(--rx-teal-line);
+}
+
+.rx-k {
+    display: block;
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--rx-faint);
+}
+
+.rx-v {
+    display: block;
+    min-height: 20px;
+    margin-top: 2px;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--rx-ink);
+    overflow-wrap: anywhere;
+}
+
+.rx-rxno {
+    font-family: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
+    font-size: 12.5px;
+    letter-spacing: .02em;
+    color: var(--rx-teal-deep);
+}
+
+/* ---- allergy + vitals ------------------------------------ */
+
+.rx-flags {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 10px;
+    margin-top: 12px;
+}
+
+.rx-chip {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 5px 11px;
+    border: 1px solid var(--rx-teal-line);
+    border-radius: 999px;
+    background: var(--rx-teal-soft);
+    font-size: 11.5px;
+    line-height: 1.3;
+}
+
+.rx-chip .rx-chip-k {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--rx-teal);
+}
+
+.rx-chip .rx-field {
+    font-weight: 600;
+    color: var(--rx-ink);
+}
+
+.rx-chip--allergy {
+    border-color: var(--rx-red-line);
+    background: var(--rx-red-soft);
+}
+
+.rx-chip--allergy .rx-chip-k {
+    color: var(--rx-red);
+}
+
+.rx-chip--allergy svg {
+    align-self: center;
+    width: 13px;
+    height: 13px;
+    color: var(--rx-red);
+}
+
+/* ---- clinical sections ----------------------------------- */
+
+.rx-section {
+    margin-top: 13px;
+}
+
+.rx-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--rx-teal);
+}
+
+.rx-label::before {
+    content: "";
+    width: 14px;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--rx-teal);
+}
+
+.rx-text {
+    font-size: 13px;
+    color: var(--rx-ink);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.rx-text--strong {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.rx-cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 34px;
+}
+
+/* ---- ℞ + medicines --------------------------------------- */
+
+.rx-meds {
+    margin-top: 16px;
+}
+
+.rx-meds-head {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.rx-symbol {
+    font-family: var(--rx-serif);
+    font-size: 46px;
+    line-height: .8;
+    color: var(--rx-teal-deep);
+}
+
+.rx-meds-title {
+    padding-bottom: 3px;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--rx-teal);
+}
+
+.rx-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    border: 1px solid var(--rx-teal-line);
+    border-radius: 12px;
+    overflow: hidden;
+    font-size: 12.5px;
+}
+
+.rx-table th {
+    padding: 8px 10px;
+    background: var(--rx-teal-soft);
+    border-bottom: 1px solid var(--rx-teal-line);
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--rx-teal);
+    text-align: left;
+    white-space: nowrap;
+}
+
+.rx-table td {
+    padding: 9px 10px;
+    border-bottom: 1px solid #e8f1ef;
+    vertical-align: top;
+    color: var(--rx-ink);
+    overflow-wrap: anywhere;
+}
+
+.rx-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.rx-table tbody tr:nth-child(even) td {
+    background: #fbfdfd;
+}
+
+.rx-table .rx-num {
+    width: 30px;
+    color: var(--rx-faint);
+    font-weight: 600;
+}
+
+.rx-table .rx-med-name {
+    font-weight: 700;
+}
+
+.rx-table-empty td {
+    padding: 14px 10px;
+    color: var(--rx-faint);
+    font-style: italic;
+}
+
+/* ---- warning + next visit -------------------------------- */
+
+.rx-alert {
+    margin-top: 14px;
+    padding: 11px 15px 12px;
+    border: 1px solid var(--rx-red-line);
+    border-left: 4px solid var(--rx-red);
+    border-radius: 10px;
+    background: var(--rx-red-soft);
+}
+
+.rx-alert .rx-label {
+    color: var(--rx-red);
+}
+
+.rx-alert .rx-label::before {
+    background: var(--rx-red);
+}
+
+.rx-next {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-top: 12px;
+    padding: 12px 16px;
+    border: 1px solid var(--rx-teal-line);
+    border-radius: 12px;
+    background: linear-gradient(90deg, var(--rx-teal-soft), #ffffff);
+}
+
+.rx-next-icon {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: var(--rx-teal);
+    color: #fff;
+}
+
+.rx-next-icon svg {
+    width: 19px;
+    height: 19px;
+}
+
+.rx-next .rx-label {
+    margin-bottom: 1px;
+}
+
+.rx-next .rx-text {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--rx-teal-deep);
+}
+
+/* ---- signature + footer ---------------------------------- */
+
+.rx-sign {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 24px;
+    margin-top: auto;
+    padding-top: 22px;
+}
+
+.rx-stamp {
+    display: grid;
+    place-items: center;
+    width: 80px;
+    height: 80px;
+    border: 1.5px dashed var(--rx-teal-line);
+    border-radius: 50%;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    text-align: center;
+    color: var(--rx-faint);
+}
+
+.rx-signature {
+    min-width: 230px;
+    text-align: center;
+}
+
+.rx-signature-img {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    height: 58px;
+}
+
+.rx-signature-img img {
+    max-width: 210px;
+    max-height: 58px;
+    object-fit: contain;
+}
+
+.rx-signature-line {
+    margin: 4px 0 6px;
+    border-top: 1.5px solid var(--rx-ink);
+}
+
+.rx-signature .rx-field {
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.rx-signature-sub {
+    font-size: 11px;
+    color: var(--rx-muted);
+}
+
+.rx-footer {
+    margin-top: 18px;
+    padding: 11px 44px 13px;
+    border-top: 1px solid var(--rx-teal-line);
+    background: var(--rx-teal-soft);
+    display: flex;
+    justify-content: space-between;
+    gap: 18px;
+    font-size: 10px;
+    line-height: 1.45;
+    color: var(--rx-muted);
+}
+
+.rx-footer strong {
+    color: var(--rx-teal-deep);
+}
+
+.rx-footer [data-footer-contact] {
+    flex: none;
+    max-width: 45%;
+    text-align: right;
+    font-weight: 600;
+    color: var(--rx-teal-deep);
+}
+
+.rx-footer-band {
+    height: 5px;
+    background: linear-gradient(90deg, var(--rx-teal-deep), var(--rx-teal) 50%, var(--rx-teal-bright));
+}
+
+/* ---- editing (Download Prescription card) ---------------- */
+
+.rx-sheet.is-editable .rx-field[contenteditable] {
+    border-radius: 4px;
+    outline: 1px dashed transparent;
+    outline-offset: 2px;
+    cursor: text;
+    transition: outline-color .15s ease, background-color .15s ease;
+}
+
+.rx-sheet.is-editable .rx-field[contenteditable]:hover {
+    outline-color: rgba(15, 118, 110, .45);
+    background: rgba(20, 184, 166, .06);
+}
+
+.rx-sheet.is-editable .rx-field[contenteditable]:focus {
+    outline: 2px solid var(--rx-teal);
+    background: rgba(20, 184, 166, .07);
+}
+
+.rx-sheet.is-editable .rx-field:empty::before {
+    content: attr(data-placeholder);
+    color: var(--rx-faint);
+    font-weight: 400;
+    font-style: italic;
+}
+
+.rx-sheet.is-editable .rx-letterhead {
+    cursor: pointer;
+}
+
+.rx-sheet.is-editable .rx-letterhead:hover::after {
+    content: "Edit in Doctor / Clinic Profile";
+    position: absolute;
+    left: 50%;
+    bottom: 4px;
+    transform: translateX(-50%);
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: var(--rx-teal-deep);
+    color: #fff;
+    font-size: 10.5px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.rx-sheet.is-editable .rx-section.is-empty,
+.rx-sheet.is-editable .rx-alert.is-empty,
+.rx-sheet.is-editable .rx-next.is-empty,
+.rx-sheet.is-editable .rx-chip.is-empty {
+    opacity: .72;
+}
+
+.rx-row-tools {
+    width: 30px;
+    text-align: right;
+}
+
+.rx-sheet button.rx-row-remove {
+    display: inline-grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--rx-faint);
+    box-shadow: none;
+    font-size: 15px;
+    line-height: 1;
+}
+
+.rx-sheet button.rx-row-remove:hover {
+    border-color: var(--rx-red-line);
+    background: var(--rx-red-soft);
+    color: var(--rx-red);
+}
+
+.rx-sheet button.rx-add-med {
+    margin-top: 8px;
+    height: 30px;
+    padding: 0 12px;
+    border: 1px dashed var(--rx-teal-line);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--rx-teal);
+    box-shadow: none;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.rx-sheet button.rx-add-med:hover {
+    border-color: var(--rx-teal);
+    background: var(--rx-teal-soft);
+}
+
+/* Read-only and export: no editing affordances, no empty sections. */
+.rx-sheet:not(.is-editable) .rx-edit-only {
+    display: none !important;
+}
+
+.rx-sheet:not(.is-editable) .rx-section.is-empty,
+.rx-sheet:not(.is-editable) .rx-alert.is-empty,
+.rx-sheet:not(.is-editable) .rx-next.is-empty,
+.rx-sheet:not(.is-editable) .rx-chip.is-empty,
+.rx-sheet:not(.is-editable) .rx-flags.is-empty,
+.rx-sheet:not(.is-editable) .rx-cols.is-empty {
+    display: none;
+}
+
+/* The PDF is always rendered at full A4 width. */
+.rx-sheet--export {
+    width: 794px;
+    max-width: none;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+/* ---- narrow screens (on-screen only; the PDF is A4) ----- */
+
+@media (max-width: 720px) {
+    .rx-sheet:not(.rx-sheet--export) {
+        min-height: 0;
+        font-size: 12.5px;
+    }
+
+    .rx-sheet:not(.rx-sheet--export) .rx-letterhead {
+        flex-direction: column;
+        gap: 14px;
+        padding: 24px 22px 14px;
+    }
+
+    .rx-sheet:not(.rx-sheet--export) .rx-clinic {
+        max-width: none;
+        text-align: left;
+    }
+
+    .rx-sheet:not(.rx-sheet--export) .rx-clinic-line {
+        justify-content: flex-start;
+    }
+
+    .rx-sheet:not(.rx-sheet--export) .rx-rule {
+        margin: 0 22px;
+    }
+
+    .rx-sheet:not(.rx-sheet--export) .rx-body {
+        padding: 16px 22px 0;
+    }
+
+    .rx-sheet:not(.rx-sheet--export) .rx-patient {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .rx-sheet:not(.rx-sheet--export) .rx-patient-cell:nth-child(3) {
+        border-left: none;
+    }
+
+    .rx-sheet:not(.rx-sheet--export) .rx-patient-cell:nth-child(n + 3) {
+        border-top: 1px solid var(--rx-teal-line);
+    }
+
+    .rx-sheet:not(.rx-sheet--export) .rx-cols {
+        grid-template-columns: 1fr;
+    }
+
+    .rx-sheet:not(.rx-sheet--export) .rx-table-wrap {
+        overflow-x: auto;
+    }
+
+    .rx-sheet:not(.rx-sheet--export) .rx-table {
+        min-width: 560px;
+    }
+
+    .rx-sheet:not(.rx-sheet--export) .rx-footer {
+        flex-direction: column;
+        padding: 11px 22px 13px;
+    }
+
+    .rx-sheet:not(.rx-sheet--export) .rx-doctor {
+        font-size: 25px;
+    }
+
+    .rx-sheet:not(.rx-sheet--export) .rx-watermark {
+        font-size: 300px;
+    }
+}

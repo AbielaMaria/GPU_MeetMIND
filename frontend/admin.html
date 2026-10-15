@@ -6,7 +6,9 @@
      users. Users live in the server's SQLite database (see
      backend/database.py), via the admin-only /api/users endpoints
      in backend/auth.py; changes here affect who can sign in,
-     everywhere.
+     everywhere. Below them, read-only views of every user's
+     meetings and doctor consultations (with their recordings and
+     prescriptions).
 ============================================================ -->
 <html lang="en">
 
@@ -20,7 +22,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=DM+Serif+Display&display=swap">
 
     <script>
         (function () {
@@ -41,7 +43,9 @@
     <script src="assets/auth-store.js?v=4"></script>
 
     <link rel="stylesheet" href="assets/theme.css">
-    <link rel="stylesheet" href="assets/admin.css?v=4">
+    <link rel="stylesheet" href="assets/admin.css?v=5">
+    <link rel="stylesheet" href="assets/audio-player.css?v=1">
+    <link rel="stylesheet" href="assets/prescription.css?v=1">
 
 </head>
 
@@ -132,6 +136,17 @@
                 </span>
             </div>
 
+            <div class="stat-card">
+                <span class="stat-icon stat-icon-clinic" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 2v2"/><path d="M5 2v2"/><path d="M5 3H4a2 2 0 0 0-2 2v4a6 6 0 0 0 12 0V5a2 2 0 0 0-2-2h-1"/><path d="M8 15a6 6 0 0 0 12 0v-3"/><circle cx="20" cy="10" r="2"/></svg>
+                </span>
+                <span class="stat-info">
+                    <span class="stat-value" id="statConsultations">—</span>
+                    <span class="stat-label">Doctor consultations</span>
+                    <span class="stat-breakdown" id="statConsultationsBy"></span>
+                </span>
+            </div>
+
         </section>
 
         <section class="panel">
@@ -214,6 +229,11 @@
                     <select id="meetingModelFilter" aria-label="Filter by model">
                         <option value="">All models</option>
                     </select>
+                    <select id="meetingAudioFilter" aria-label="Filter by recording">
+                        <option value="">Any recording</option>
+                        <option value="with">With recording</option>
+                        <option value="without">No recording</option>
+                    </select>
                     <label class="date-field">
                         <span class="date-field-label">From</span>
                         <input type="date" id="meetingDateFrom" aria-label="From date">
@@ -243,6 +263,70 @@
                 </div>
 
                 <div class="pagination" id="meetingPagination"></div>
+
+            </div>
+
+        </section>
+
+
+        <!-- ---------- doctor consultations (Doctor–Patient template) ---------- -->
+        <section class="panel">
+
+            <div class="panel-hd">
+                <h2>Doctor consultations</h2>
+                <span class="hint" id="consultCount"></span>
+            </div>
+
+            <div class="panel-bd">
+
+                <div class="table-tools">
+                    <div class="search-wrap">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                        <input type="search" id="consultSearch" placeholder="Search patient, diagnosis or doctor…" autocomplete="off">
+                    </div>
+                    <select id="consultUserFilter" aria-label="Filter by doctor">
+                        <option value="">All doctors</option>
+                    </select>
+                    <select id="consultStatusFilter" aria-label="Filter by prescription">
+                        <option value="">Any prescription</option>
+                        <option value="final">Final (downloaded)</option>
+                        <option value="draft">Draft only</option>
+                        <option value="none">No prescription</option>
+                    </select>
+                    <select id="consultAudioFilter" aria-label="Filter by recording">
+                        <option value="">Any recording</option>
+                        <option value="with">With recording</option>
+                        <option value="without">No recording</option>
+                    </select>
+                    <label class="date-field">
+                        <span class="date-field-label">From</span>
+                        <input type="date" id="consultDateFrom" aria-label="From date">
+                    </label>
+                    <label class="date-field">
+                        <span class="date-field-label">To</span>
+                        <input type="date" id="consultDateTo" aria-label="To date">
+                    </label>
+                    <span class="spacer"></span>
+                    <button class="btn btn-ghost" id="consultFilterReset" type="button">Reset filters</button>
+                </div>
+
+                <div class="table-scroll">
+                    <table class="data">
+                        <thead>
+                            <tr>
+                                <th>Patient</th>
+                                <th>Doctor</th>
+                                <th>Recorded</th>
+                                <th>Duration</th>
+                                <th>Contents</th>
+                                <th class="col-actions">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="consultRows"></tbody>
+                    </table>
+                </div>
+
+                <div class="pagination" id="consultPagination"></div>
 
             </div>
 
@@ -319,6 +403,9 @@
                 aria-pressed="false" aria-label="Expand the viewer" title="Expand"></button>
         </div>
 
+        <!-- the meeting's saved recording (only when there is one) -->
+        <div class="dialog-player" id="meetingPlayerSlot"></div>
+
         <!-- one button per model with results for this meeting -->
         <div class="model-switch" id="meetingModelSwitch" role="group" aria-label="Model"></div>
 
@@ -350,9 +437,53 @@
     </form>
 </dialog>
 
+<!-- ---------- consultation viewer: prescription, recording, transcript ---------- -->
+<dialog id="consultDialog" class="user-dialog meeting-dialog consult-dialog" aria-labelledby="consultDialogTitle">
+    <form method="dialog">
+
+        <div class="meeting-head">
+            <div class="meeting-head-text">
+                <h3 id="consultDialogTitle">Consultation</h3>
+                <p class="hint" id="consultDialogMeta"></p>
+            </div>
+            <button class="btn-tool btn-icon meeting-expand" id="consultExpandBtn" type="button"
+                aria-pressed="false" aria-label="Expand the viewer" title="Expand"></button>
+        </div>
+
+        <div class="dialog-player" id="consultPlayerSlot"></div>
+
+        <div class="meeting-tabs" role="tablist">
+            <button class="meeting-tab is-active" type="button" data-ctab="prescription" role="tab" aria-selected="true">Prescription</button>
+            <button class="meeting-tab" type="button" data-ctab="transcript" role="tab" aria-selected="false">Transcript</button>
+        </div>
+
+        <div class="meeting-pane consult-pane--rx" id="consultRxPane"></div>
+        <div class="meeting-pane meeting-pane--transcript" id="consultTranscriptPane" hidden>
+            <div class="transcript-tools">
+                <div class="search-wrap">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                    <input type="search" id="consultTranscriptSearch" placeholder="Search transcript…" autocomplete="off" aria-label="Search transcript">
+                </div>
+                <button class="btn-tool btn-icon search-prev" id="consultSearchPrev" type="button" aria-label="Previous match" title="Previous match" disabled></button>
+                <button class="btn-tool btn-icon search-next" id="consultSearchNext" type="button" aria-label="Next match" title="Next match" disabled></button>
+                <span class="search-count" id="consultSearchCount" aria-live="polite">0 matches</span>
+            </div>
+            <pre class="meeting-transcript" id="consultTranscriptText"></pre>
+        </div>
+
+        <div class="dialog-actions">
+            <button class="btn btn-secondary" type="button" id="consultDownloadBtn">Download PDF</button>
+            <button class="btn btn-secondary" type="button" id="consultDialogClose">Close</button>
+        </div>
+
+    </form>
+</dialog>
+
 <script src="assets/theme.js?v=3"></script>
+<script src="assets/audio-player.js?v=1"></script>
+<script src="assets/prescription.js?v=1"></script>
 <script src="assets/dialog.js?v=3"></script>
-<script src="assets/admin.js?v=10"></script>
+<script src="assets/admin.js?v=11"></script>
 
 </body>
 </html>

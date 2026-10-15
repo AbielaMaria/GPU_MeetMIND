@@ -1002,7 +1002,15 @@ def save_wav(
 
 async def meeting_websocket(
     websocket: WebSocket,
+    persist=None,
 ):
+    """
+    `persist`, when given, is awaited once a recording is transcribed:
+    persist(template=..., audio_path=..., transcript=..., duration=...).
+    It saves the recording to the user's history (app.py's
+    _store_recording) and returns the ids it was saved under, which are
+    sent along with the final transcript.
+    """
 
     await websocket.accept()
 
@@ -1013,6 +1021,10 @@ async def meeting_websocket(
     meeting_id = str(
         uuid.uuid4()
     )
+
+    # Which template the recording was started in ("meeting" or
+    # "doctor"); decides where persist() saves it.
+    current_template = "meeting"
 
     audio_buffer = bytearray()
 
@@ -1225,6 +1237,12 @@ async def meeting_websocket(
                     uuid.uuid4()
                 )
 
+                current_template = (
+                    "doctor"
+                    if command.get("template") == "doctor"
+                    else "meeting"
+                )
+
                 audio_buffer.clear()
 
                 current_transcript = ""
@@ -1419,6 +1437,8 @@ async def meeting_websocket(
                     meeting_id=meeting_id,
                     audio_path=audio_path,
                     current_duration=current_duration,
+                    template=current_template,
+                    persist=persist,
                 )
 
                 processing = False
@@ -1513,6 +1533,8 @@ async def process_recording(
     meeting_id: str,
     audio_path: Path,
     current_duration: float,
+    template: str = "meeting",
+    persist=None,
 ):
 
     print()
@@ -1623,6 +1645,34 @@ async def process_recording(
 
     print("=" * 70)
 
+    duration = transcription.get(
+        "duration",
+        current_duration,
+    )
+
+    # --------------------------------------------------------
+    # SAVE TO HISTORY (transcript + recording, see app.py)
+    # --------------------------------------------------------
+
+    saved = {}
+
+    if persist is not None:
+
+        try:
+
+            saved = await persist(
+                template=template,
+                audio_path=audio_path,
+                transcript=transcript_text,
+                duration=duration,
+            ) or {}
+
+        except Exception:
+
+            logger.exception(
+                "Could not save the live recording to history."
+            )
+
     # --------------------------------------------------------
     # SEND FINAL TRANSCRIPT
     # --------------------------------------------------------
@@ -1646,10 +1696,7 @@ async def process_recording(
                 ),
 
             "duration":
-                transcription.get(
-                    "duration",
-                    current_duration,
-                ),
+                duration,
 
             "speech_model":
                 MODEL_NAME,
@@ -1659,6 +1706,20 @@ async def process_recording(
 
             "final":
                 True,
+
+            # Where the recording was saved. `meeting_id` above is this
+            # socket's own recording id, not a database id.
+            "template":
+                template,
+
+            "saved_meeting_id":
+                saved.get("meeting_id"),
+
+            "consultation_id":
+                saved.get("consultation_id"),
+
+            "has_audio":
+                bool(saved.get("has_audio")),
         },
     )
 
@@ -1677,8 +1738,14 @@ async def process_recording(
 
             "message":
                 (
-                    "Transcript complete. "
-                    "You can now create the meeting summary."
+                    (
+                        "Transcript complete. "
+                        "You can now generate the prescription."
+                        if template == "doctor"
+                        else
+                        "Transcript complete. "
+                        "You can now create the meeting summary."
+                    )
                     if transcript_text
                     else
                     "Transcription completed, but no text was detected."

@@ -28,6 +28,8 @@
     var statMindmapped = document.getElementById("statMindmapped");
     var statSummarizedBy = document.getElementById("statSummarizedBy");
     var statMindmappedBy = document.getElementById("statMindmappedBy");
+    var statConsultations = document.getElementById("statConsultations");
+    var statConsultationsBy = document.getElementById("statConsultationsBy");
 
     var dialog = document.getElementById("userDialog");
     var form = document.getElementById("userForm");
@@ -280,6 +282,12 @@
         }).length;
         statSummarizedBy.textContent = modelBreakdown("hasSummary");
         statMindmappedBy.textContent = modelBreakdown("hasMindmap");
+        statConsultations.textContent = consultsLoaded ? allConsults.length : "—";
+        var finals = allConsults.filter(function (c) { return c.prescriptionStatus === "final"; }).length;
+        var drafts = allConsults.filter(function (c) { return c.prescriptionStatus === "draft"; }).length;
+        statConsultationsBy.textContent = allConsults.length
+            ? finals + " final · " + drafts + " draft prescription" + (drafts === 1 ? "" : "s")
+            : "";
     }
 
     /* "Mistral 128B 17 · Qwen3 27B 3": meetings with that output, per model. */
@@ -566,6 +574,7 @@
     var mtUserFilter = document.getElementById("meetingUserFilter");
     var mtStatusFilter = document.getElementById("meetingStatusFilter");
     var mtModelFilter = document.getElementById("meetingModelFilter");
+    var mtAudioFilter = document.getElementById("meetingAudioFilter");
     var mtDateFrom = document.getElementById("meetingDateFrom");
     var mtDateTo = document.getElementById("meetingDateTo");
     var mtFilterReset = document.getElementById("meetingFilterReset");
@@ -692,11 +701,13 @@
         if (current && seen[current]) mtUserFilter.value = current;
     }
 
+    var AUDIO_PILL = '<span class="pill audio-pill" title="The recording is saved and can be played back">Recording</span>';
+
     /* One pill per model with results for the meeting (the `models`
        field of /api/meetings), saying which outputs it has when it
        only has one. Same tags as the history drawer on the app page. */
     function modelTagsHtml(models) {
-        if (!models || !models.length) return '<span class="hint">—</span>';
+        if (!models || !models.length) return "";
         return models.map(function (mm) {
             var note = "";
             if (mm.hasSummary && !mm.hasMindmap) note = "summary only";
@@ -714,6 +725,7 @@
         var userVal = mtUserFilter.value;
         var statusVal = mtStatusFilter.value;
         var modelVal = mtModelFilter.value;
+        var audioVal = mtAudioFilter.value;
         var everyKey = knownModels();
         var fromVal = mtDateFrom.value;
         var toVal = mtDateTo.value;
@@ -726,6 +738,9 @@
 
             if (statusVal === "summarized" && !m.hasSummary) return false;
             if (statusVal === "transcript" && m.hasSummary) return false;
+
+            if (audioVal === "with" && !m.hasAudio) return false;
+            if (audioVal === "without" && m.hasAudio) return false;
 
             if (modelVal) {
                 var has = (m.models || []).map(function (mm) { return mm.key; });
@@ -765,7 +780,8 @@
                         ' <span class="hint">' + esc(m.email || "") + "</span></td>" +
                     "<td>" + fmtDateTime(m.createdAt) + "</td>" +
                     "<td>" + (fmtDuration(m.durationSeconds) || '<span class="hint">—</span>') + "</td>" +
-                    '<td><div class="model-tags">' + modelTagsHtml(m.models) + "</div></td>" +
+                    '<td><div class="model-tags">' + (m.hasAudio ? AUDIO_PILL : "") +
+                        modelTagsHtml(m.models) + "</div></td>" +
                     '<td class="cell-actions">' +
                         '<button class="row-btn" data-view="' + esc(m.id) + '">View</button>' +
                     "</td>" +
@@ -813,6 +829,34 @@
     var viewedMeeting = null;
     var viewedModel = null;
     var viewedTab = "summary";
+
+    /* ---- recording players (meeting + consultation viewers) ---- */
+
+    function makePlayer(slotId, teal) {
+        var slot = document.getElementById(slotId);
+        var player = window.MeetMindAudioPlayer
+            ? window.MeetMindAudioPlayer.create({ teal: teal })
+            : { el: document.createElement("div"), load: function () {}, clear: function () {} };
+        slot.appendChild(player.el);
+        return player;
+    }
+
+    function showPlayer(player, audio, title, downloadName) {
+        if (!audio || !audio.url) {
+            player.clear();
+            return;
+        }
+        var meta = [
+            audio.mimeType === "audio/mpeg" ? "MP3" : String(audio.mimeType || "").replace(/^audio\//, "").toUpperCase(),
+            window.MeetMindAudioPlayer ? window.MeetMindAudioPlayer.formatBytes(audio.sizeBytes) : "",
+            audio.source === "upload"
+                ? "Uploaded" + (audio.originalFilename ? " · " + audio.originalFilename : "")
+                : "Live recording"
+        ].filter(Boolean).join(" · ");
+        player.load(audio.url, { title: title, meta: meta, downloadName: downloadName });
+    }
+
+    var mtPlayer = makePlayer("meetingPlayerSlot", false);
 
     function noneHtml(text) {
         return '<div class="meeting-none">' + esc(text) + "</div>";
@@ -1014,74 +1058,91 @@
         setExpanded(!mtDialog.classList.contains("is-expanded"));
     });
 
-    /* ---- transcript search (same behaviour as the recorder page) ---- */
+    /* ---- transcript search (same behaviour as the recorder page) ----
+       Shared by the meeting and consultation viewers. */
 
-    var tsMatches = [];
-    var tsIndex = -1;
+    function makeTranscriptSearch(o) {
+        var matches = [];
+        var index = -1;
 
-    function updateSearchCount() {
-        var count = tsMatches.length;
-        if (!mtTranscriptSearch.value.trim()) mtSearchCount.textContent = "0 matches";
-        else if (!count) mtSearchCount.textContent = "No matches";
-        else mtSearchCount.textContent = (tsIndex + 1) + " / " + count;
-        mtSearchPrev.disabled = !count;
-        mtSearchNext.disabled = !count;
+        function updateCount() {
+            var count = matches.length;
+            if (!o.input.value.trim()) o.count.textContent = "0 matches";
+            else if (!count) o.count.textContent = "No matches";
+            else o.count.textContent = (index + 1) + " / " + count;
+            o.prev.disabled = !count;
+            o.next.disabled = !count;
+        }
+
+        function setMatch(i) {
+            if (!matches.length) { index = -1; updateCount(); return; }
+            index = (i + matches.length) % matches.length;
+            matches.forEach(function (mark, n) { mark.classList.toggle("current", n === index); });
+            matches[index].scrollIntoView({ block: "center" });
+            updateCount();
+        }
+
+        function render() {
+            var text = o.text();
+            var query = o.input.value.trim();
+            matches = [];
+            index = -1;
+            o.pre.textContent = "";
+
+            if (!text) {
+                o.pre.textContent = "No transcript was stored.";
+                updateCount();
+                return;
+            }
+            if (!query) {
+                o.pre.textContent = text;
+                updateCount();
+                return;
+            }
+
+            var re = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+            var last = 0;
+            var m;
+            while ((m = re.exec(text)) !== null) {
+                if (m.index > last) o.pre.appendChild(document.createTextNode(text.slice(last, m.index)));
+                var mark = document.createElement("mark");
+                mark.className = "transcript-match";
+                mark.textContent = m[0];
+                o.pre.appendChild(mark);
+                matches.push(mark);
+                last = m.index + m[0].length;
+                if (!m[0].length) re.lastIndex++;
+            }
+            if (last < text.length) o.pre.appendChild(document.createTextNode(text.slice(last)));
+
+            if (matches.length) setMatch(0); else updateCount();
+        }
+
+        o.input.addEventListener("input", render);
+        o.input.addEventListener("keydown", function (e) {
+            // Enter would otherwise submit (and close) the dialog's form.
+            if (e.key === "Enter") {
+                e.preventDefault();
+                if (matches.length) setMatch(index + (e.shiftKey ? -1 : 1));
+            }
+        });
+        o.prev.addEventListener("click", function () { setMatch(index - 1); });
+        o.next.addEventListener("click", function () { setMatch(index + 1); });
+
+        return {
+            render: render,
+            reset: function () { o.input.value = ""; render(); }
+        };
     }
 
-    function setSearchMatch(i) {
-        if (!tsMatches.length) { tsIndex = -1; updateSearchCount(); return; }
-        tsIndex = (i + tsMatches.length) % tsMatches.length;
-        tsMatches.forEach(function (mark, n) { mark.classList.toggle("current", n === tsIndex); });
-        tsMatches[tsIndex].scrollIntoView({ block: "center" });
-        updateSearchCount();
-    }
-
-    function renderTranscript() {
-        var text = (viewedMeeting && viewedMeeting.transcript) || "";
-        var query = mtTranscriptSearch.value.trim();
-        tsMatches = [];
-        tsIndex = -1;
-        mtTranscriptText.textContent = "";
-
-        if (!text) {
-            mtTranscriptText.textContent = "No transcript was stored.";
-            updateSearchCount();
-            return;
-        }
-        if (!query) {
-            mtTranscriptText.textContent = text;
-            updateSearchCount();
-            return;
-        }
-
-        var re = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
-        var last = 0;
-        var m;
-        while ((m = re.exec(text)) !== null) {
-            if (m.index > last) mtTranscriptText.appendChild(document.createTextNode(text.slice(last, m.index)));
-            var mark = document.createElement("mark");
-            mark.className = "transcript-match";
-            mark.textContent = m[0];
-            mtTranscriptText.appendChild(mark);
-            tsMatches.push(mark);
-            last = m.index + m[0].length;
-            if (!m[0].length) re.lastIndex++;
-        }
-        if (last < text.length) mtTranscriptText.appendChild(document.createTextNode(text.slice(last)));
-
-        if (tsMatches.length) setSearchMatch(0); else updateSearchCount();
-    }
-
-    mtTranscriptSearch.addEventListener("input", renderTranscript);
-    mtTranscriptSearch.addEventListener("keydown", function (e) {
-        // Enter would otherwise submit (and close) the dialog's form.
-        if (e.key === "Enter") {
-            e.preventDefault();
-            if (tsMatches.length) setSearchMatch(tsIndex + (e.shiftKey ? -1 : 1));
-        }
+    var mtTranscript = makeTranscriptSearch({
+        input: mtTranscriptSearch,
+        prev: mtSearchPrev,
+        next: mtSearchNext,
+        count: mtSearchCount,
+        pre: mtTranscriptText,
+        text: function () { return (viewedMeeting && viewedMeeting.transcript) || ""; }
     });
-    mtSearchPrev.addEventListener("click", function () { setSearchMatch(tsIndex - 1); });
-    mtSearchNext.addEventListener("click", function () { setSearchMatch(tsIndex + 1); });
 
     /* ---- open ---- */
 
@@ -1094,10 +1155,11 @@
             mtMeta.textContent = (m.username || "") + " · " + (m.email || "") +
                 " · " + fmtDateTime(m.createdAt) + (length ? " · " + length : "");
 
-            mtTranscriptSearch.value = "";
-            renderTranscript();
+            mtTranscript.reset();
 
             var first = (m.models || [])[0];
+            showPlayer(mtPlayer, m.hasAudio && m.audio, "Meeting recording", "meeting_" + m.id);
+
             if (first) {
                 selectModel(first.key);
             } else {
@@ -1118,6 +1180,7 @@
 
     mtDialog.addEventListener("close", function () {
         setExpanded(false);
+        mtPlayer.clear();
     });
 
     mtBody.addEventListener("click", function (e) {
@@ -1138,6 +1201,7 @@
     mtUserFilter.addEventListener("change", onMeetingFilterChange);
     mtStatusFilter.addEventListener("change", onMeetingFilterChange);
     mtModelFilter.addEventListener("change", onMeetingFilterChange);
+    mtAudioFilter.addEventListener("change", onMeetingFilterChange);
     mtDateFrom.addEventListener("change", onMeetingFilterChange);
     mtDateTo.addEventListener("change", onMeetingFilterChange);
 
@@ -1146,6 +1210,7 @@
         mtUserFilter.value = "";
         mtStatusFilter.value = "";
         mtModelFilter.value = "";
+        mtAudioFilter.value = "";
         mtDateFrom.value = "";
         mtDateTo.value = "";
         meetingPage = 1;
@@ -1156,6 +1221,311 @@
     enhanceSelect(mtUserFilter);
     enhanceSelect(mtStatusFilter);
     enhanceSelect(mtModelFilter);
+    enhanceSelect(mtAudioFilter);
+
+    /* ============================================================
+       DOCTOR CONSULTATIONS — every user's Doctor–Patient sessions
+       ------------------------------------------------------------
+       Read-only, like meetings. A consultation is shown with its
+       recording, its prescription on that doctor's letterhead
+       (assets/prescription.js — the same page the doctor downloads)
+       and its transcript. /api/doctor/consultations?scope=all.
+    ============================================================ */
+
+    var csBody = document.getElementById("consultRows");
+    var csSearch = document.getElementById("consultSearch");
+    var csCount = document.getElementById("consultCount");
+    var csUserFilter = document.getElementById("consultUserFilter");
+    var csStatusFilter = document.getElementById("consultStatusFilter");
+    var csAudioFilter = document.getElementById("consultAudioFilter");
+    var csDateFrom = document.getElementById("consultDateFrom");
+    var csDateTo = document.getElementById("consultDateTo");
+    var csFilterReset = document.getElementById("consultFilterReset");
+    var csPagination = document.getElementById("consultPagination");
+    var consultPage = 1;
+    var CONSULTS_PER_PAGE = 10;
+
+    var allConsults = [];
+    var consultsLoaded = false;
+
+    function consultName(c) {
+        return c.patientName || c.title || "Untitled consultation";
+    }
+
+    function rxPill(status) {
+        if (status === "final") return '<span class="pill rx-pill rx-final" title="Prescription downloaded by the doctor">Prescription · final</span>';
+        if (status === "draft") return '<span class="pill rx-pill rx-draft" title="AI draft, not downloaded yet">Prescription · draft</span>';
+        return '<span class="pill rx-pill rx-none">No prescription</span>';
+    }
+
+    function populateConsultUserFilter() {
+        var current = csUserFilter.value;
+        var seen = {};
+        var options = [];
+        allConsults.forEach(function (c) {
+            var key = c.email || c.username;
+            if (key && !seen[key]) {
+                seen[key] = true;
+                options.push({ value: key, label: c.username || c.email });
+            }
+        });
+        options.sort(function (a, b) { return a.label.localeCompare(b.label); });
+        csUserFilter.innerHTML = '<option value="">All doctors</option>' +
+            options.map(function (o) {
+                return '<option value="' + esc(o.value) + '">' + esc(o.label) + "</option>";
+            }).join("");
+        if (current && seen[current]) csUserFilter.value = current;
+    }
+
+    function renderConsults() {
+        var q = csSearch.value.trim().toLowerCase();
+        var userVal = csUserFilter.value;
+        var statusVal = csStatusFilter.value;
+        var audioVal = csAudioFilter.value;
+        var fromVal = csDateFrom.value;
+        var toVal = csDateTo.value;
+
+        var rows = allConsults.filter(function (c) {
+            if (q && [consultName(c), c.diagnosis, c.username, c.email].join(" ")
+                    .toLowerCase().indexOf(q) === -1) return false;
+            if (userVal && (c.email || c.username) !== userVal) return false;
+            if (statusVal === "none" ? c.prescriptionStatus : (statusVal && c.prescriptionStatus !== statusVal)) return false;
+            if (audioVal === "with" && !c.hasAudio) return false;
+            if (audioVal === "without" && c.hasAudio) return false;
+            if (fromVal || toVal) {
+                var d = new Date(c.createdAt);
+                if (isNaN(d)) return false;
+                if (fromVal && d < new Date(fromVal + "T00:00:00")) return false;
+                if (toVal && d > new Date(toVal + "T23:59:59")) return false;
+            }
+            return true;
+        });
+
+        var totalPages = Math.max(1, Math.ceil(rows.length / CONSULTS_PER_PAGE));
+        if (consultPage > totalPages) consultPage = totalPages;
+        if (consultPage < 1) consultPage = 1;
+        var pageRows = rows.slice((consultPage - 1) * CONSULTS_PER_PAGE, consultPage * CONSULTS_PER_PAGE);
+
+        if (!rows.length) {
+            csBody.innerHTML = '<tr><td colspan="6"><div class="table-empty">' +
+                (allConsults.length
+                    ? "No consultations match your filters."
+                    : "No consultations have been recorded yet.") +
+                "</div></td></tr>";
+        } else {
+            csBody.innerHTML = pageRows.map(function (c) {
+                return "<tr>" +
+                    "<td><strong>" + esc(consultName(c)) + "</strong>" +
+                        (c.ageSex ? ' <span class="hint">' + esc(c.ageSex) + "</span>" : "") +
+                        (c.diagnosis ? '<div class="cell-sub">' + esc(c.diagnosis) + "</div>" : "") + "</td>" +
+                    "<td>" + esc(c.username || "") +
+                        ' <span class="hint">' + esc(c.email || "") + "</span></td>" +
+                    "<td>" + fmtDateTime(c.createdAt) + "</td>" +
+                    "<td>" + (fmtDuration(c.durationSeconds) || '<span class="hint">—</span>') + "</td>" +
+                    '<td><div class="model-tags">' + (c.hasAudio ? AUDIO_PILL : "") +
+                        rxPill(c.prescriptionStatus) + "</div></td>" +
+                    '<td class="cell-actions">' +
+                        '<button class="row-btn" data-view-consult="' + esc(c.id) + '">View</button>' +
+                    "</td>" +
+                "</tr>";
+            }).join("");
+        }
+
+        csCount.textContent = rows.length + " of " + allConsults.length +
+            " consultation" + (allConsults.length === 1 ? "" : "s");
+
+        renderPagination(csPagination, consultPage, totalPages, function (p) {
+            consultPage = p;
+            renderConsults();
+        });
+    }
+
+    function loadConsults() {
+        return api("/api/doctor/consultations?scope=all").then(function (consults) {
+            allConsults = consults;
+            consultsLoaded = true;
+            populateConsultUserFilter();
+            syncDropdowns();
+            renderConsults();
+            renderStats();
+        }).catch(function () {
+            csBody.innerHTML = '<tr><td colspan="6"><div class="table-empty">' +
+                "Could not load consultations.</div></td></tr>";
+        });
+    }
+
+    function onConsultFilterChange() { consultPage = 1; renderConsults(); }
+
+    csSearch.addEventListener("input", onConsultFilterChange);
+    csUserFilter.addEventListener("change", onConsultFilterChange);
+    csStatusFilter.addEventListener("change", onConsultFilterChange);
+    csAudioFilter.addEventListener("change", onConsultFilterChange);
+    csDateFrom.addEventListener("change", onConsultFilterChange);
+    csDateTo.addEventListener("change", onConsultFilterChange);
+
+    csFilterReset.addEventListener("click", function () {
+        csSearch.value = "";
+        csUserFilter.value = "";
+        csStatusFilter.value = "";
+        csAudioFilter.value = "";
+        csDateFrom.value = "";
+        csDateTo.value = "";
+        consultPage = 1;
+        syncDropdowns();
+        renderConsults();
+    });
+
+    enhanceSelect(csUserFilter);
+    enhanceSelect(csStatusFilter);
+    enhanceSelect(csAudioFilter);
+
+    /* ---- consultation viewer ---- */
+
+    var csDialog = document.getElementById("consultDialog");
+    var csTitle = document.getElementById("consultDialogTitle");
+    var csMeta = document.getElementById("consultDialogMeta");
+    var csRxPane = document.getElementById("consultRxPane");
+    var csTranscriptPane = document.getElementById("consultTranscriptPane");
+    var csExpandBtn = document.getElementById("consultExpandBtn");
+    var csDownloadBtn = document.getElementById("consultDownloadBtn");
+    var csPlayer = makePlayer("consultPlayerSlot", true);
+    var csSheet = null;
+    var viewedConsult = null;
+
+    var csTranscript = makeTranscriptSearch({
+        input: document.getElementById("consultTranscriptSearch"),
+        prev: document.getElementById("consultSearchPrev"),
+        next: document.getElementById("consultSearchNext"),
+        count: document.getElementById("consultSearchCount"),
+        pre: document.getElementById("consultTranscriptText"),
+        text: function () { return (viewedConsult && viewedConsult.transcript) || ""; }
+    });
+
+    /* The A4 sheet is laid out at full width and scaled to the pane. */
+    function fitSheet() {
+        if (!csSheet || csRxPane.hidden) return;
+        var paper = csRxPane.querySelector(".consult-paper");
+        var width = paper.clientWidth;
+        if (!width) return;
+        var scale = Math.min(1, width / 794);
+        csSheet.el.style.transform = "scale(" + scale + ")";
+        paper.style.height = Math.ceil(csSheet.el.offsetHeight * scale) + "px";
+    }
+
+    if (window.ResizeObserver) new ResizeObserver(fitSheet).observe(csRxPane);
+
+    function renderRxPane(c) {
+        csSheet = null;
+        csRxPane.innerHTML = "";
+        csDownloadBtn.hidden = true;
+        var p = c.prescription;
+        if (!p || !window.MeetMindRx) {
+            csRxPane.innerHTML = '<div class="meeting-none">' +
+                "No prescription was generated for this consultation.</div>";
+            return;
+        }
+        var info = document.createElement("div");
+        info.className = "consult-rx-info";
+        info.innerHTML = rxPill(p.status) +
+            '<span class="hint">' +
+            (p.status === "final"
+                ? "Downloaded by the doctor " + esc(fmtDateTime(p.finalizedAt)) + " — this is the copy they issued."
+                : "AI draft from " + esc(fmtDateTime(p.updatedAt)) + " — not reviewed or downloaded yet.") +
+            (p.modelLabel ? " Drafted by " + esc(p.modelLabel) + "." : "") +
+            "</span>";
+        csRxPane.appendChild(info);
+
+        var desk = document.createElement("div");
+        desk.className = "consult-desk";
+        var paper = document.createElement("div");
+        paper.className = "consult-paper";
+        desk.appendChild(paper);
+        csRxPane.appendChild(desk);
+
+        csSheet = window.MeetMindRx.createSheet({ editable: false });
+        csSheet.el.classList.add("consult-sheet");
+        csSheet.setProfile(c.doctorProfile);
+        csSheet.setData(p, { consultationId: c.id, createdAt: c.createdAt });
+        paper.appendChild(csSheet.el);
+        csDownloadBtn.hidden = false;
+        requestAnimationFrame(fitSheet);
+    }
+
+    function showConsultTab(which) {
+        csRxPane.hidden = which !== "prescription";
+        csTranscriptPane.hidden = which !== "transcript";
+        csDialog.querySelectorAll("[data-ctab]").forEach(function (t) {
+            var active = t.getAttribute("data-ctab") === which;
+            t.classList.toggle("is-active", active);
+            t.setAttribute("aria-selected", String(active));
+        });
+        if (which === "prescription") requestAnimationFrame(fitSheet);
+    }
+
+    csDialog.querySelectorAll("[data-ctab]").forEach(function (tab) {
+        tab.addEventListener("click", function () { showConsultTab(tab.getAttribute("data-ctab")); });
+    });
+
+    function setConsultExpanded(expanded) {
+        csDialog.classList.toggle("is-expanded", expanded);
+        csExpandBtn.setAttribute("aria-pressed", String(expanded));
+        csExpandBtn.setAttribute("aria-label", expanded ? "Exit full view" : "Expand the viewer");
+        csExpandBtn.title = expanded ? "Exit full view" : "Expand";
+        requestAnimationFrame(fitSheet);
+    }
+
+    csExpandBtn.addEventListener("click", function () {
+        setConsultExpanded(!csDialog.classList.contains("is-expanded"));
+    });
+
+    function openConsult(id) {
+        api("/api/doctor/consultations/" + encodeURIComponent(id)).then(function (c) {
+            viewedConsult = c;
+            var p = c.prescription || {};
+            csTitle.textContent = (p.patient_name || c.title || "Untitled consultation") +
+                (p.age_sex ? " · " + p.age_sex : "");
+            var length = fmtDuration(c.durationSeconds);
+            csMeta.textContent = "Recorded by " + (c.username || "") + " · " + (c.email || "") +
+                " · " + fmtDateTime(c.createdAt) + (length ? " · " + length : "");
+
+            showPlayer(csPlayer, c.hasAudio && c.audio, "Consultation recording", "consultation_" + c.id);
+            csTranscript.reset();
+            renderRxPane(c);
+            setConsultExpanded(false);
+            showConsultTab("prescription");
+            csDialog.showModal();
+            requestAnimationFrame(fitSheet);
+        }).catch(function () {
+            D.alert({ title: "Couldn't open consultation", message: "Could not open that consultation. Please try again." });
+        });
+    }
+
+    csBody.addEventListener("click", function (e) {
+        var btn = e.target.closest("[data-view-consult]");
+        if (btn) openConsult(btn.getAttribute("data-view-consult"));
+    });
+
+    csDownloadBtn.addEventListener("click", function () {
+        if (!csSheet) return;
+        csDownloadBtn.disabled = true;
+        csSheet.downloadPdf().catch(function (error) {
+            D.alert({ title: "Couldn't create the PDF", message: error.message || "Please try again." });
+        }).then(function () {
+            csDownloadBtn.disabled = false;
+        });
+    });
+
+    document.getElementById("consultDialogClose")
+        .addEventListener("click", function () { csDialog.close(); });
+
+    csDialog.addEventListener("click", function (e) {
+        if (e.target === csDialog) csDialog.close();
+    });
+
+    csDialog.addEventListener("close", function () {
+        setConsultExpanded(false);
+        csPlayer.clear();
+    });
 
     /* ---- boot -------------------------------------- */
 
@@ -1169,6 +1539,7 @@
             });
             render();
             loadMeetings().then(loadModelCatalog);
+            loadConsults();
         });
     }
 

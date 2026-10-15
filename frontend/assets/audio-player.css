@@ -1,0 +1,355 @@
+/* ============================================================
+   MeetMind — recording player (assets/audio-player.js)
+   ------------------------------------------------------------
+   Used on the recorder page (meetings and consultations) and in
+   the admin viewers. Only theme tokens from index.html /
+   theme.css, so it follows light and dark mode.
+============================================================ */
+
+.mm-player {
+    --mm-player-accent: var(--accent);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px 16px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-md, 12px);
+    background:
+        linear-gradient(180deg, var(--accent-soft), transparent 70%),
+        var(--bg-surface);
+    color: var(--text-primary);
+    box-shadow: var(--shadow-sm);
+}
+
+.mm-player[hidden] {
+    display: none !important;
+}
+
+/* The recorder page's player, at the top of the transcript panel. */
+.recording-player {
+    margin-bottom: 14px;
+}
+
+.mm-player--teal {
+    --mm-player-accent: #0f766e;
+    background:
+        linear-gradient(180deg, rgba(15, 118, 110, .07), transparent 70%),
+        var(--bg-surface);
+}
+
+:root[data-theme="dark"] .mm-player--teal {
+    --mm-player-accent: #2dd4bf;
+    background:
+        linear-gradient(180deg, rgba(45, 212, 191, .08), transparent 70%),
+        var(--bg-surface);
+}
+
+/* ---- head: icon, title, meta, download ---- */
+
+.mm-player-head {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    min-width: 0;
+}
+
+.mm-player-icon {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    background: var(--mm-player-accent);
+    color: #fff;
+}
+
+.mm-player-icon svg {
+    width: 16px;
+    height: 16px;
+}
+
+.mm-player-titles {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+}
+
+.mm-player-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.mm-player-meta {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.mm-player-download {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 30px;
+    padding: 0 11px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-elevated);
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: border-color .15s ease, color .15s ease, background-color .15s ease;
+}
+
+.mm-player-download:hover {
+    border-color: var(--border-strong);
+    color: var(--text-primary);
+}
+
+.mm-player-download svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* ---- controls row ---- */
+
+.mm-player-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.mm-player button.mm-player-btn {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    gap: 0;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    background: var(--bg-elevated);
+    color: var(--text-secondary);
+    box-shadow: none;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.mm-player button.mm-player-btn:hover {
+    border-color: var(--mm-player-accent);
+    color: var(--mm-player-accent);
+}
+
+.mm-player button.mm-player-btn:focus-visible,
+.mm-player-range:focus-visible,
+.mm-player-download:focus-visible {
+    outline: 2px solid var(--mm-player-accent);
+    outline-offset: 2px;
+}
+
+.mm-player button.mm-player-btn svg {
+    width: 17px;
+    height: 17px;
+}
+
+/* the 10-second skip buttons carry a tiny "10" inside the arrow */
+.mm-player-skip {
+    position: relative;
+}
+
+.mm-player-skip span {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding-top: 2px;
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: -.02em;
+    pointer-events: none;
+}
+
+.mm-player button.mm-player-play {
+    width: 42px;
+    height: 42px;
+    border: none;
+    background: var(--mm-player-accent);
+    color: #fff;
+    box-shadow: 0 6px 14px -6px var(--mm-player-accent);
+}
+
+.mm-player button.mm-player-play:hover {
+    color: #fff;
+    filter: brightness(1.08);
+}
+
+.mm-player button.mm-player-play svg {
+    width: 18px;
+    height: 18px;
+}
+
+.mm-player-time {
+    flex: none;
+    min-width: 42px;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-secondary);
+    text-align: center;
+}
+
+/* ---- seek track ---- */
+
+.mm-player-track {
+    position: relative;
+    flex: 1;
+    min-width: 60px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+}
+
+.mm-player-rail,
+.mm-player-buffered,
+.mm-player-played {
+    position: absolute;
+    left: 0;
+    height: 5px;
+    border-radius: 99px;
+    pointer-events: none;
+}
+
+.mm-player-rail {
+    right: 0;
+    background: var(--border);
+}
+
+.mm-player-buffered {
+    width: 0;
+    background: var(--border-strong);
+}
+
+.mm-player-played {
+    width: 0;
+    background: var(--mm-player-accent);
+}
+
+.mm-player-range {
+    position: relative;
+    width: 100%;
+    height: 22px;
+    margin: 0;
+    background: transparent;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.mm-player-range::-webkit-slider-runnable-track {
+    height: 5px;
+    background: transparent;
+}
+
+.mm-player-range::-moz-range-track {
+    height: 5px;
+    background: transparent;
+}
+
+.mm-player-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    margin-top: -4.5px;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    background: var(--mm-player-accent);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, .3);
+}
+
+.mm-player-range::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    background: var(--mm-player-accent);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, .3);
+}
+
+.mm-player-range:disabled {
+    cursor: default;
+}
+
+.mm-player-range:disabled::-webkit-slider-thumb {
+    opacity: 0;
+}
+
+.mm-player-range:disabled::-moz-range-thumb {
+    opacity: 0;
+}
+
+/* ---- speed / mute ---- */
+
+.mm-player button.mm-player-speed {
+    width: auto;
+    min-width: 44px;
+    padding: 0 9px;
+    border-radius: 99px;
+    font-family: var(--mono);
+    font-size: 11.5px;
+}
+
+/* ---- states ---- */
+
+.mm-player-status {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.mm-player-status:empty {
+    display: none;
+}
+
+.mm-player[data-state="error"] .mm-player-status {
+    color: var(--danger);
+}
+
+.mm-player[data-state="loading"] .mm-player-play svg {
+    animation: mm-player-spin 1s linear infinite;
+}
+
+@keyframes mm-player-spin {
+    to { transform: rotate(360deg); }
+}
+
+@media (max-width: 560px) {
+    .mm-player-controls {
+        flex-wrap: wrap;
+        row-gap: 8px;
+    }
+
+    .mm-player-track {
+        order: 10;
+        flex-basis: 100%;
+    }
+
+    .mm-player-download .mm-player-download-text {
+        display: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mm-player[data-state="loading"] .mm-player-play svg {
+        animation: none;
+    }
+}

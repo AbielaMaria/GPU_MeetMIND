@@ -9,6 +9,11 @@
    Each meeting is one entry, tagged with the models that have
    results for it (from the `models` field of /api/meetings).
 
+   It follows the page's template: in the Doctor–Patient template
+   it lists the user's consultations (/api/doctor/consultations)
+   instead, and opens them through bridge.loadConsultation(). The
+   two histories are stored and shown separately — never mixed.
+
    This file builds its own markup and never touches the
    recorder's ids, classes or state directly.
 ============================================================ */
@@ -22,6 +27,44 @@
     var D = window.MeetMindDialog;
 
     var openMeetingId = null;
+
+    /* "doctor" (consultations) or "meeting", from the page's template. */
+    function mode() {
+        return document.body.dataset.meetmindTemplate === "doctor" ? "doctor" : "meeting";
+    }
+
+    var WORDS = {
+        meeting: {
+            heading: "Past meetings",
+            sub: "Your saved transcripts, summaries and mind maps",
+            one: "saved meeting",
+            many: "saved meetings",
+            empty: "No saved meetings yet. Record or upload a meeting — it will appear here.",
+            failed: "Could not load your meetings.",
+            viewing: "Viewing saved meeting",
+            untitled: "Untitled meeting",
+            busyGenerating: "A summary or mind map is still being generated. Open the saved meeting anyway?",
+            open: "Open meeting",
+            cantOpen: "Could not open that meeting. Please try again."
+        },
+        doctor: {
+            heading: "Past consultations",
+            sub: "Your saved consultations, prescriptions and recordings",
+            one: "saved consultation",
+            many: "saved consultations",
+            empty: "No saved consultations yet. Record or upload a consultation in the Doctor–Patient template — it will appear here.",
+            failed: "Could not load your consultations.",
+            viewing: "Viewing saved consultation",
+            untitled: "Untitled consultation",
+            busyGenerating: "A prescription is still being drafted. Open the saved consultation anyway?",
+            open: "Open consultation",
+            cantOpen: "Could not open that consultation. Please try again."
+        }
+    };
+
+    function words() {
+        return WORDS[mode()];
+    }
 
     /* ---- helpers --------------------------------------- */
 
@@ -91,9 +134,11 @@
     }
 
     /* One tag per model with results. A model that only has one of
-       the two outputs says which. */
-    function modelTags(models) {
+       the two outputs says which. A meeting with a saved recording
+       also gets a recording tag. */
+    function modelTags(models, hasAudio) {
         var wrap = el("span", "history-tags");
+        if (hasAudio) wrap.appendChild(audioTag());
         (models || []).forEach(function (m) {
             var tag = el("span", "history-tag", m.label || m.key);
             var only = null;
@@ -109,6 +154,36 @@
         return wrap;
     }
 
+    function audioTag() {
+        var tag = el("span", "history-tag history-tag--audio", "Recording");
+        tag.title = "The recording is saved and can be played back";
+        return tag;
+    }
+
+    /* A consultation's tags: its prescription status and recording. */
+    function consultationTags(c) {
+        var wrap = el("span", "history-tags");
+        var tag;
+        if (c.prescriptionStatus === "final") {
+            tag = el("span", "history-tag history-tag--final", "Prescription · final");
+            tag.title = "Prescription downloaded" + (c.finalizedAt ? " on " + fmtDate(c.finalizedAt) : "");
+        } else if (c.prescriptionStatus === "draft") {
+            tag = el("span", "history-tag history-tag--draft", "Prescription · draft");
+            tag.title = "AI draft, not downloaded yet";
+        } else {
+            tag = el("span", "history-tag history-tag--none", "No prescription");
+        }
+        wrap.appendChild(tag);
+        if (c.hasAudio) wrap.appendChild(audioTag());
+        return wrap;
+    }
+
+    /* What a consultation is listed as: the patient, else its title. */
+    function consultationTitle(c) {
+        var name = c.patientName || c.title || words().untitled;
+        return c.ageSex ? name + " (" + c.ageSex + ")" : name;
+    }
+
     /* ---- build the drawer ------------------------------ */
 
     var scrim = el("div", "history-scrim");
@@ -120,7 +195,8 @@
     var head = el("div", "history-head");
     head.appendChild(el("span", "history-head-icon"));
     var headText = el("div", "history-head-text");
-    headText.appendChild(el("h2", null, "Past meetings"));
+    var headTitle = el("h2", null, "Past meetings");
+    headText.appendChild(headTitle);
     var sub = el("p", "history-sub", "Your saved transcripts, summaries and mind maps");
     headText.appendChild(sub);
     head.appendChild(headText);
@@ -160,14 +236,24 @@
         anchor.parentNode.insertBefore(viewing, anchor);
     }
 
-    function showViewingBar(meeting) {
+    function showViewingBar(item) {
+        var doctor = mode() === "doctor";
+        var rx = item.prescription || {};
         viewingText.innerHTML = "";
-        viewingText.appendChild(el("span", "history-viewing-label", "Viewing saved meeting"));
-        viewingText.appendChild(el("strong", null, meeting.title || "Untitled meeting"));
+        viewingText.appendChild(el("span", "history-viewing-label", words().viewing));
+        viewingText.appendChild(el("strong", null, doctor
+            ? consultationTitle({ patientName: rx.patient_name, ageSex: rx.age_sex, title: item.title })
+            : (item.title || words().untitled)));
         viewingText.appendChild(el("span", "history-viewing-date",
-            withDuration(fmtDate(meeting.createdAt), meeting.durationSeconds)));
+            withDuration(fmtDate(item.createdAt), item.durationSeconds)));
         viewingTags.innerHTML = "";
-        viewingTags.appendChild(modelTags(meeting.models));
+        viewingTags.appendChild(doctor
+            ? consultationTags({
+                prescriptionStatus: rx.status,
+                finalizedAt: rx.finalizedAt,
+                hasAudio: item.hasAudio
+            })
+            : modelTags(item.models, item.hasAudio));
         viewing.classList.add("is-shown");
     }
 
@@ -182,20 +268,31 @@
         hideViewingBar();
     });
 
-    // Starting a new recording clears the panels, so the "viewing a saved
-    // meeting" bar has to go with them.
-    var recordBtn = document.getElementById("recordBtn");
-    if (recordBtn) {
-        recordBtn.addEventListener("click", function () {
-            if (!bridge.isBusy()) hideViewingBar();
-        });
-    }
+    // Starting a new recording or upload clears the panels, so the
+    // "viewing a saved meeting" bar has to go with them.
+    document.addEventListener("meetmind:new-session", hideViewingBar);
+
+    // Switching template: the other history, and nothing open from it.
+    document.addEventListener("meetmind:template-changed", function () {
+        hideViewingBar();
+        applyWords();
+        if (drawer.classList.contains("is-open")) loadList();
+    });
+
+    // A prescription drafted / downloaded for the consultation on screen.
+    document.addEventListener("meetmind:consultation-changed", function (e) {
+        var id = e.detail && e.detail.consultationId;
+        if (mode() !== "doctor" || !openMeetingId || String(id) !== String(openMeetingId)) return;
+        api("/api/doctor/consultations/" + encodeURIComponent(id)).then(function (c) {
+            if (String(c.id) === String(openMeetingId)) showViewingBar(c);
+        }).catch(function () {});
+    });
 
     // Another model generated (or a title edited) for the meeting on
     // screen: refresh the bar's title and tags from the server.
     document.addEventListener("meetmind:results-changed", function (e) {
         var id = e.detail && e.detail.meetingId;
-        if (!openMeetingId || String(id) !== String(openMeetingId)) return;
+        if (mode() !== "meeting" || !openMeetingId || String(id) !== String(openMeetingId)) return;
         api("/api/meetings/" + encodeURIComponent(id)).then(function (meeting) {
             if (String(meeting.id) === String(openMeetingId)) showViewingBar(meeting);
         }).catch(function () {});
@@ -270,37 +367,44 @@
     }
 
     function renderItem(m) {
+        var doctor = mode() === "doctor";
         var item = el("button", "history-item");
         item.type = "button";
         item.dataset.id = m.id;
 
-        item.appendChild(el("span", "history-item-title", m.title || "Untitled meeting"));
+        item.appendChild(el("span", "history-item-title",
+            doctor ? consultationTitle(m) : (m.title || words().untitled)));
 
         var d = new Date(m.createdAt);
         item.appendChild(el("span", "history-item-time",
             withDuration(isNaN(d) ? "" : fmtTime(d), m.durationSeconds)));
-        item.appendChild(modelTags(m.models));
+        if (doctor && m.diagnosis) {
+            item.appendChild(el("span", "history-item-note", m.diagnosis));
+        }
+        item.appendChild(doctor ? consultationTags(m) : modelTags(m.models, m.hasAudio));
 
         item.addEventListener("click", function () { openMeeting(m.id); });
         return item;
     }
 
+    var listRequest = 0;
+
     function loadList() {
         showLoading();
+        var request = ++listRequest;
 
-        api("/api/meetings").then(function (meetings) {
+        api(mode() === "doctor" ? "/api/doctor/consultations" : "/api/meetings").then(function (meetings) {
+            // A template switch while this was loading started a new list.
+            if (request !== listRequest) return;
             list.innerHTML = "";
             list.removeAttribute("aria-busy");
 
             sub.textContent = meetings.length
-                ? meetings.length + " saved meeting" + (meetings.length === 1 ? "" : "s")
-                : "Your saved transcripts, summaries and mind maps";
+                ? meetings.length + " " + (meetings.length === 1 ? words().one : words().many)
+                : words().sub;
 
             if (!meetings.length) {
-                showMessage(
-                    "history-empty",
-                    "No saved meetings yet. Record a meeting and generate a summary or mind map — it will appear here."
-                );
+                showMessage("history-empty", words().empty);
                 return;
             }
 
@@ -322,7 +426,8 @@
             markActive();
 
         }).catch(function () {
-            showMessage("history-state", "Could not load your meetings.", true);
+            if (request !== listRequest) return;
+            showMessage("history-state", words().failed, true);
         });
     }
 
@@ -336,8 +441,9 @@
             proceed = proceed.then(function (ok) {
                 return ok && D.confirm({
                     title: "Recording in progress",
-                    message: "A recording is in progress. Open the saved meeting anyway?",
-                    confirmText: "Open meeting"
+                    message: "A recording is in progress. Open the saved " +
+                        (mode() === "doctor" ? "consultation" : "meeting") + " anyway?",
+                    confirmText: words().open
                 });
             });
         }
@@ -349,16 +455,21 @@
             proceed = proceed.then(function (ok) {
                 return ok && D.confirm({
                     title: "Still generating",
-                    message: "A summary or mind map is still being generated. Open the saved meeting anyway?",
-                    confirmText: "Open meeting"
+                    message: words().busyGenerating,
+                    confirmText: words().open
                 });
             });
         }
 
+        var doctor = mode() === "doctor";
+
         proceed.then(function (ok) {
             if (!ok) return;
-            api("/api/meetings/" + encodeURIComponent(id)).then(function (meeting) {
-                bridge.load(meeting);
+            api(doctor
+                ? "/api/doctor/consultations/" + encodeURIComponent(id)
+                : "/api/meetings/" + encodeURIComponent(id)
+            ).then(function (meeting) {
+                if (doctor) bridge.loadConsultation(meeting); else bridge.load(meeting);
                 openMeetingId = meeting.id;
                 showViewingBar(meeting);
                 markActive();
@@ -367,7 +478,10 @@
                 window.scrollTo({ top: 0, behavior: "smooth" });
 
             }).catch(function () {
-                D.alert({ title: "Couldn't open meeting", message: "Could not open that meeting. Please try again." });
+                D.alert({
+                    title: doctor ? "Couldn't open consultation" : "Couldn't open meeting",
+                    message: words().cantOpen
+                });
             });
         });
     }
@@ -376,9 +490,19 @@
 
     var btn = el("button", "history-btn");
     btn.type = "button";
-    btn.setAttribute("aria-label", "Past meetings");
-    btn.title = "Past meetings";
     btn.addEventListener("click", openDrawer);
+
+    function applyWords() {
+        var w = words();
+        headTitle.textContent = w.heading;
+        sub.textContent = w.sub;
+        drawer.setAttribute("aria-label", w.heading);
+        closeBtn.setAttribute("aria-label", "Close " + w.heading.toLowerCase());
+        btn.setAttribute("aria-label", w.heading);
+        btn.title = w.heading;
+    }
+
+    applyWords();
 
     var host = document.querySelector(".header-actions");
     if (host) {

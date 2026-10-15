@@ -1,0 +1,1204 @@
+/* ============================================================
+   MeetMind — Doctor–Patient template (assets/doctor-template.js)
+   ------------------------------------------------------------
+   The template selector, the Doctor / Clinic Profile card, the
+   Generate Prescription action, the Doctor Prescription editor
+   and the Download Prescription card. Theme tokens come from
+   index.html; doctor mode adds a teal clinical accent.
+============================================================ */
+
+:root {
+    --dr-accent: #0f766e;
+    --dr-accent-strong: #0b4f4a;
+    --dr-accent-soft: #eaf6f4;
+    --dr-accent-line: #cde5e1;
+    --dr-btn: #0f766e;
+    --dr-btn-hover: #0b5f59;
+    --dr-amber: #b45309;
+    --dr-amber-soft: #fdf4e7;
+    --dr-green: #15803d;
+    --dr-green-soft: #ecf6ef;
+    --dr-desk: #e9edec;
+}
+
+:root[data-theme="dark"] {
+    --dr-accent: #2dd4bf;
+    --dr-accent-strong: #5eead4;
+    --dr-accent-soft: rgba(45, 212, 191, .10);
+    --dr-accent-line: rgba(45, 212, 191, .28);
+    --dr-btn: #0f766e;
+    --dr-btn-hover: #0d9488;
+    --dr-amber: #fbbf24;
+    --dr-amber-soft: rgba(251, 191, 36, .10);
+    --dr-green: #34d399;
+    --dr-green-soft: rgba(52, 211, 153, .10);
+    --dr-desk: #0e1420;
+}
+
+/* ============================================================
+   TEMPLATE SELECTOR
+============================================================ */
+
+.template-selector {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px 14px;
+    margin: 20px 0 0;
+    padding: 10px 12px 10px 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    background: var(--bg-surface);
+}
+
+.template-selector-label {
+    color: var(--text-muted);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+}
+
+.template-pills {
+    display: inline-flex;
+    gap: 4px;
+    padding: 4px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-full);
+    background: var(--bg-elevated);
+}
+
+.template-pills button.template-choice {
+    height: 32px;
+    padding: 0 14px;
+    gap: 7px;
+    border: none;
+    border-radius: var(--r-full);
+    background: transparent;
+    color: var(--text-secondary);
+    box-shadow: none;
+    font-size: 12.5px;
+    white-space: nowrap;
+}
+
+@media (max-width: 400px) {
+    .template-pills button.template-choice {
+        padding: 0 11px;
+    }
+}
+
+.template-pills button.template-choice svg {
+    width: 15px;
+    height: 15px;
+    flex: none;
+}
+
+.template-pills button.template-choice:hover {
+    color: var(--text-primary);
+    background: var(--bg-surface);
+}
+
+.template-pills button.template-choice.active {
+    background: var(--btn-accent-bg);
+    color: #fff;
+    box-shadow: var(--shadow-sm);
+}
+
+.template-pills button.template-choice[data-template="doctor"].active {
+    background: var(--dr-btn);
+}
+
+.template-pills button.template-choice:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.template-hint {
+    flex: 1 1 260px;
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 12px;
+    line-height: 1.45;
+    text-align: right;
+}
+
+@media (max-width: 760px) {
+    .template-hint {
+        text-align: left;
+    }
+}
+
+/* ============================================================
+   WHAT EACH TEMPLATE SHOWS
+============================================================ */
+
+/* Doctor mode: transcription stays, the MOM model columns, model
+   picker / Generate Summary button and report builder go. */
+body[data-meetmind-template="doctor"] #modelGrid,
+body[data-meetmind-template="doctor"] #reportBuilder,
+body[data-meetmind-template="doctor"] .panel--transcript .intelligence-actions {
+    display: none !important;
+}
+
+body:not([data-meetmind-template="doctor"]) .dr-only {
+    display: none !important;
+}
+
+.dr-only[hidden],
+.dr-card [hidden],
+.doctor-actions [hidden] {
+    display: none !important;
+}
+
+/* Doctor mode recolours the transcript panel's icon and the recorder
+   status accents to the clinical teal. */
+body[data-meetmind-template="doctor"] .panel--transcript .panel-head h2::before {
+    background: var(--dr-accent);
+}
+
+/* ============================================================
+   SHARED PIECES
+============================================================ */
+
+.dr-card {
+    position: relative;
+}
+
+.dr-card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px 20px;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+}
+
+.dr-card-title {
+    display: flex;
+    align-items: flex-start;
+    gap: 13px;
+    min-width: 0;
+    flex: 1 1 320px;
+}
+
+.dr-card-icon {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 11px;
+    background: var(--dr-accent-soft);
+    border: 1px solid var(--dr-accent-line);
+    color: var(--dr-accent);
+}
+
+.dr-card-icon svg {
+    width: 19px;
+    height: 19px;
+}
+
+.dr-card-icon--rx {
+    font-family: 'DM Serif Display', Georgia, serif;
+    font-size: 22px;
+    line-height: 1;
+}
+
+.dr-card-title h2 {
+    margin: 1px 0 3px;
+    font-size: 1rem;
+    font-weight: 650;
+    letter-spacing: -.01em;
+    color: var(--text-primary);
+}
+
+.dr-card-title p {
+    margin: 0;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--text-muted);
+}
+
+.dr-card button.dr-btn-primary,
+.doctor-actions button.dr-btn-primary {
+    height: var(--control-h);
+    padding: 0 18px;
+    border: 1px solid var(--dr-btn);
+    background: var(--dr-btn);
+    color: #fff;
+    box-shadow: var(--shadow-sm);
+}
+
+.dr-card button.dr-btn-primary:hover,
+.doctor-actions button.dr-btn-primary:hover {
+    background: var(--dr-btn-hover);
+    border-color: var(--dr-btn-hover);
+}
+
+.dr-card button.dr-btn-primary svg,
+.doctor-actions button.dr-btn-primary svg {
+    width: 16px;
+    height: 16px;
+}
+
+.dr-card button.dr-btn-ghost {
+    height: var(--control-h);
+    padding: 0 14px;
+    border: 1px solid var(--border);
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    box-shadow: none;
+}
+
+.dr-card button.dr-btn-ghost:hover {
+    border-color: var(--border-strong);
+    color: var(--text-primary);
+}
+
+.dr-card button:focus-visible,
+.doctor-actions button:focus-visible,
+.dr-card input:focus-visible,
+.dr-card textarea:focus-visible {
+    outline: 2px solid var(--dr-accent);
+    outline-offset: 2px;
+}
+
+.dr-btn-busy::after {
+    content: "";
+    width: 13px;
+    height: 13px;
+    border: 2px solid rgba(255, 255, 255, .45);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: dr-spin .8s linear infinite;
+}
+
+@keyframes dr-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* status chips */
+.dr-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 28px;
+    padding: 0 12px;
+    border-radius: var(--r-full);
+    border: 1px solid var(--border);
+    background: var(--bg-surface);
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.dr-status::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.dr-status[data-tone="draft"] {
+    border-color: transparent;
+    background: var(--dr-amber-soft);
+    color: var(--dr-amber);
+}
+
+.dr-status[data-tone="final"] {
+    border-color: transparent;
+    background: var(--dr-green-soft);
+    color: var(--dr-green);
+}
+
+.dr-status[data-tone="busy"] {
+    border-color: transparent;
+    background: var(--dr-accent-soft);
+    color: var(--dr-accent);
+}
+
+.dr-status[data-tone="busy"]::before {
+    animation: dr-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes dr-pulse {
+    50% { opacity: .25; }
+}
+
+/* form controls */
+.dr-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+
+.dr-field-label {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.dr-field-label small {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+}
+
+.dr-field-label .dr-req {
+    color: var(--danger);
+}
+
+.dr-card input[type="text"],
+.dr-card input[type="email"],
+.dr-card input[type="tel"],
+.dr-card input:not([type]),
+.dr-card textarea {
+    width: 100%;
+    min-width: 0;
+    padding: 9px 11px;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    font: inherit;
+    font-size: 13px;
+    line-height: 1.45;
+    transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease;
+}
+
+.dr-card textarea {
+    resize: vertical;
+    min-height: 40px;
+}
+
+.dr-card input:hover,
+.dr-card textarea:hover {
+    border-color: var(--border-strong);
+}
+
+.dr-card input:focus,
+.dr-card textarea:focus {
+    outline: none;
+    border-color: var(--dr-accent);
+    background: var(--bg-elevated);
+    box-shadow: 0 0 0 3px var(--dr-accent-soft);
+}
+
+.dr-card input::placeholder,
+.dr-card textarea::placeholder {
+    color: var(--text-muted);
+    opacity: .8;
+}
+
+/* ============================================================
+   DOCTOR / CLINIC PROFILE
+============================================================ */
+
+.dr-profile {
+    padding: 0;
+    overflow: hidden;
+}
+
+.dr-profile button.dr-profile-toggle {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 13px;
+    padding: 16px 20px;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    color: var(--text-primary);
+    box-shadow: none;
+    text-align: left;
+}
+
+.dr-profile button.dr-profile-toggle:active {
+    transform: none;
+}
+
+.dr-profile button.dr-profile-toggle:hover {
+    background: var(--bg-surface);
+}
+
+.dr-profile-heading {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+    flex: 1;
+}
+
+.dr-profile-title {
+    font-size: 14px;
+    font-weight: 650;
+}
+
+.dr-profile-summary {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dr-profile-edit {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    flex: none;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--dr-accent);
+}
+
+.dr-profile-edit svg {
+    width: 15px;
+    height: 15px;
+    transition: transform .2s ease;
+}
+
+.dr-profile-toggle[aria-expanded="true"] .dr-profile-edit svg {
+    transform: rotate(180deg);
+}
+
+.dr-profile-body {
+    padding: 4px 20px 22px;
+    border-top: 1px solid var(--border);
+}
+
+.dr-profile-note {
+    margin: 16px 0 18px;
+    font-size: 12.5px;
+    color: var(--text-muted);
+}
+
+.dr-profile-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(300px, 1fr);
+    gap: 26px;
+    align-items: start;
+}
+
+.dr-fieldset {
+    margin: 0 0 18px;
+    padding: 0;
+    border: none;
+    min-width: 0;
+}
+
+.dr-fieldset legend {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: 100%;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+}
+
+.dr-fieldset legend small {
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--text-muted);
+}
+
+.dr-step {
+    display: grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--dr-accent-soft);
+    color: var(--dr-accent);
+    font-size: 11px;
+    letter-spacing: 0;
+}
+
+.dr-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 13px 14px;
+}
+
+.dr-grid .dr-span {
+    grid-column: 1 / -1;
+}
+
+/* logo / signature tiles */
+.dr-upload {
+    display: flex;
+    gap: 13px;
+    padding: 13px;
+    border: 1px dashed var(--border-strong);
+    border-radius: 12px;
+    background: var(--bg-surface);
+    transition: border-color .15s ease, background-color .15s ease;
+}
+
+.dr-upload.is-dragover {
+    border-color: var(--dr-accent);
+    background: var(--dr-accent-soft);
+}
+
+.dr-upload-thumb {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 58px;
+    height: 58px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: #fff;
+    color: var(--text-muted);
+    overflow: hidden;
+}
+
+.dr-upload-thumb img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+.dr-upload-thumb svg {
+    width: 22px;
+    height: 22px;
+}
+
+.dr-upload-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.dr-upload-text strong {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.dr-upload-text span {
+    font-size: 11.5px;
+    color: var(--text-muted);
+}
+
+.dr-upload-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 5px;
+}
+
+.dr-card .dr-link {
+    height: auto;
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--dr-accent);
+    box-shadow: none;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.dr-card .dr-link:hover {
+    text-decoration: underline;
+}
+
+.dr-card .dr-link--danger {
+    color: var(--danger);
+}
+
+.dr-upload input[type="file"] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.dr-form-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+}
+
+.dr-form-status {
+    font-size: 12.5px;
+    color: var(--text-muted);
+}
+
+.dr-form-status[data-tone="error"] {
+    color: var(--danger);
+}
+
+.dr-form-status[data-tone="ok"] {
+    color: var(--dr-green);
+}
+
+/* live letterhead preview */
+.dr-preview {
+    position: sticky;
+    top: 16px;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--dr-desk);
+}
+
+.dr-preview-label {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 12px;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.dr-preview-label span {
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.dr-preview-paper {
+    position: relative;
+    overflow: hidden;
+    border-radius: 4px;
+}
+
+.dr-preview-paper .rx-sheet {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 794px;
+    max-width: none;
+    min-height: 0;
+    transform-origin: top left;
+}
+
+.rx-mini-lines {
+    padding: 22px 44px 30px;
+}
+
+.rx-mini-lines i {
+    display: block;
+    height: 10px;
+    margin-bottom: 12px;
+    border-radius: 6px;
+    background: #edf3f2;
+}
+
+.rx-mini-lines i:nth-child(2) { width: 82%; }
+.rx-mini-lines i:nth-child(3) { width: 64%; }
+.rx-mini-lines i:nth-child(4) { width: 74%; }
+
+.dr-checklist {
+    display: grid;
+    gap: 7px;
+    margin: 14px 2px 0;
+    padding: 0;
+    list-style: none;
+    font-size: 12.5px;
+    color: var(--text-muted);
+}
+
+.dr-checklist li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.dr-checklist li::before {
+    content: "";
+    flex: none;
+    width: 14px;
+    height: 14px;
+    border: 1.5px solid var(--border-strong);
+    border-radius: 50%;
+}
+
+.dr-checklist li.is-done {
+    color: var(--text-primary);
+}
+
+.dr-checklist li.is-done::before {
+    border-color: var(--dr-green);
+    background:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") center / 9px no-repeat,
+        var(--dr-green);
+}
+
+@media (max-width: 980px) {
+    .dr-profile-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .dr-preview {
+        position: static;
+    }
+}
+
+@media (max-width: 560px) {
+    .dr-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .dr-profile button.dr-profile-toggle {
+        padding: 14px 16px;
+    }
+
+    .dr-profile-body {
+        padding: 4px 16px 18px;
+    }
+
+    .dr-profile-edit-text {
+        display: none;
+    }
+}
+
+/* ============================================================
+   GENERATE PRESCRIPTION (transcript panel)
+============================================================ */
+
+.doctor-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 10px 14px;
+    margin-top: 20px;
+}
+
+.doctor-actions-meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.doctor-actions-meta svg {
+    width: 14px;
+    height: 14px;
+    color: var(--dr-accent);
+}
+
+/* ============================================================
+   DOCTOR PRESCRIPTION (review & edit)
+============================================================ */
+
+.dr-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 38px 20px 34px;
+    border: 1px dashed var(--border-strong);
+    border-radius: 14px;
+    background: var(--bg-surface);
+    text-align: center;
+}
+
+.dr-empty-icon {
+    display: grid;
+    place-items: center;
+    width: 52px;
+    height: 52px;
+    border-radius: 16px;
+    background: var(--dr-accent-soft);
+    color: var(--dr-accent);
+    font-family: 'DM Serif Display', Georgia, serif;
+    font-size: 28px;
+}
+
+.dr-empty-icon svg {
+    width: 24px;
+    height: 24px;
+}
+
+.dr-empty strong {
+    font-size: 14px;
+    color: var(--text-primary);
+}
+
+.dr-empty p {
+    max-width: 440px;
+    margin: 0;
+    font-size: 12.5px;
+    line-height: 1.55;
+    color: var(--text-muted);
+}
+
+.dr-empty--error .dr-empty-icon {
+    background: var(--danger-soft);
+    color: var(--danger);
+}
+
+.dr-loading {
+    display: grid;
+    gap: 14px;
+    padding: 6px 0 4px;
+}
+
+.dr-loading-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--dr-accent);
+}
+
+.dr-loading-head::before {
+    content: "";
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--dr-accent-line);
+    border-top-color: var(--dr-accent);
+    border-radius: 50%;
+    animation: dr-spin .8s linear infinite;
+}
+
+.dr-loading-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.dr-skel {
+    height: 92px;
+    border-radius: 12px;
+    background: linear-gradient(90deg, var(--bg-surface) 0%, var(--border) 50%, var(--bg-surface) 100%);
+    background-size: 200% 100%;
+    animation: dr-shimmer 1.4s ease-in-out infinite;
+}
+
+.dr-skel--wide {
+    grid-column: 1 / -1;
+    height: 130px;
+}
+
+@keyframes dr-shimmer {
+    from { background-position: 100% 0; }
+    to { background-position: -100% 0; }
+}
+
+.dr-safety {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 16px;
+    padding: 11px 14px;
+    border: 1px solid transparent;
+    border-radius: 11px;
+    background: var(--dr-amber-soft);
+    color: var(--text-secondary);
+    font-size: 12.5px;
+    line-height: 1.5;
+}
+
+.dr-safety svg {
+    flex: none;
+    width: 17px;
+    height: 17px;
+    margin-top: 1px;
+    color: var(--dr-amber);
+}
+
+.dr-safety strong {
+    color: var(--text-primary);
+}
+
+.dr-rx-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.dr-group {
+    margin: 0;
+    padding: 14px 16px 16px;
+    min-width: 0;
+    border: 1px solid var(--border);
+    border-radius: 13px;
+    background: var(--bg-surface);
+}
+
+.dr-group--wide {
+    grid-column: 1 / -1;
+}
+
+.dr-group--alert {
+    border-color: var(--danger-ring);
+    background: var(--danger-soft);
+}
+
+.dr-group legend {
+    float: left;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding: 0;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--dr-accent);
+}
+
+.dr-group--alert legend {
+    color: var(--danger);
+}
+
+.dr-group legend + * {
+    clear: both;
+}
+
+.dr-group .dr-grid {
+    gap: 11px 12px;
+}
+
+.dr-group .dr-single textarea {
+    min-height: 64px;
+}
+
+/* medicines editor */
+.dr-med-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: 11px;
+    background: var(--bg-elevated);
+}
+
+.dr-med-table {
+    width: 100%;
+    min-width: 760px;
+    border-collapse: collapse;
+}
+
+.dr-med-table th {
+    padding: 9px 8px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-surface);
+    color: var(--text-muted);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-align: left;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.dr-med-table td {
+    padding: 6px 5px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+}
+
+.dr-med-table tr:last-child td {
+    border-bottom: none;
+}
+
+.dr-med-table td:first-child,
+.dr-med-table th:first-child {
+    width: 34px;
+    padding-left: 12px;
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.dr-med-table td:last-child,
+.dr-med-table th:last-child {
+    width: 40px;
+    text-align: center;
+}
+
+.dr-card .dr-med-table input {
+    padding: 7px 9px;
+    border-color: transparent;
+    background: transparent;
+}
+
+.dr-card .dr-med-table input:hover {
+    border-color: var(--border);
+}
+
+.dr-card .dr-med-table input:focus {
+    border-color: var(--dr-accent);
+    background: var(--bg-elevated);
+}
+
+.dr-card .dr-med-table input[data-med-field="medicine"] {
+    font-weight: 600;
+}
+
+.dr-card button.dr-icon-btn {
+    display: inline-grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-muted);
+    box-shadow: none;
+}
+
+.dr-card button.dr-icon-btn:hover {
+    border-color: var(--danger-ring);
+    background: var(--danger-soft);
+    color: var(--danger);
+}
+
+.dr-card button.dr-icon-btn svg {
+    width: 15px;
+    height: 15px;
+}
+
+.dr-med-empty td {
+    padding: 16px 12px !important;
+    color: var(--text-muted);
+    font-size: 12.5px;
+    font-style: italic;
+    text-align: left !important;
+}
+
+.dr-card button.dr-add-med {
+    margin-top: 10px;
+    height: 32px;
+    padding: 0 13px;
+    border: 1px dashed var(--dr-accent-line);
+    background: var(--bg-elevated);
+    color: var(--dr-accent);
+    box-shadow: none;
+    font-size: 12.5px;
+}
+
+.dr-card button.dr-add-med:hover {
+    border-color: var(--dr-accent);
+    background: var(--dr-accent-soft);
+}
+
+.dr-rx-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.dr-rx-foot button.dr-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.dr-rx-foot button.dr-link svg {
+    width: 14px;
+    height: 14px;
+}
+
+@media (max-width: 860px) {
+    .dr-rx-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .dr-loading-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ============================================================
+   DOWNLOAD PRESCRIPTION
+============================================================ */
+
+.dr-download-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 10px 14px;
+}
+
+.dr-save-state {
+    font-size: 12.5px;
+    color: var(--text-muted);
+}
+
+.dr-save-state[data-tone="ok"] {
+    color: var(--dr-green);
+}
+
+.dr-save-state[data-tone="error"] {
+    color: var(--danger);
+}
+
+.dr-desk {
+    padding: 34px 24px 40px;
+    border-radius: 14px;
+    background:
+        radial-gradient(circle at 20% 0%, rgba(20, 184, 166, .08), transparent 55%),
+        var(--dr-desk);
+    overflow: hidden;
+}
+
+.dr-desk-hint {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    margin: -14px 0 18px;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.dr-desk-hint svg {
+    width: 14px;
+    height: 14px;
+    color: var(--dr-accent);
+}
+
+@media (max-width: 720px) {
+    .dr-desk {
+        padding: 18px 10px 22px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .dr-skel,
+    .dr-status[data-tone="busy"]::before,
+    .dr-loading-head::before,
+    .dr-btn-busy::after {
+        animation: none;
+    }
+}

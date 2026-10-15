@@ -46,6 +46,8 @@ import subprocess
 
 import uuid
 
+import re
+
 from pathlib import Path
 
 from typing import Any, List, Optional
@@ -56,7 +58,7 @@ from fastapi.concurrency import run_in_threadpool
 
 from fastapi.middleware.cors import CORSMiddleware
 
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse, Response, StreamingResponse
 
 from fastapi.staticfiles import StaticFiles
 
@@ -106,6 +108,8 @@ import database as db
 
 import auth
 
+import audio_storage
+
 # ============================================================
 
 # LOGGING
@@ -143,7 +147,11 @@ AUTH_FILE = FRONTEND_DIR / "auth.html"
 ADMIN_FILE = FRONTEND_DIR / "admin.html"
 
 ASSETS_DIR = FRONTEND_DIR / "assets"
-DOCTOR_PROFILES_DIR = BASE_DIR / "doctor_profiles"
+
+# Where doctor profiles were kept (JSON + images per user) before they
+# moved into the database. Only read once, to import them; see
+# _import_legacy_doctor_profiles().
+LEGACY_DOCTOR_PROFILES_DIR = BASE_DIR / "doctor_profiles"
 
 logger.info(
 
@@ -229,6 +237,8 @@ def _init_auth():
 
     )
 
+    _import_legacy_doctor_profiles()
+
 # ============================================================
 
 # AUTH ROUTER
@@ -252,6 +262,21 @@ class DoctorPrescriptionRequest(BaseModel):
     transcript: str
 
     model: str = "mistral"
+
+    # The consultation (doctor_consultations row) the draft is saved to.
+    # Without one, the consultation holding this transcript is reused or
+    # created, so a generated draft is always saved.
+    consultation_id: Optional[int] = None
+
+
+class PrescriptionSaveRequest(BaseModel):
+
+    # The prescription as the doctor left it: the text fields of
+    # DOCTOR_PRESCRIPTION_FIELDS plus `medicines`. Unknown keys are dropped.
+    prescription: dict
+
+    # True when saved because the doctor downloaded it (status "final").
+    final: bool = True
 
 
 class SummaryRequest(BaseModel):
@@ -968,6 +993,8 @@ def _meeting_row(
 
         ),
 
+        "hasAudio": bool(row.get("has_audio")),
+
         "username": row["username"],
 
         "email": row["email"],
@@ -1230,6 +1257,12 @@ def _meeting_payload(
 
         "mindmap": mindmap,
 
+        **_audio_fields(
+            "meeting_audio",
+            meeting["id"],
+            f"/api/meetings/{meeting['id']}/audio",
+        ),
+
         "username": meeting["username"],
 
         "email": meeting["email"],
@@ -1313,6 +1346,81 @@ async def get_meeting(
         meeting
 
     )
+
+# ============================================================
+# RECORDING PLAYBACK (meeting_audio / doctor_audio)
+# ============================================================
+
+_RANGE_PATTERN = re.compile(r"bytes=(\d*)-(\d*)")
+
+
+def _audio_fields(table: str, parent_id: int, url: str) -> dict:
+    """`hasAudio` / `audio` for a meeting or consultation payload."""
+    meta = db.get_audio_meta(table, parent_id)
+    if not meta:
+        return {"hasAudio": False, "audio": None}
+    return {
+        "hasAudio": True,
+        "audio": {
+            "url": url,
+            "mimeType": meta["mime_type"],
+            "sizeBytes": meta["size_bytes"],
+            "source": meta["source"],
+            "originalFilename": meta["original_filename"],
+        },
+    }
+
+
+def _audio_response(request: Request, table: str, parent_id: int, filename_stem: str):
+    """
+    Stream a stored recording, honouring a single HTTP Range request so the
+    audio player can seek (and the browser can read the duration) without
+    downloading the whole file first.
+    """
+    meta = db.get_audio_meta(table, parent_id)
+    if not meta:
+        raise HTTPException(status_code=404, detail="No recording is stored for this item.")
+
+    size = meta["size_bytes"]
+    start, end = 0, size - 1
+    status_code = 200
+    headers = {
+        "Accept-Ranges": "bytes",
+        "Content-Disposition": f'inline; filename="{filename_stem}.{meta["file_ext"]}"',
+        "Cache-Control": "private, max-age=3600",
+    }
+
+    range_header = (request.headers.get("range") or "").strip()
+    if range_header:
+        match = _RANGE_PATTERN.fullmatch(range_header)
+        valid = bool(match and (match.group(1) or match.group(2)))
+        if valid:
+            if match.group(1):
+                start = int(match.group(1))
+                end = int(match.group(2)) if match.group(2) else size - 1
+            else:
+                start = max(0, size - int(match.group(2)))
+            end = min(end, size - 1)
+        if not valid or start >= size or start > end:
+            return Response(status_code=416, headers={"Content-Range": f"bytes */{size}"})
+        status_code = 206
+        headers["Content-Range"] = f"bytes {start}-{end}/{size}"
+
+    headers["Content-Length"] = str(end - start + 1)
+    return StreamingResponse(
+        db.iter_audio(table, parent_id, start, end),
+        status_code=status_code,
+        media_type=meta["mime_type"],
+        headers=headers,
+    )
+
+
+@app.get("/api/meetings/{meeting_id}/audio")
+async def get_meeting_audio(meeting_id: int, request: Request):
+    """The meeting's stored recording (owner or admin)."""
+    user = auth.require_user(request)
+    _require_meeting_access(meeting_id, user)
+    return _audio_response(request, "meeting_audio", meeting_id, f"meeting_{meeting_id}")
 
 # ============================================================
 
@@ -1494,24 +1602,26 @@ async def update_meeting(
 # DOCTOR / CLINIC PROFILE
 # ============================================================
 
+# One letterhead per user, stored in the doctor_profiles table (logo and
+# signature as BLOBs). It is printed on every prescription that user makes.
+
 DOCTOR_PROFILE_IMAGE_MAX_BYTES = 5 * 1024 * 1024
-DOCTOR_PROFILE_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
+DOCTOR_PROFILE_IMAGE_MIME = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+}
 
 
-def _doctor_profile_path(user_id: Any) -> Path:
-    """Return the profile JSON path for the authenticated user."""
-    DOCTOR_PROFILES_DIR.mkdir(parents=True, exist_ok=True)
-    return DOCTOR_PROFILES_DIR / f"{str(user_id)}.json"
-
-
-async def _save_doctor_profile_image(
-    upload: Optional[UploadFile], destination_dir: Path, field_name: str
-) -> Optional[str]:
-    """Validate and save an optional doctor profile image."""
+async def _read_doctor_profile_image(
+    upload: Optional[UploadFile], field_name: str
+) -> Optional[tuple]:
+    """Validate an optional uploaded profile image; (bytes, mime) or None."""
     if upload is None or not upload.filename:
         return None
     suffix = Path(upload.filename).suffix.lower()
-    if suffix not in DOCTOR_PROFILE_IMAGE_EXTENSIONS:
+    if suffix not in DOCTOR_PROFILE_IMAGE_MIME:
         raise HTTPException(
             status_code=400,
             detail=f"{field_name} must be a PNG, JPG, JPEG, or WEBP image.",
@@ -1521,25 +1631,86 @@ async def _save_doctor_profile_image(
         raise HTTPException(status_code=400, detail=f"{field_name} is empty.")
     if len(data) > DOCTOR_PROFILE_IMAGE_MAX_BYTES:
         raise HTTPException(status_code=413, detail=f"{field_name} must not exceed 5 MB.")
-    filename = f"{field_name}{suffix}"  # Server-generated; never trust client paths.
-    destination_dir.mkdir(parents=True, exist_ok=True)
-    (destination_dir / filename).write_bytes(data)
-    return filename
+    return data, DOCTOR_PROFILE_IMAGE_MIME[suffix]
+
+
+def _doctor_profile_payload(profile: Optional[dict]) -> Optional[dict]:
+    """The profile as the frontend uses it, with URLs for its images."""
+    if not profile:
+        return None
+    payload = {name: profile[name] for name in db.DOCTOR_PROFILE_TEXT_FIELDS}
+    version = re.sub(r"[^0-9]", "", profile["updated_at"])
+    for kind in ("logo", "signature"):
+        payload[f"{kind}_url"] = (
+            f"/api/doctor/profile/{kind}?user_id={profile['user_id']}&v={version}"
+            if profile[f"has_{kind}"]
+            else None
+        )
+    payload["updated_at"] = profile["updated_at"]
+    return payload
+
+
+def _profile_owner_id(user: dict, user_id: Optional[int]) -> int:
+    """Whose profile a request means: your own, or (admins) anyone's."""
+    if user_id is None or user_id == user["id"]:
+        return user["id"]
+    if user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required.")
+    return user_id
+
+
+def _import_legacy_doctor_profiles() -> None:
+    """
+    Copy profiles saved by the earlier file-based version
+    (doctor_profiles/<user_id>.json + <user_id>/logo.* / signature.*) into
+    the doctor_profiles table, once: a user who already has a database
+    profile is skipped, so later edits are never overwritten. The files
+    themselves are left alone.
+    """
+    if not LEGACY_DOCTOR_PROFILES_DIR.is_dir():
+        return
+    for path in sorted(LEGACY_DOCTOR_PROFILES_DIR.glob("*.json")):
+        try:
+            user_id = int(path.stem)
+            if db.get_doctor_profile(user_id) or not db.get_user_by_id(user_id):
+                continue
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if not (data.get("doctor_name") or "").strip():
+                continue
+            images = {}
+            for kind in ("logo", "signature"):
+                name = data.get(kind)
+                if not name:
+                    continue
+                image_path = LEGACY_DOCTOR_PROFILES_DIR / str(user_id) / Path(name).name
+                mime = DOCTOR_PROFILE_IMAGE_MIME.get(image_path.suffix.lower())
+                if mime and image_path.is_file():
+                    images[kind] = (image_path.read_bytes(), mime)
+            db.save_doctor_profile(user_id, data, **images)
+            logger.info("Imported legacy doctor profile %s into the database.", path.name)
+        except Exception:
+            logger.exception("Could not import legacy doctor profile %s.", path.name)
 
 
 @app.get("/api/doctor/profile")
-async def get_doctor_profile(request: Request):
-    """Return the signed-in user's saved doctor/clinic profile, if present."""
+async def get_doctor_profile(request: Request, user_id: Optional[int] = None):
+    """The signed-in user's doctor/clinic profile (admins: any user's)."""
     user = auth.require_user(request)
-    profile_path = _doctor_profile_path(user["id"])
-    if not profile_path.exists():
-        return {"success": True, "profile": None}
-    try:
-        profile = json.loads(profile_path.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as exc:
-        logger.exception("Could not read doctor profile.")
-        raise HTTPException(status_code=500, detail="Could not read saved doctor profile.") from exc
-    return {"success": True, "profile": profile}
+    owner_id = _profile_owner_id(user, user_id)
+    return {"success": True, "profile": _doctor_profile_payload(db.get_doctor_profile(owner_id))}
+
+
+@app.get("/api/doctor/profile/{kind}")
+async def get_doctor_profile_image(kind: str, request: Request, user_id: Optional[int] = None):
+    """The profile's logo or signature image."""
+    if kind not in ("logo", "signature"):
+        raise HTTPException(status_code=404, detail="Not found.")
+    user = auth.require_user(request)
+    image = db.get_doctor_profile_image(_profile_owner_id(user, user_id), kind)
+    if not image:
+        raise HTTPException(status_code=404, detail=f"No {kind} is saved.")
+    data, mime = image
+    return Response(content=data, media_type=mime, headers={"Cache-Control": "private, max-age=86400"})
 
 
 @app.post("/api/doctor/profile")
@@ -1555,6 +1726,8 @@ async def save_doctor_profile(
     timings: str = Form(""),
     logo: Optional[UploadFile] = File(None),
     signature: Optional[UploadFile] = File(None),
+    remove_logo: bool = Form(False),
+    remove_signature: bool = Form(False),
 ):
     """Save the authenticated user's doctor/clinic profile and optional images."""
     user = auth.require_user(request)
@@ -1562,39 +1735,37 @@ async def save_doctor_profile(
     if not doctor_name:
         raise HTTPException(status_code=400, detail="Doctor name is required.")
 
-    profile_path = _doctor_profile_path(user["id"])
-    profile_dir = DOCTOR_PROFILES_DIR / str(user["id"])
-    existing = {}
-    if profile_path.exists():
-        try:
-            existing = json.loads(profile_path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            existing = {}
-
     try:
-        logo_name = await _save_doctor_profile_image(logo, profile_dir, "logo")
-        signature_name = await _save_doctor_profile_image(signature, profile_dir, "signature")
-        profile = {
-            "doctor_name": doctor_name,
-            "qualifications": qualifications.strip(),
-            "specialization": specialization.strip(),
-            "clinic_name": clinic_name.strip(),
-            "address": address.strip(),
-            "phone": phone.strip(),
-            "email": email.strip(),
-            "timings": timings.strip(),
-            "logo": logo_name or existing.get("logo"),
-            "signature": signature_name or existing.get("signature"),
-        }
-        profile_path.write_text(json.dumps(profile, ensure_ascii=False, indent=2), encoding="utf-8")
+        logo_image = await _read_doctor_profile_image(logo, "Logo")
+        signature_image = await _read_doctor_profile_image(signature, "Signature")
     finally:
         if logo is not None:
             await logo.close()
         if signature is not None:
             await signature.close()
 
+    profile = db.save_doctor_profile(
+        user["id"],
+        {
+            "doctor_name": doctor_name,
+            "qualifications": qualifications,
+            "specialization": specialization,
+            "clinic_name": clinic_name,
+            "address": address,
+            "phone": phone,
+            "email": email,
+            "timings": timings,
+        },
+        logo=logo_image or (db.REMOVE_IMAGE if remove_logo else None),
+        signature=signature_image or (db.REMOVE_IMAGE if remove_signature else None),
+    )
+
     logger.info("Doctor profile saved for user_id=%s", user["id"])
-    return {"success": True, "message": "Doctor profile saved.", "profile": profile}
+    return {
+        "success": True,
+        "message": "Doctor profile saved.",
+        "profile": _doctor_profile_payload(profile),
+    }
 
 
 # ============================================================
@@ -1611,9 +1782,27 @@ async def websocket_endpoint(
 
 ):
 
+    # The session cookie arrives with the WebSocket handshake, so the
+    # finished recording can be saved to this user's history (see
+    # _store_recording). Signed-out sockets still transcribe; nothing is saved.
+    user = auth.get_current_user(websocket)
+
+    async def persist(*, template, audio_path, transcript, duration):
+        return await run_in_threadpool(
+            _store_recording,
+            user,
+            template,
+            audio_path,
+            source="live",
+            transcript=transcript,
+            duration=duration,
+        )
+
     await meeting_websocket(
 
-        websocket
+        websocket,
+
+        persist=persist,
 
     )
 
@@ -1838,6 +2027,80 @@ def normalize_audio(input_path: Path, output_path: Path) -> Path:
     return output_path
 
 # ============================================================
+# SAVING A FINISHED RECORDING
+# ============================================================
+
+def _template_of(value: Optional[str]) -> str:
+    """"doctor" for the Doctor–Patient template, else "meeting"."""
+    return "doctor" if (value or "").strip().lower() == "doctor" else "meeting"
+
+
+def _store_recording(
+    user: Optional[dict],
+    template: Optional[str],
+    audio_path: Path,
+    *,
+    source: str,
+    transcript: str,
+    duration: Optional[float],
+    original_filename: Optional[str] = None,
+) -> dict:
+    """
+    Save a transcribed recording — live or uploaded — to the history of the
+    template it was made in: a meeting (meetings + meeting_audio) or a
+    consultation (doctor_consultations + doctor_audio). The two never share
+    rows. Returns the id it was saved under and whether the audio made it:
+
+        {"template": "meeting", "meeting_id": 12, "has_audio": True}
+        {"template": "doctor", "consultation_id": 4, "has_audio": True}
+
+    Once the audio is in the database the file on disk is deleted; if
+    storing it fails, the file is kept so the recording isn't lost.
+    Nothing is saved without a signed-in user or a transcript.
+    """
+    template = _template_of(template)
+    if not user or not transcript:
+        return {"template": template}
+
+    duration_seconds = round(duration) if duration and duration > 0 else None
+
+    if template == "doctor":
+        parent_id = db.find_or_create_consultation(
+            user["id"], transcript, duration_seconds=duration_seconds
+        )
+        saved = {"template": template, "consultation_id": parent_id}
+        table = "doctor_audio"
+    else:
+        parent_id = db.find_or_create_meeting(
+            user["id"], transcript, duration_seconds=duration_seconds
+        )
+        saved = {"template": template, "meeting_id": parent_id}
+        table = "meeting_audio"
+
+    try:
+        data, mime_type, file_ext = audio_storage.prepare_for_storage(audio_path)
+        db.save_audio(table, parent_id, data, mime_type, file_ext, source, original_filename)
+        saved["has_audio"] = True
+    except Exception:
+        logger.exception("Could not store the %s recording %s in the database.", source, audio_path)
+        saved["has_audio"] = False
+        return saved
+
+    try:
+        Path(audio_path).unlink(missing_ok=True)
+    except OSError:
+        logger.warning("Stored recording but could not remove %s", audio_path)
+
+    logger.info(
+        "Recording stored | %s=%s | %s | %d bytes",
+        "consultation_id" if template == "doctor" else "meeting_id",
+        parent_id,
+        file_ext,
+        len(data),
+    )
+    return saved
+
+# ============================================================
 
 # NETWORK-RESILIENT RECORDING UPLOAD
 
@@ -1850,6 +2113,9 @@ async def upload_recording(
     request: Request,
 
     audio: UploadFile = File(...),
+
+    # "doctor" saves it as a consultation; anything else as a meeting.
+    template: str = Form("meeting"),
 
 ):
 
@@ -1985,29 +2251,24 @@ async def upload_recording(
 
                 duration = None
 
-        meeting_id = None
-
-        if transcript:
-
-            meeting_id = db.find_or_create_meeting(
-
-                user["id"],
-
-                transcript,
-
-                duration_seconds=(
-
-                    round(duration) if duration is not None and duration > 0 else None
-
-                ),
-
-            )
+        # Saves the transcript to the template's history and the upload
+        # itself as that item's recording (then deletes it from disk).
+        saved = await run_in_threadpool(
+            _store_recording,
+            user,
+            template,
+            audio_path,
+            source="upload",
+            transcript=transcript,
+            duration=duration,
+            original_filename=Path(original_name).name,
+        )
 
         logger.info(
 
-            "Uploaded recording transcription complete | meeting_id=%s | transcript_chars=%d | duration=%s",
+            "Uploaded recording transcription complete | saved=%s | transcript_chars=%d | duration=%s",
 
-            meeting_id,
+            saved,
 
             len(transcript),
 
@@ -2019,7 +2280,13 @@ async def upload_recording(
 
             "success": True,
 
-            "meeting_id": meeting_id,
+            "template": saved["template"],
+
+            "meeting_id": saved.get("meeting_id"),
+
+            "consultation_id": saved.get("consultation_id"),
+
+            "has_audio": saved.get("has_audio", False),
 
             "transcript": transcript,
 
@@ -2088,14 +2355,15 @@ async def upload_recording(
                 )
 
 # ============================================================
-
-# CREATE SUMMARY
-
+# DOCTOR PRESCRIPTION DRAFT
 # ============================================================
 
 @app.post("/api/doctor/prescription")
 async def create_doctor_prescription(request: DoctorPrescriptionRequest, http_request: Request):
-    """Generate a draft prescription separately from MOM summary and mindmap."""
+    """
+    Generate a draft prescription separately from MOM summary and mindmap,
+    and save it to the consultation (status "draft") for a signed-in user.
+    """
     transcript = (request.transcript or "").strip()
     if not transcript:
         return {"success": False, "error": "Transcript is empty."}
@@ -2115,21 +2383,217 @@ async def create_doctor_prescription(request: DoctorPrescriptionRequest, http_re
         logger.exception("Doctor prescription draft generation failed (%s).", model)
         return {"success": False, "error": str(exc)}
 
+    user = auth.get_current_user(http_request)
+
     # Use the signed-in user's saved doctor name only as profile metadata; do not
     # overwrite a doctor name extracted from the consultation if one is present.
     try:
-        user = auth.get_current_user(http_request)
         if user and not prescription.get("doctor_name"):
-            profile_path = _doctor_profile_path(user["id"])
-            if profile_path.exists():
-                profile = json.loads(profile_path.read_text(encoding="utf-8"))
-                prescription["doctor_name"] = profile.get("doctor_name", "") or ""
+            profile = db.get_doctor_profile(user["id"])
+            if profile:
+                prescription["doctor_name"] = profile["doctor_name"]
     except Exception:
         logger.debug("Doctor profile could not be applied to prescription draft.", exc_info=True)
 
-    return {"success": True, "model": model, "model_id": model_id, "prescription": prescription,
-            "review_required": True}
+    consultation_id = None
+    if user:
+        try:
+            consultation_id = _resolve_consultation_for_save(
+                user, request.consultation_id, transcript
+            )
+            if consultation_id:
+                db.save_prescription(
+                    consultation_id,
+                    prescription,
+                    status="draft",
+                    model=model,
+                    ai_draft=prescription,
+                )
+                _sync_consultation_title(consultation_id, prescription)
+        except Exception:
+            logger.exception("Could not save the prescription draft to the consultation.")
 
+    return {"success": True, "model": model, "model_id": model_id, "prescription": prescription,
+            "consultation_id": consultation_id, "status": "draft", "review_required": True}
+
+
+# ============================================================
+# DOCTOR CONSULTATIONS (history of the Doctor–Patient template)
+# ============================================================
+
+_MEDICINE_FIELDS = ("medicine", "dose", "route", "frequency", "duration", "instructions")
+
+
+def _resolve_consultation_for_save(
+    user: dict, consultation_id: Optional[int], transcript: str
+) -> Optional[int]:
+    """
+    The consultation a prescription is saved to, or None to skip saving.
+    Mirrors _resolve_meeting_for_save(): a client-sent id must be the
+    user's own (or the user an admin); without one, the consultation
+    holding this transcript is reused or created.
+    """
+    if consultation_id:
+        existing = db.get_consultation(consultation_id)
+        if existing and (existing["user_id"] == user["id"] or user["role"] == "admin"):
+            return consultation_id
+        return None
+    return db.find_or_create_consultation(user["id"], transcript)
+
+
+def _sync_consultation_title(consultation_id: int, prescription: dict) -> None:
+    """A consultation is listed under its patient's name once one is known."""
+    name = str(prescription.get("patient_name") or "").strip()
+    if name:
+        db.update_consultation(consultation_id, title=name[:200])
+
+
+def _require_consultation_access(consultation_id: int, user: dict) -> dict:
+    consultation = db.get_consultation(consultation_id)
+    if not consultation:
+        raise HTTPException(status_code=404, detail="Consultation not found.")
+    if consultation["user_id"] != user["id"] and user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="You don't have access to that consultation.")
+    return consultation
+
+
+def _clean_prescription(data: dict) -> dict:
+    """Only the known prescription fields, every value a trimmed string."""
+    if not isinstance(data, dict):
+        raise HTTPException(status_code=400, detail="Prescription must be an object.")
+    cleaned = {
+        name: str(data.get(name) or "").strip()[:5000]
+        for name in db.PRESCRIPTION_TEXT_FIELDS
+    }
+    medicines = []
+    for item in data.get("medicines") or []:
+        if not isinstance(item, dict):
+            continue
+        medicine = {field: str(item.get(field) or "").strip()[:500] for field in _MEDICINE_FIELDS}
+        if any(medicine.values()):
+            medicines.append(medicine)
+    cleaned["medicines"] = medicines
+    return cleaned
+
+
+def _prescription_payload(prescription: Optional[dict]) -> Optional[dict]:
+    if not prescription:
+        return None
+    payload = {name: prescription[name] for name in db.PRESCRIPTION_TEXT_FIELDS}
+    payload["medicines"] = prescription["medicines"]
+    model = prescription.get("model")
+    payload.update({
+        "status": prescription["status"],
+        "model": model,
+        "modelLabel": LLM_MODELS.get(model, {}).get("label", model) if model else None,
+        "createdAt": prescription["created_at"],
+        "updatedAt": prescription["updated_at"],
+        "finalizedAt": prescription["finalized_at"],
+    })
+    return payload
+
+
+def _consultation_row(row: dict) -> dict:
+    return {
+        "id": row["id"],
+        "title": row["title"],
+        "patientName": row["patient_name"] or "",
+        "ageSex": row["age_sex"] or "",
+        "diagnosis": row["diagnosis"] or "",
+        "createdAt": row["created_at"],
+        "durationSeconds": row["duration_seconds"],
+        "transcriptChars": row["transcript_chars"] or 0,
+        "hasAudio": row["audio_bytes"] is not None,
+        "prescriptionStatus": row["prescription_status"],
+        "prescriptionUpdatedAt": row["prescription_updated_at"],
+        "finalizedAt": row["finalized_at"],
+        "userId": row["user_id"],
+        "username": row["username"],
+        "email": row["email"],
+    }
+
+
+def _consultation_payload(consultation: dict) -> dict:
+    return {
+        "id": consultation["id"],
+        "title": consultation["title"],
+        "createdAt": consultation["created_at"],
+        "durationSeconds": consultation["duration_seconds"],
+        "transcript": consultation["transcript"],
+        "prescription": _prescription_payload(db.get_prescription(consultation["id"])),
+        **_audio_fields(
+            "doctor_audio",
+            consultation["id"],
+            f"/api/doctor/consultations/{consultation['id']}/audio",
+        ),
+        # The letterhead belongs to whoever recorded the consultation, so an
+        # admin viewing it sees that doctor's letterhead, not their own.
+        "doctorProfile": _doctor_profile_payload(db.get_doctor_profile(consultation["user_id"])),
+        "userId": consultation["user_id"],
+        "username": consultation["username"],
+        "email": consultation["email"],
+    }
+
+
+@app.get("/api/doctor/consultations")
+async def list_consultations(request: Request, scope: str = "mine"):
+    """The user's consultations, newest first (admins: scope=all for everyone's)."""
+    user = auth.require_user(request)
+    if scope == "all":
+        if user["role"] != "admin":
+            raise HTTPException(status_code=403, detail="Admin access required.")
+        rows = db.list_consultations()
+    else:
+        rows = db.list_consultations(user_id=user["id"])
+    return [_consultation_row(row) for row in rows]
+
+
+@app.get("/api/doctor/consultations/{consultation_id}")
+async def get_consultation(consultation_id: int, request: Request):
+    user = auth.require_user(request)
+    return _consultation_payload(_require_consultation_access(consultation_id, user))
+
+
+@app.get("/api/doctor/consultations/{consultation_id}/audio")
+async def get_consultation_audio(consultation_id: int, request: Request):
+    user = auth.require_user(request)
+    _require_consultation_access(consultation_id, user)
+    return _audio_response(
+        request, "doctor_audio", consultation_id, f"consultation_{consultation_id}"
+    )
+
+
+@app.put("/api/doctor/consultations/{consultation_id}/prescription")
+async def save_consultation_prescription(
+    consultation_id: int, request: PrescriptionSaveRequest, http_request: Request
+):
+    """
+    Save the prescription as the doctor edited it. The frontend calls this
+    when the prescription is downloaded, which marks it "final".
+    """
+    user = auth.require_user(http_request)
+    _require_consultation_access(consultation_id, user)
+    prescription = _clean_prescription(request.prescription)
+    saved = db.save_prescription(
+        consultation_id,
+        prescription,
+        status="final" if request.final else "draft",
+    )
+    _sync_consultation_title(consultation_id, prescription)
+    logger.info(
+        "Prescription saved | consultation_id=%s | status=%s | user_id=%s",
+        consultation_id,
+        saved["status"],
+        user["id"],
+    )
+    return {"success": True, "prescription": _prescription_payload(saved)}
+
+
+# ============================================================
+
+# CREATE SUMMARY
+
+# ============================================================
 
 @app.post(
 

@@ -27,6 +27,9 @@
 
 .admin-body {
     display: grid;
+    /* minmax(0, …): a wide filter row or table scrolls inside its panel
+       instead of stretching the page past the window. */
+    grid-template-columns: minmax(0, 1fr);
     gap: 28px;
 }
 
@@ -59,7 +62,7 @@
 
 .stats-grid {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 16px;
 }
 
@@ -100,6 +103,15 @@
     background: rgba(167, 139, 250, .14);
 }
 
+.stat-icon-clinic {
+    color: #0f766e;
+    background: rgba(15, 118, 110, .12);
+}
+:root[data-theme="dark"] .stat-icon-clinic {
+    color: #5eead4;
+    background: rgba(94, 234, 212, .12);
+}
+
 .stat-icon-teal {
     color: #0d9488;
     background: rgba(13, 148, 136, .12);
@@ -130,8 +142,8 @@
     font-weight: 500;
 }
 
-@media (max-width: 1200px) {
-    .stats-grid { grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 1500px) {
+    .stats-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 @media (max-width: 900px) {
@@ -1496,4 +1508,100 @@ td.cell-actions {
     --section-icon: var(--icon-list-checks);
     color: var(--success);
     background: var(--success-soft);
+}
+
+/* ============================================================
+   Recordings + doctor consultations
+============================================================ */
+
+/* "Recording" pill: the meeting / consultation has saved audio. */
+.pill.audio-pill {
+    color: var(--text-secondary);
+    background: var(--bg-surface);
+    white-space: nowrap;
+}
+
+.pill.audio-pill::before {
+    width: 11px;
+    height: 11px;
+    border-radius: 0;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round'%3E%3Cpath d='M2 10v3'/%3E%3Cpath d='M6 6v11'/%3E%3Cpath d='M10 3v18'/%3E%3Cpath d='M14 8v7'/%3E%3Cpath d='M18 5v13'/%3E%3Cpath d='M22 10v3'/%3E%3C/svg%3E") center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round'%3E%3Cpath d='M2 10v3'/%3E%3Cpath d='M6 6v11'/%3E%3Cpath d='M10 3v18'/%3E%3Cpath d='M14 8v7'/%3E%3Cpath d='M18 5v13'/%3E%3Cpath d='M22 10v3'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+.pill.rx-pill { white-space: nowrap; border-color: transparent; }
+.pill.rx-final { color: var(--success); background: var(--success-soft); }
+.pill.rx-draft { color: var(--warning); background: var(--warning-soft); }
+.pill.rx-none { color: var(--text-muted); background: var(--bg-surface); border-color: var(--border); }
+
+.cell-sub {
+    max-width: 320px;
+    margin-top: 2px;
+    font-size: 12px;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* the recording player inside the meeting / consultation viewers */
+.dialog-player .mm-player {
+    margin-top: 16px;
+}
+
+.dialog-player .mm-player[hidden] {
+    display: none !important;
+}
+
+/* consultation viewer: the prescription page, scaled to the pane */
+.consult-pane--rx {
+    padding-right: 4px;
+}
+
+.consult-pane--rx[hidden] {
+    display: none;
+}
+
+.consult-rx-info {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+    margin-bottom: 12px;
+}
+
+.consult-desk {
+    padding: 18px;
+    border-radius: var(--r-md);
+    background:
+        radial-gradient(circle at 20% 0%, rgba(20, 184, 166, .08), transparent 55%),
+        #e9edec;
+}
+
+:root[data-theme="dark"] .consult-desk {
+    background:
+        radial-gradient(circle at 20% 0%, rgba(45, 212, 191, .08), transparent 55%),
+        #0e1420;
+}
+
+.consult-paper {
+    position: relative;
+    overflow: hidden;
+}
+
+.consult-paper .rx-sheet.consult-sheet {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 794px;
+    max-width: none;
+    transform-origin: top left;
+}
+
+.consult-dialog .dialog-actions {
+    gap: 8px;
+}
+
+.consult-dialog .dialog-actions [hidden] {
+    display: none;
 }
