@@ -76,6 +76,48 @@
         return (n / (1024 * 1024)).toFixed(1) + " MB";
     }
 
+    var EXT_BY_MIME = {
+        "audio/mpeg": "mp3",
+        "audio/mp3": "mp3",
+        "audio/wav": "wav",
+        "audio/x-wav": "wav",
+        "audio/mp4": "m4a",
+        "audio/aac": "aac",
+        "audio/flac": "flac",
+        "audio/ogg": "ogg",
+        "audio/webm": "webm"
+    };
+
+    /* filename="meeting_12.mp3" from a Content-Disposition header, or "". */
+    function dispositionName(header) {
+        var match = /filename="?([^";]+)"?/i.exec(header || "");
+        return match ? match[1].trim() : "";
+    }
+
+    /* Read a fetch() response to a Blob, reporting progress (0–1). */
+    function readWithProgress(response, onProgress) {
+        var total = Number(response.headers.get("Content-Length")) || 0;
+        if (!response.body || !response.body.getReader || !total) {
+            return response.blob();
+        }
+        var reader = response.body.getReader();
+        var chunks = [];
+        var received = 0;
+        function pump() {
+            return reader.read().then(function (step) {
+                if (step.done) {
+                    if (received < total) throw new Error("incomplete");
+                    return new Blob(chunks, { type: response.headers.get("Content-Type") || "" });
+                }
+                chunks.push(step.value);
+                received += step.value.length;
+                onProgress(received / total);
+                return pump();
+            });
+        }
+        return pump();
+    }
+
     function create(options) {
         options = options || {};
 
@@ -148,6 +190,136 @@
 
         var speedIndex = 0;
         var seeking = false;
+        var downloadName = "";
+        var downloadMime = "";
+        var downloading = null;   // the download in progress: { cancelled }
+
+        /* Download: the page fetches the file itself, over the same
+           connection playback already uses, then saves the finished Blob.
+           Handing the link to the browser's download manager instead
+           failed intermittently on this HTTPS deployment: its separate
+           request sometimes never reached the server, the Save dialog
+           showed "All files" (no response, so no type) and the download
+           ended in "Check internet connection". */
+        var downloadText = download.querySelector(".mm-player-download-text");
+
+        /* Other Download buttons on the page (e.g. next to Upload
+           Recording) follow this player through onDownloadState(fn):
+           fn({ available, busy, percent, error }) on every change. */
+        var downloadListeners = [];
+        var downloadState = { available: false, busy: false, percent: 0, error: "" };
+
+        function setDownloadState(changes) {
+            for (var key in changes) downloadState[key] = changes[key];
+            var snapshot = {
+                available: downloadState.available,
+                busy: downloadState.busy,
+                percent: downloadState.percent,
+                error: downloadState.error
+            };
+            downloadListeners.forEach(function (fn) {
+                try { fn(snapshot); } catch (e) { /* a listener's bug is its own */ }
+            });
+        }
+
+        function setDownloadText(text) {
+            downloadText.textContent = text;
+        }
+
+        function finishDownload(job, message) {
+            if (downloading !== job) return;
+            downloading = null;
+            download.removeAttribute("aria-busy");
+            download.classList.remove("is-busy");
+            setDownloadText("Download");
+            if (message != null) statusEl.textContent = message;
+            setDownloadState({ busy: false, percent: 0, error: message || "" });
+        }
+
+        function saveBlob(blob, name) {
+            var url = URL.createObjectURL(blob);
+            var link = document.createElement("a");
+            link.href = url;
+            link.download = name;
+            link.style.display = "none";
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            // Long enough for the browser to start writing the file.
+            setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
+        }
+
+        function fetchRecording(href, job, attempt) {
+            return fetch(href, { credentials: "same-origin", cache: "no-store" })
+                .then(function (response) {
+                    if (job.cancelled) return null;
+                    if (response.status === 401) throw new Error("signed-out");
+                    if (response.status === 403) throw new Error("forbidden");
+                    if (response.status === 404) throw new Error("missing");
+                    if (!response.ok) throw new Error("http-" + response.status);
+                    var name = dispositionName(response.headers.get("Content-Disposition"));
+                    return readWithProgress(response, function (fraction) {
+                        if (job.cancelled) return;
+                        var percent = Math.floor(fraction * 100);
+                        setDownloadText(percent + "%");
+                        setDownloadState({ percent: percent });
+                    }).then(function (blob) {
+                        return { blob: blob, name: name };
+                    });
+                })
+                .catch(function (error) {
+                    var known = /^(signed-out|forbidden|missing|http-)/.test(error && error.message);
+                    // A dropped connection is retried once before giving up.
+                    if (!known && attempt < 2 && !job.cancelled) {
+                        return fetchRecording(href, job, attempt + 1);
+                    }
+                    throw error;
+                });
+        }
+
+        /* Download the loaded recording. Resolves true once the file has
+           been handed to the browser to save, false if it failed, was
+           cancelled, or nothing is loaded. */
+        function startDownload() {
+            if (downloading || !download.getAttribute("href")) return Promise.resolve(false);
+            var job = { cancelled: false };
+            downloading = job;
+            download.setAttribute("aria-busy", "true");
+            download.classList.add("is-busy");
+            setDownloadText("0%");
+            statusEl.textContent = "";
+            setDownloadState({ busy: true, percent: 0, error: "" });
+
+            return fetchRecording(download.getAttribute("href"), job, 1)
+                .then(function (result) {
+                    if (!result || job.cancelled) return false;
+                    var ext = EXT_BY_MIME[(result.blob.type || downloadMime).split(";")[0]] || "mp3";
+                    var name = result.name || ((downloadName || "recording").replace(/\.[a-z0-9]+$/i, "") + "." + ext);
+                    saveBlob(result.blob, name);
+                    finishDownload(job, "");
+                    return true;
+                })
+                .catch(function (error) {
+                    var reason = error && error.message;
+                    finishDownload(job,
+                        reason === "signed-out" ? "Your session has ended. Sign in again to download this recording." :
+                        reason === "forbidden" ? "You don't have access to this recording." :
+                        reason === "missing" ? "This recording is no longer stored." :
+                        "Couldn't download the recording. Check the connection to the MeetMind server and try again.");
+                    return false;
+                });
+        }
+
+        download.addEventListener("click", function (e) {
+            e.preventDefault();
+            startDownload();
+        });
+
+        function cancelDownload() {
+            if (!downloading) return;
+            downloading.cancelled = true;
+            finishDownload(downloading, null);
+        }
 
         function duration() {
             var d = audio.duration;
@@ -283,11 +455,14 @@
                 ].filter(Boolean).join(" · ");
             }
             metaEl.textContent = meta || "Saved recording";
+            cancelDownload();
             /* A separate URL from the <audio> src: the server sends it as an
-               attachment, uncached, so it never reuses the player's partial
-               (range-only) cache entry, which made downloads fail. */
+               attachment, uncached, so it never shares the player's partial
+               (range-only) cache entry. The click handler above fetches it. */
             download.href = src + (src.indexOf("?") === -1 ? "?" : "&") + "download=1";
-            download.setAttribute("download", info.downloadName || "");
+            downloadName = info.downloadName || "";
+            downloadMime = info.mimeType || "";
+            setDownloadState({ available: true, busy: false, percent: 0, error: "" });
             played.style.width = "0";
             buffered.style.width = "0";
             range.value = "0";
@@ -302,6 +477,9 @@
         }
 
         function clear() {
+            cancelDownload();
+            download.removeAttribute("href");
+            setDownloadState({ available: false, busy: false, percent: 0, error: "" });
             audio.pause();
             audio.removeAttribute("src");
             audio.load();
@@ -314,6 +492,16 @@
             audio: audio,
             load: load,
             clear: clear,
+            download: startDownload,
+            onDownloadState: function (fn) {
+                downloadListeners.push(fn);
+                fn({
+                    available: downloadState.available,
+                    busy: downloadState.busy,
+                    percent: downloadState.percent,
+                    error: downloadState.error
+                });
+            },
             isLoaded: function () { return !root.hidden; }
         };
     }

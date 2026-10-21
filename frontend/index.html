@@ -51,7 +51,7 @@
     <!-- Recording player (meetings, consultations, interviews), the
          Doctor–Patient template's prescription sheet / PDF and the
          Interview template's evaluation report sheet / PDF. -->
-    <script src="/assets/audio-player.js?v=3"></script>
+    <script src="/assets/audio-player.js?v=5"></script>
     <script src="/assets/prescription.js?v=1"></script>
     <script src="/assets/interview-report.js?v=1"></script>
 
@@ -471,6 +471,43 @@ button:disabled {
     flex-direction: column;
     align-items: flex-end;
     gap: 5px;
+}
+
+.upload-recording-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+/* Secondary to Upload Recording: outlined, same height. */
+#downloadAudioBtn {
+    height: var(--control-h);
+    padding: 0 16px;
+    font-size: 13px;
+    background: var(--bg-surface);
+    border-color: var(--border);
+    color: var(--text-primary);
+    box-shadow: var(--shadow-sm);
+}
+
+#downloadAudioBtn::before {
+    content: "";
+    -webkit-mask-image: var(--icon-download);
+    mask-image: var(--icon-download);
+}
+
+#downloadAudioBtn:hover {
+    background: var(--bg-elevated);
+    border-color: var(--border-strong);
+}
+
+#downloadAudioBtn[hidden] {
+    display: none;
+}
+
+#downloadAudioBtn[aria-busy="true"] {
+    cursor: progress;
 }
 
 .upload-recording-help {
@@ -2128,6 +2165,10 @@ mark.transcript-match.current {
         align-items: flex-start;
     }
 
+    .upload-recording-actions {
+        justify-content: flex-start;
+    }
+
     #uploadRecordingBtn {
         flex: 0 0 auto;
     }
@@ -3115,13 +3156,26 @@ body.mindmap-expanded {
             </span>
 
             <div class="upload-recording-group">
-                <button
-                    id="uploadRecordingBtn"
-                    type="button"
-                    title="Upload an existing audio recording (maximum 500 MB)"
-                >
-                    Upload Recording
-                </button>
+                <div class="upload-recording-actions">
+                    <!-- Shown only while a stored recording is on screen
+                         (just recorded / uploaded, or opened from history);
+                         follows recordingPlayer. -->
+                    <button
+                        id="downloadAudioBtn"
+                        type="button"
+                        title="Download the recording saved with this session"
+                        hidden
+                    >
+                        <span class="download-audio-label">Download Audio</span>
+                    </button>
+                    <button
+                        id="uploadRecordingBtn"
+                        type="button"
+                        title="Upload an existing audio recording (maximum 500 MB)"
+                    >
+                        Upload Recording
+                    </button>
+                </div>
                 <div class="upload-recording-help">Maximum file size: 500 MB</div>
                 <input
                     id="recordingFileInput"
@@ -12759,6 +12813,52 @@ const recordingPlayer = (() => {
         panelHead.insertAdjacentElement(
             "afterend",
             player.el
+        );
+    }
+
+    /* "Download Audio" next to Upload Recording: visible exactly while
+       this player holds a stored recording (every template), and
+       downloads through the player so both buttons behave the same. */
+    const downloadAudioBtn =
+        document.getElementById(
+            "downloadAudioBtn"
+        );
+
+    if (player && downloadAudioBtn) {
+
+        const label =
+            downloadAudioBtn.querySelector(
+                ".download-audio-label"
+            );
+
+        player.onDownloadState(function (state) {
+
+            downloadAudioBtn.hidden =
+                !state.available;
+
+            downloadAudioBtn.disabled =
+                !state.available || state.busy;
+
+            downloadAudioBtn.setAttribute(
+                "aria-busy",
+                state.busy ? "true" : "false"
+            );
+
+            label.textContent =
+                state.busy
+                    ? `Downloading… ${state.percent}%`
+                    : "Download Audio";
+
+            if (state.error) {
+                setStatus(state.error);
+            }
+        });
+
+        downloadAudioBtn.addEventListener(
+            "click",
+            function () {
+                player.download();
+            }
         );
     }
 
