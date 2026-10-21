@@ -283,7 +283,10 @@
                 ].filter(Boolean).join(" · ");
             }
             metaEl.textContent = meta || "Saved recording";
-            download.href = src;
+            /* A separate URL from the <audio> src: the server sends it as an
+               attachment, uncached, so it never reuses the player's partial
+               (range-only) cache entry, which made downloads fail. */
+            download.href = src + (src.indexOf("?") === -1 ? "?" : "&") + "download=1";
             download.setAttribute("download", info.downloadName || "");
             played.style.width = "0";
             buffered.style.width = "0";

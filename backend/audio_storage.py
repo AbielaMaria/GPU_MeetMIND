@@ -15,6 +15,7 @@ template's history: meetings and consultations from app.py, interviews
 from interview_routes.py.
 """
 
+import hashlib
 import logging
 import re
 import shutil
@@ -143,13 +144,42 @@ def audio_response(request: Request, table: str, parent_id: int, filename_stem: 
     size = meta["size_bytes"]
     start, end = 0, size - 1
     status_code = 200
+    filename = f"{filename_stem}.{meta['file_ext']}"
+    etag = '"' + hashlib.sha1(
+        f"{table}:{parent_id}:{meta['created_at']}:{size}".encode()
+    ).hexdigest()[:20] + '"'
+
+    if request.query_params.get("download"):
+        # The Download button. Its own URL keeps it out of the player's
+        # cache entry: the <audio> element only fetches byte ranges, which
+        # Chrome caches as a partial entry, and a download of that same
+        # URL failed inside the browser ("Check internet connection")
+        # without ever reaching the server.
+        headers = {
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "no-store",
+            "Content-Length": str(size),
+        }
+        return StreamingResponse(
+            db.iter_audio(table, parent_id, 0, size - 1),
+            media_type=meta["mime_type"],
+            headers=headers,
+        )
+
+    # Playback. no-cache + ETag: the browser may keep the bytes but must
+    # revalidate, so a partial cache entry is never trusted blindly.
     headers = {
         "Accept-Ranges": "bytes",
-        "Content-Disposition": f'inline; filename="{filename_stem}.{meta["file_ext"]}"',
-        "Cache-Control": "private, max-age=3600",
+        "Content-Disposition": f'inline; filename="{filename}"',
+        "Cache-Control": "private, no-cache",
+        "ETag": etag,
     }
 
     range_header = (request.headers.get("range") or "").strip()
+    if_range = (request.headers.get("if-range") or "").strip()
+    if range_header and if_range and if_range != etag:
+        # Resuming from a different version of the recording: send it whole.
+        range_header = ""
     if range_header:
         match = _RANGE_PATTERN.fullmatch(range_header)
         valid = bool(match and (match.group(1) or match.group(2)))
