@@ -649,7 +649,13 @@ def iter_audio(table, parent_id, start, end, chunk_size=256 * 1024):
     is never held in memory at once.
     """
     table, key = _audio_table(table)
-    conn = sqlite3.connect(DB_PATH)
+    # StreamingResponse advances this generator one chunk at a time on
+    # whichever threadpool worker is free, so the connection must be
+    # usable from any thread. Calls never overlap (each chunk is awaited
+    # before the next is requested), so sharing it this way is safe.
+    # Without this, any recording larger than one chunk broke off mid-
+    # download ("Failed - Network error" / "Check internet connection").
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     try:
         if hasattr(conn, "blobopen"):
             with conn.blobopen(table, "audio", parent_id, readonly=True) as blob:
