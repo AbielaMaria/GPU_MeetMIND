@@ -36,7 +36,7 @@
         ".mm-dlg h3{margin:0 0 10px;font-size:1.05rem;font-weight:650;" +
             "letter-spacing:-0.01em;color:var(--text-primary)}" +
         ".mm-dlg p{margin:0 0 22px;font-size:13px;line-height:1.55;" +
-            "color:var(--text-secondary);overflow-wrap:anywhere}" +
+            "color:var(--text-secondary);overflow-wrap:anywhere;white-space:pre-line}" +
         ".mm-dlg.has-items{max-width:440px}" +
         ".mm-dlg.has-items p{margin-bottom:10px}" +
         ".mm-dlg ul{margin:0 0 22px;padding-left:18px;font-size:13px;line-height:1.55;" +

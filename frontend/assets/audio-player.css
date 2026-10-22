@@ -357,10 +357,6 @@
         order: 10;
         flex-basis: 100%;
     }
-
-    .mm-player-download .mm-player-download-text {
-        display: none;
-    }
 }
 
 @media (prefers-reduced-motion: reduce) {

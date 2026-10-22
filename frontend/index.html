@@ -481,36 +481,6 @@ button:disabled {
     gap: 8px;
 }
 
-/* Secondary to Upload Recording: outlined, same height. */
-#downloadAudioBtn {
-    height: var(--control-h);
-    padding: 0 16px;
-    font-size: 13px;
-    background: var(--bg-surface);
-    border-color: var(--border);
-    color: var(--text-primary);
-    box-shadow: var(--shadow-sm);
-}
-
-#downloadAudioBtn::before {
-    content: "";
-    -webkit-mask-image: var(--icon-download);
-    mask-image: var(--icon-download);
-}
-
-#downloadAudioBtn:hover {
-    background: var(--bg-elevated);
-    border-color: var(--border-strong);
-}
-
-#downloadAudioBtn[hidden] {
-    display: none;
-}
-
-#downloadAudioBtn[aria-busy="true"] {
-    cursor: progress;
-}
-
 /* Beside Stop Recording while recording: outlined, turns red on hover
    since it throws the recording away. */
 #cancelRecordingBtn {
@@ -3079,7 +3049,7 @@ body.mindmap-expanded {
 </style>
 
 <!-- After the inline styles, so these components' rules win ties with them. -->
-<link rel="stylesheet" href="/assets/audio-player.css?v=2">
+<link rel="stylesheet" href="/assets/audio-player.css?v=3">
 <link rel="stylesheet" href="/assets/prescription.css?v=1">
 <link rel="stylesheet" href="/assets/doctor-template.css?v=2">
 <link rel="stylesheet" href="/assets/interview-report.css?v=1">
@@ -3197,17 +3167,6 @@ body.mindmap-expanded {
 
             <div class="upload-recording-group">
                 <div class="upload-recording-actions">
-                    <!-- Shown only while a stored recording is on screen
-                         (just recorded / uploaded, or opened from history);
-                         follows recordingPlayer. -->
-                    <button
-                        id="downloadAudioBtn"
-                        type="button"
-                        title="Download the recording saved with this session"
-                        hidden
-                    >
-                        <span class="download-audio-label">Download Audio</span>
-                    </button>
                     <button
                         id="uploadRecordingBtn"
                         type="button"
@@ -7803,12 +7762,27 @@ async function startRecording() {
         let sharedRemoteAudioAvailable = sharedAudioTracks.length > 0;
 
         if (!sharedRemoteAudioAvailable) {
-            const continueMicOnly = window.confirm(
-                "Meeting Audio Not Shared\n\n" +
-                "The selected tab/window/screen did not provide an audio track. MeetMind may record only the sound captured by your microphone, so other participants' voices may be missing from the transcript.\n\n" +
-                "To capture both sides, cancel and start again. Select the Teams browser tab and enable Share tab audio, if available.\n\n" +
-                "Choose OK to continue with microphone only, or Cancel to stop recording."
-            );
+            const noAudioMessage =
+                "The selected tab, window, or screen did not provide an audio track. MeetMind may record only your microphone audio, so other participants' voices may be missing from the transcript.\n\n" +
+                "To capture both sides, Select the tab or window where your meeting or interview is open, and turn on audio sharing.";
+            const noAudioChoices = [
+                "OK: Continue recording with microphone audio only.",
+                "Cancel: Stop recording and try again."
+            ];
+
+            const continueMicOnly = window.MeetMindDialog
+                ? await window.MeetMindDialog.confirm({
+                    title: "Meeting Audio Not Shared",
+                    message: noAudioMessage,
+                    items: noAudioChoices,
+                    confirmText: "OK",
+                    cancelText: "Cancel"
+                })
+                : window.confirm(
+                    "Meeting Audio Not Shared\n\n" +
+                    noAudioMessage + "\n\n" +
+                    noAudioChoices.join("\n")
+                );
 
             if (!continueMicOnly) {
                 meetTabStream.getTracks().forEach(t => {
@@ -12979,52 +12953,6 @@ const recordingPlayer = (() => {
         );
     }
 
-    /* "Download Audio" next to Upload Recording: visible exactly while
-       this player holds a stored recording (every template), and
-       downloads through the player so both buttons behave the same. */
-    const downloadAudioBtn =
-        document.getElementById(
-            "downloadAudioBtn"
-        );
-
-    if (player && downloadAudioBtn) {
-
-        const label =
-            downloadAudioBtn.querySelector(
-                ".download-audio-label"
-            );
-
-        player.onDownloadState(function (state) {
-
-            downloadAudioBtn.hidden =
-                !state.available;
-
-            downloadAudioBtn.disabled =
-                !state.available || state.busy;
-
-            downloadAudioBtn.setAttribute(
-                "aria-busy",
-                state.busy ? "true" : "false"
-            );
-
-            label.textContent =
-                state.busy
-                    ? `Downloading… ${state.percent}%`
-                    : "Download Audio";
-
-            if (state.error) {
-                setStatus(state.error);
-            }
-        });
-
-        downloadAudioBtn.addEventListener(
-            "click",
-            function () {
-                player.download();
-            }
-        );
-    }
-
     function sourceLabel(audio) {
 
         if (!audio || !audio.source) {
@@ -13443,7 +13371,7 @@ window.meetmindHistory = {
 
 </script>
 
-<script src="/assets/dialog.js?v=3"></script>
+<script src="/assets/dialog.js?v=4"></script>
 <script src="/assets/history.js?v=8"></script>
 <script src="/assets/doctor-template.js?v=2"></script>
 <script src="/assets/interview-template.js?v=2"></script>
