@@ -7800,21 +7800,41 @@ async function startRecording() {
         }
 
         const sharedAudioTracks = meetTabStream.getAudioTracks();
-        if (!sharedAudioTracks.length) {
+        let sharedRemoteAudioAvailable = sharedAudioTracks.length > 0;
+
+        if (!sharedRemoteAudioAvailable) {
+            const continueMicOnly = window.confirm(
+                "Meeting Audio Not Shared\n\n" +
+                "The selected tab/window/screen did not provide an audio track. MeetMind may record only the sound captured by your microphone, so other participants' voices may be missing from the transcript.\n\n" +
+                "To capture both sides, cancel and start again. Select the Teams browser tab and enable Share tab audio, if available.\n\n" +
+                "Choose OK to continue with microphone only, or Cancel to stop recording."
+            );
+
+            if (!continueMicOnly) {
+                meetTabStream.getTracks().forEach(t => {
+                    try { t.stop(); } catch (e) {}
+                });
+                meetTabStream = null;
+                throw new Error(
+                    "Recording cancelled because meeting audio was not shared. Click Start Recording again and enable Share tab audio for the Teams tab, if available."
+                );
+            }
+
+            /* The user explicitly chose to continue without remote audio. */
             meetTabStream.getTracks().forEach(t => {
                 try { t.stop(); } catch (e) {}
             });
             meetTabStream = null;
-            throw new Error(
-                "The selected tab/window/screen provided no audio track, so recording was not started. " +
-                "Choose the Teams browser tab and enable Share tab audio. Audio capture from a desktop/PWA window or entire screen may not be supported by this browser/OS."
-            );
+            setStatus("Warning: microphone-only recording selected. Other participants may be missing from the transcript.");
+            log("User chose to continue with microphone-only recording because the shared source had no audio track.");
         }
 
         /* The shared video track is not needed; retain its audio track. */
-        meetTabStream.getVideoTracks().forEach(t => {
-            try { t.stop(); } catch (e) {}
-        });
+        if (meetTabStream) {
+            meetTabStream.getVideoTracks().forEach(t => {
+                try { t.stop(); } catch (e) {}
+            });
+        }
 
         await openWebSocket();
 
@@ -7841,11 +7861,13 @@ async function startRecording() {
             .map(t => `${t.label || "default microphone"} (${t.readyState})`)
             .join(" | "));
 
-        let remoteAudioAvailable = true;
-        const remoteTracks = meetTabStream.getAudioTracks();
+        let remoteAudioAvailable = sharedRemoteAudioAvailable && !!meetTabStream;
+        const remoteTracks = meetTabStream ? meetTabStream.getAudioTracks() : [];
         let remoteSourceLabel = remoteTracks.map(t => t.label || "shared browser audio").join(", ");
-        let requestedAudioMode = "microphone_and_meet_tab";
-        let requestedAudioSources = ["microphone", "teams_browser_tab"];
+        let requestedAudioMode = remoteAudioAvailable ? "microphone_and_meet_tab" : "microphone";
+        let requestedAudioSources = remoteAudioAvailable
+            ? ["microphone", "teams_browser_tab"]
+            : ["microphone"];
 
         remoteTracks.forEach(track => {
             track.addEventListener("ended", () => {

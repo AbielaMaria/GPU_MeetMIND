@@ -573,3 +573,7 @@ async def analyze_interview(
             data = await _evaluate_in_parts(client, transcript, setup, CHUNK_CHARS)
 
     return normalise_report(data, skills, from_model=True, details=details)
+
+
+
+
