@@ -1452,6 +1452,43 @@ async def meeting_websocket(
                 continue
 
             # =================================================
+            # CANCEL RECORDING
+            # =================================================
+
+            if command_type == "cancel":
+
+                # The user discarded the recording: drop the audio
+                # without transcribing or saving it. No reply — the
+                # browser closes this socket right after sending it.
+                # A cancel can't arrive mid-processing (the recording
+                # is processed inline above), so only an active
+                # recording is affected.
+
+                if recording:
+
+                    recording = False
+
+                    audio_buffer.clear()
+
+                    print()
+                    print("=" * 70)
+                    print("RECORDING CANCELLED BY USER")
+                    print("=" * 70)
+
+                    print(
+                        "Meeting ID:",
+                        meeting_id,
+                    )
+
+                    print(
+                        "Audio discarded. Nothing transcribed or saved."
+                    )
+
+                    print("=" * 70)
+
+                continue
+
+            # =================================================
             # PING
             # =================================================
 

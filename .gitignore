@@ -23,6 +23,8 @@ CLAUDE.md
 
 # Databases (local/VM live data — never commit)
 *.db
+*.db-wal
+*.db-shm
 *.sqlite
 *.sqlite3
 

@@ -77,6 +77,12 @@ def _connect():
 
 def init_db():
     with _connect() as conn:
+        # WAL lets readers and a writer work at the same time: without it a
+        # commit waits for every open read to finish, and a slow one (the
+        # audio player streaming a recording) made it fail with "database
+        # is locked". The mode is stored in the file, so setting it once
+        # here covers every connection, iter_audio's included.
+        conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -647,6 +653,12 @@ def iter_audio(table, parent_id, start, end, chunk_size=256 * 1024):
     Uses incremental blob I/O where the sqlite3 module has it (Python
     3.11+), else SQL substr() per chunk — either way the whole recording
     is never held in memory at once.
+
+    Each chunk is read and its read finished before it is yielded, so no
+    lock is held while the generator waits on a slow client. The browser's
+    <audio> element often reads a little and then stalls the request; a
+    blob handle kept open across those yields used to hold the database's
+    read lock the whole time and block every commit behind it.
     """
     table, key = _audio_table(table)
     # StreamingResponse advances this generator one chunk at a time on
@@ -657,28 +669,23 @@ def iter_audio(table, parent_id, start, end, chunk_size=256 * 1024):
     # download ("Failed - Network error" / "Check internet connection").
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     try:
-        if hasattr(conn, "blobopen"):
-            with conn.blobopen(table, "audio", parent_id, readonly=True) as blob:
-                blob.seek(start)
-                remaining = end - start + 1
-                while remaining > 0:
-                    data = blob.read(min(chunk_size, remaining))
-                    if not data:
-                        break
-                    remaining -= len(data)
-                    yield data
-        else:
-            position = start
-            while position <= end:
-                length = min(chunk_size, end - position + 1)
-                row = conn.execute(
+        position = start
+        while position <= end:
+            length = min(chunk_size, end - position + 1)
+            if hasattr(conn, "blobopen"):
+                with conn.blobopen(table, "audio", parent_id, readonly=True) as blob:
+                    blob.seek(position)
+                    data = blob.read(length)
+            else:
+                rows = conn.execute(
                     f"SELECT substr(audio, ?, ?) FROM {table} WHERE {key} = ?",
                     (position + 1, length, parent_id),
-                ).fetchone()
-                if not row or not row[0]:
-                    break
-                position += len(row[0])
-                yield bytes(row[0])
+                ).fetchall()
+                data = bytes(rows[0][0]) if rows and rows[0][0] else b""
+            if not data:
+                break
+            position += len(data)
+            yield data
     finally:
         conn.close()
 

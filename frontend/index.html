@@ -143,6 +143,7 @@
     --icon-audio: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 10v3'/%3E%3Cpath d='M6 6v11'/%3E%3Cpath d='M10 3v18'/%3E%3Cpath d='M14 8v7'/%3E%3Cpath d='M18 5v13'/%3E%3Cpath d='M22 10v3'/%3E%3C/svg%3E");
     --icon-terminal: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4 17 6-6-6-6'/%3E%3Cpath d='M12 19h8'/%3E%3C/svg%3E");
     --icon-download: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/%3E%3Cpolyline points='7 10 12 15 17 10'/%3E%3Cline x1='12' y1='15' x2='12' y2='3'/%3E%3C/svg%3E");
+    --icon-x: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18 6 6 18'/%3E%3Cpath d='m6 6 12 12'/%3E%3C/svg%3E");
 }
 
 /* ---------- Tokens : dark ---------- */
@@ -508,6 +509,34 @@ button:disabled {
 
 #downloadAudioBtn[aria-busy="true"] {
     cursor: progress;
+}
+
+/* Beside Stop Recording while recording: outlined, turns red on hover
+   since it throws the recording away. */
+#cancelRecordingBtn {
+    height: var(--control-h);
+    padding: 0 16px;
+    font-size: 13px;
+    background: var(--bg-surface);
+    border-color: var(--border);
+    color: var(--text-primary);
+    box-shadow: var(--shadow-sm);
+}
+
+#cancelRecordingBtn::before {
+    content: "";
+    -webkit-mask-image: var(--icon-x);
+    mask-image: var(--icon-x);
+}
+
+#cancelRecordingBtn:hover {
+    background: var(--bg-elevated);
+    border-color: var(--danger);
+    color: var(--danger);
+}
+
+#cancelRecordingBtn[hidden] {
+    display: none;
 }
 
 .upload-recording-help {
@@ -3151,6 +3180,17 @@ body.mindmap-expanded {
                 Start Recording
             </button>
 
+            <!-- Shown only while recording, in every template: stops
+                 and discards the recording (see cancelRecording). -->
+            <button
+                id="cancelRecordingBtn"
+                type="button"
+                title="Stop and discard this recording without transcribing or saving it"
+                hidden
+            >
+                Cancel Recording
+            </button>
+
             <span id="timer">
                 00:00
             </span>
@@ -3616,6 +3656,9 @@ const recordBtn =
     document.getElementById(
         "recordBtn"
     );
+
+const cancelRecordingBtn =
+    document.getElementById("cancelRecordingBtn");
 
 const uploadRecordingBtn =
     document.getElementById("uploadRecordingBtn");
@@ -4497,6 +4540,17 @@ async function reconnectWebSocket() {
     try {
 
         await createWebSocketConnection();
+
+        // Cancelled while this connection was opening: cancelRecording
+        // has already closed it, so there is nothing to replay.
+        if (
+            !isRecording
+            &&
+            !stopRequested
+        ) {
+
+            return;
+        }
 
         await replayRecordingToWebSocket();
 
@@ -8014,6 +8068,7 @@ async function startRecording() {
         recordBtn.disabled = false;
         recordBtn.textContent = "Stop Recording";
         recordBtn.classList.add("recording");
+        cancelRecordingBtn.hidden = false;
 
         if (tabAudioAvailable) {
 
@@ -8060,6 +8115,7 @@ async function startRecording() {
         recordBtn.disabled = false;
         recordBtn.textContent = "Start Recording";
         recordBtn.classList.remove("recording");
+        cancelRecordingBtn.hidden = true;
     }
 }
 
@@ -8173,6 +8229,9 @@ function stopRecording() {
         "recording"
     );
 
+    cancelRecordingBtn.hidden =
+        true;
+
     cleanupAudio();
 
 
@@ -8214,6 +8273,138 @@ function stopRecording() {
     );
 
     scheduleWebSocketReconnect();
+}
+
+
+/* ============================================================
+   CANCEL RECORDING
+   ------------------------------------------------------------
+   Stops capture and throws the recording away: nothing is sent
+   for transcription and nothing is saved, in any template. The
+   server drops its copy of the audio on the "cancel" command,
+   and on the socket closing should the command not get through.
+   Only offered while recording; once Stop is clicked the
+   recording is on its way to Parrotlet.
+============================================================ */
+
+function cancelRecording() {
+
+    if (
+        !isRecording
+    ) {
+
+        return;
+    }
+
+    isRecording =
+        false;
+
+    stopRequested =
+        false;
+
+    stopTimer();
+
+    cleanupAudio();
+
+    if (
+        reconnectTimer
+    ) {
+
+        clearTimeout(
+            reconnectTimer
+        );
+
+        reconnectTimer =
+            null;
+    }
+
+    reconnectAttempts =
+        0;
+
+    if (
+        websocket
+    ) {
+
+        // Detached first so the close doesn't show "Disconnected"
+        // or try to reconnect: nothing is waiting on this socket now.
+        websocket.onclose =
+            null;
+
+        websocket.onmessage =
+            null;
+
+        try {
+
+            if (
+                websocket.readyState ===
+                    WebSocket.OPEN
+            ) {
+
+                websocket.send(
+                    JSON.stringify({
+                        command: "cancel"
+                    })
+                );
+            }
+
+            websocket.close();
+
+        } catch (error) {}
+
+        websocket =
+            null;
+    }
+
+    connectionLost =
+        false;
+
+    connectionEl.textContent =
+        "Ready";
+
+    statusDot.style.background =
+        "";
+
+    recordingPcmChunks =
+        [];
+
+    timerEl.textContent =
+        "00:00";
+
+    recordBtn.disabled =
+        false;
+
+    recordBtn.textContent =
+        "Start Recording";
+
+    recordBtn.classList.remove(
+        "recording"
+    );
+
+    cancelRecordingBtn.hidden =
+        true;
+
+    transcriptEl.innerHTML = `
+        <div class="placeholder">
+            Your complete transcript will appear here
+            after you stop recording.
+        </div>
+    `;
+
+    resetTranscriptSearch();
+
+    modelSlots.forEach(
+        slot => resetSlot(slot)
+    );
+
+    updateGenerateButton();
+
+    setStatus(
+        "Recording cancelled. Nothing was transcribed or saved."
+    );
+
+    log(
+        "Recording cancelled by user. Audio discarded."
+    );
 }
 
 
@@ -12527,6 +12718,42 @@ recordBtn.addEventListener(
 
             startRecording();
         }
+    }
+);
+
+
+cancelRecordingBtn.addEventListener(
+    "click",
+    function() {
+
+        const confirmed =
+            window.MeetMindDialog
+                ? window.MeetMindDialog.confirm({
+                    title:
+                        "Cancel this recording?",
+                    message:
+                        "The audio recorded so far will be discarded. Nothing will be transcribed or saved.",
+                    confirmText:
+                        "Discard Recording",
+                    cancelText:
+                        "Keep Recording",
+                    danger:
+                        true
+                })
+                : Promise.resolve(
+                    window.confirm(
+                        "Cancel this recording? The audio recorded so far will be discarded."
+                    )
+                );
+
+        confirmed.then(
+            ok => {
+
+                if (ok) {
+                    cancelRecording();
+                }
+            }
+        );
     }
 );
 
