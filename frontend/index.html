@@ -7703,12 +7703,22 @@ searchNextBtn.addEventListener(
 
 async function startRecording() {
 
-    if (isRecording) {
+    if (isRecording) return;
+
+    /*
+     * Always invoke the browser's native share picker FIRST, directly from
+     * the Start Recording click. There is intentionally no JavaScript
+     * prompt before getDisplayMedia(). The user must select the Teams tab,
+     * window, or screen and enable audio sharing where the browser offers it.
+     */
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+        setStatus("This browser does not support screen/tab audio sharing. Use a supported desktop browser.");
         return;
     }
 
-    recordBtn.disabled = true;
+    let modeChoice = "2";
 
+    recordBtn.disabled = true;
     sessionEpoch++;
     clearReportReady();
     clearReportSelection();
@@ -7718,30 +7728,50 @@ async function startRecording() {
     currentMeetingDuration = null;
 
     startNewSession();
-
     updateGenerateButton();
 
-    setStatus(
-        "Requesting microphone permission..."
-    );
+    setStatus("Preparing microphone and selected audio source...");
 
     transcriptEl.innerHTML = `
         <div class="placeholder">
             Recording in progress...
         </div>
     `;
-
     resetTranscriptSearch();
-
-    modelSlots.forEach(
-        slot => resetSlot(slot, "recording")
-    );
+    modelSlots.forEach(slot => resetSlot(slot, "recording"));
 
     try {
+        setStatus("Choose the Teams tab/window/screen in the browser sharing popup and enable audio sharing if available...");
+        try {
+            /* This must be the first permission dialog after Start Recording. */
+            meetTabStream = await navigator.mediaDevices.getDisplayMedia({
+                video: true,
+                audio: true
+            });
+        } catch (shareError) {
+            throw new Error(
+                "The browser sharing popup was cancelled or could not be opened. " +
+                "No recording was started. Click Start Recording again and select the Teams tab/window/screen. Details: " +
+                (shareError.message || shareError)
+            );
+        }
 
-        /* ----------------------------------------------------
-           WebSocket
-        ---------------------------------------------------- */
+        const sharedAudioTracks = meetTabStream.getAudioTracks();
+        if (!sharedAudioTracks.length) {
+            meetTabStream.getTracks().forEach(t => {
+                try { t.stop(); } catch (e) {}
+            });
+            meetTabStream = null;
+            throw new Error(
+                "The selected tab/window/screen provided no audio track, so recording was not started. " +
+                "Choose the Teams browser tab and enable Share tab audio. Audio capture from a desktop/PWA window or entire screen may not be supported by this browser/OS."
+            );
+        }
+
+        /* The shared video track is not needed; retain its audio track. */
+        meetTabStream.getVideoTracks().forEach(t => {
+            try { t.stop(); } catch (e) {}
+        });
 
         await openWebSocket();
 
@@ -7749,318 +7779,119 @@ async function startRecording() {
             throw new Error("WebSocket connection failed.");
         }
 
-        /* ----------------------------------------------------
-           SYSTEM MICROPHONE
+        /* Capture the local participant. */
+        setStatus("Requesting microphone permission...");
+        microphoneStream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+                channelCount: 1,
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true
+            }
+        });
 
-           Always requested independently of tab sharing.
-           This is the computer's selected/default microphone
-           (laptop mic, AirPods mic, USB mic, etc.).
-        ---------------------------------------------------- */
+        if (!microphoneStream.getAudioTracks().length) {
+            throw new Error("No microphone input was detected.");
+        }
 
-        setStatus("Requesting system microphone permission...");
+        log("Microphone ready: " + microphoneStream.getAudioTracks()
+            .map(t => `${t.label || "default microphone"} (${t.readyState})`)
+            .join(" | "));
 
-        microphoneStream =
-            await navigator.mediaDevices.getUserMedia({
-                audio: {
-                    channelCount: 1,
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: true
+        let remoteAudioAvailable = true;
+        const remoteTracks = meetTabStream.getAudioTracks();
+        let remoteSourceLabel = remoteTracks.map(t => t.label || "shared browser audio").join(", ");
+        let requestedAudioMode = "microphone_and_meet_tab";
+        let requestedAudioSources = ["microphone", "teams_browser_tab"];
+
+        remoteTracks.forEach(track => {
+            track.addEventListener("ended", () => {
+                log("Shared Teams audio ended. Two-way capture may no longer be available.");
+                if (isRecording) {
+                    setStatus("Warning: Teams shared audio ended. Check the sharing permission.");
                 }
             });
+        });
 
-        const microphoneTracks =
-            microphoneStream.getAudioTracks();
-
-        if (!microphoneTracks.length) {
-            throw new Error(
-                "No microphone input was detected."
-            );
+        if (!remoteAudioAvailable) {
+            throw new Error("Remote audio source was not established. Recording was not started.");
         }
 
-        log(
-            "System microphone: " +
-            microphoneTracks
-                .map(
-                    track =>
-                        `${track.label || "default microphone"}:readyState=${track.readyState}`
-                )
-                .join(" | ")
-        );
-
-        /* ----------------------------------------------------
-           OPTIONAL GOOGLE MEET TAB AUDIO
-
-           The existing Chrome tab-audio capture is preserved.
-
-           IMPORTANT:
-           - If the user selects a Google Meet tab and enables
-             tab audio, it is mixed with the microphone.
-           - If the user cancels/closes the sharing dialog, the
-             meeting continues with microphone-only recording.
-           - If Chrome returns a display stream without an audio
-             track, microphone-only recording continues.
-        ---------------------------------------------------- */
-
-        let tabAudioAvailable = false;
-
-        setStatus(
-            "Microphone ready. Optional: select Google Meet tab and enable Share tab audio..."
-        );
-
-        try {
-
-            meetTabStream =
-                await navigator.mediaDevices.getDisplayMedia({
-                    video: true,
-                    audio: true
-                });
-
-            const meetAudioTracks =
-                meetTabStream.getAudioTracks();
-
-            if (meetAudioTracks.length) {
-
-                tabAudioAvailable = true;
-
-                log(
-                    "Google Meet tab audio: " +
-                    meetAudioTracks
-                        .map(
-                            track =>
-                                `${track.label || "tab audio"}:readyState=${track.readyState}`
-                        )
-                        .join(" | ")
-                );
-
-                /* We only need Meet audio, not the shared video. */
-                meetTabStream.getVideoTracks().forEach(
-                    track => track.stop()
-                );
-
-                meetAudioTracks.forEach(track => {
-                    track.addEventListener(
-                        "ended",
-                        () => {
-                            log(
-                                "Google Meet tab audio ended. Continuing with microphone."
-                            );
-                        }
-                    );
-                });
-
-            } else {
-
-                log(
-                    "Chrome returned no tab-audio track. Continuing with system microphone only."
-                );
-
-                meetTabStream.getTracks().forEach(
-                    track => track.stop()
-                );
-
-                meetTabStream = null;
-            }
-
-        } catch (tabError) {
-
-            /* User cancelling the Chrome sharing dialog must NOT
-               cancel microphone recording. */
-
-            if (
-                tabError &&
-                (
-                    tabError.name === "NotAllowedError" ||
-                    tabError.name === "AbortError"
-                )
-            ) {
-                log(
-                    "Google Meet tab sharing not selected. Continuing with system microphone only."
-                );
-            } else {
-                log(
-                    `Optional tab audio unavailable: ${tabError.message || tabError}. Continuing with microphone.`
-                );
-            }
-
-            if (meetTabStream) {
-                meetTabStream.getTracks().forEach(
-                    track => {
-                        try {
-                            track.stop();
-                        } catch (e) {}
-                    }
-                );
-
-                meetTabStream = null;
-            }
+        if (remoteAudioAvailable) {
+            log("Remote audio source ready: " + remoteSourceLabel);
         }
 
-        /* ----------------------------------------------------
-           Audio Context
-        ---------------------------------------------------- */
+        /* Existing Web Audio + 16 kHz PCM16 transport is preserved. */
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioContext.state === "suspended") await audioContext.resume();
 
-        audioContext =
-            new (
-                window.AudioContext ||
-                window.webkitAudioContext
-            )();
+        sourceNode = audioContext.createMediaStreamSource(microphoneStream);
 
-        if (audioContext.state === "suspended") {
-            await audioContext.resume();
+        if (remoteAudioAvailable && meetTabStream) {
+            meetTabSourceNode = audioContext.createMediaStreamSource(meetTabStream);
         }
 
-        /* ----------------------------------------------------
-           Audio sources
+        processorNode = audioContext.createScriptProcessor(4096, 1, 1);
 
-           sourceNode        = system microphone
-           meetTabSourceNode = optional Google Meet tab audio
-        ---------------------------------------------------- */
-
-        sourceNode =
-            audioContext.createMediaStreamSource(
-                microphoneStream
-            );
-
-        if (tabAudioAvailable && meetTabStream) {
-
-            meetTabSourceNode =
-                audioContext.createMediaStreamSource(
-                    meetTabStream
-                );
-        }
-
-        /* ----------------------------------------------------
-           Processor
-
-           If tab audio exists, Web Audio sums microphone +
-           Google Meet audio.
-
-           Otherwise only the microphone is connected.
-        ---------------------------------------------------- */
-
-        processorNode =
-            audioContext.createScriptProcessor(
-                4096,
-                1,
-                1
-            );
-
-        processorNode.onaudioprocess =
-            function(event) {
-
-                if (
-                    !isRecording
-                ) {
-                    return;
-                }
-
-                const input =
-                    event.inputBuffer.getChannelData(0);
-
-                if (!input || !input.length) {
-                    return;
-                }
-
-                const pcm16k =
-                    downsampleBuffer(
-                        input,
-                        audioContext.sampleRate,
-                        16000
-                    );
-
-                if (!pcm16k || !pcm16k.length) {
-                    return;
-                }
-
-                const pcmBuffer =
-                    floatToPCM16(pcm16k);
-
-                if (!pcmBuffer || !pcmBuffer.byteLength) {
-                    return;
-                }
-
-                // Always retain the complete PCM recording locally.
-                // This is the recovery buffer for WebSocket interruptions.
-                recordingPcmChunks.push(
-                    pcmBuffer.slice(0)
-                );
-
-                // Normal live transport. If the WebSocket is unavailable,
-                // the local buffer keeps accumulating until reconnection.
-                if (
-                    websocket
-                    &&
-                    websocket.readyState === WebSocket.OPEN
-                    &&
-                    !connectionLost
-                    &&
-                    !replayingRecording
-                ) {
-                    websocket.send(pcmBuffer);
-                }
-            };
-
-        /* ----------------------------------------------------
-           Connect microphone
-        ---------------------------------------------------- */
-
-        sourceNode.connect(processorNode);
-
-        /* ----------------------------------------------------
-           Connect optional Meet tab audio
-        ---------------------------------------------------- */
+        /*
+         * Mix the microphone and remote source into one mono stream.
+         * Keep the existing downsample -> PCM16 -> WebSocket protocol.
+         */
+        const mixBus = audioContext.createGain();
+        mixBus.gain.value = 0.5;
+        sourceNode.connect(mixBus);
 
         if (meetTabSourceNode) {
-            meetTabSourceNode.connect(processorNode);
+            const remoteGain = audioContext.createGain();
+            remoteGain.gain.value = 0.5;
+            meetTabSourceNode.connect(remoteGain);
+            remoteGain.connect(mixBus);
         }
 
-        /* ----------------------------------------------------
-           Keep ScriptProcessor active WITHOUT playing audio
-           back through the speakers.
-        ---------------------------------------------------- */
+        mixBus.connect(processorNode);
 
-        silentGainNode =
-            audioContext.createGain();
+        processorNode.onaudioprocess = function(event) {
+            if (!isRecording) return;
 
+            const input = event.inputBuffer.getChannelData(0);
+            if (!input || !input.length) return;
+
+            const pcm16k = downsampleBuffer(
+                input,
+                audioContext.sampleRate,
+                16000
+            );
+            if (!pcm16k || !pcm16k.length) return;
+
+            const pcmBuffer = floatToPCM16(pcm16k);
+            if (!pcmBuffer || !pcmBuffer.byteLength) return;
+
+            recordingPcmChunks.push(pcmBuffer.slice(0));
+
+            if (
+                websocket &&
+                websocket.readyState === WebSocket.OPEN &&
+                !connectionLost &&
+                !replayingRecording
+            ) {
+                websocket.send(pcmBuffer);
+            }
+        };
+
+        silentGainNode = audioContext.createGain();
         silentGainNode.gain.value = 0;
-
         processorNode.connect(silentGainNode);
         silentGainNode.connect(audioContext.destination);
 
-        /* ----------------------------------------------------
-           Tell backend to start before enabling audio packets.
-        ---------------------------------------------------- */
-
-        recordingAudioMode =
-            tabAudioAvailable
-                ? "microphone_and_meet_tab"
-                : "microphone";
-
+        recordingAudioMode = requestedAudioMode;
         recordingPcmChunks = [];
 
-        websocket.send(
-            JSON.stringify({
-                command: "start",
-                template:
-                    activeTemplate(),
-                audio_mode:
-                    recordingAudioMode,
-                audio_sources:
-                    tabAudioAvailable
-                        ? [
-                            "microphone",
-                            "google_meet_tab"
-                        ]
-                        : [
-                            "microphone"
-                        ]
-            })
-        );
-
-        /* ----------------------------------------------------
-           Recording state
-        ---------------------------------------------------- */
+        websocket.send(JSON.stringify({
+            command: "start",
+            template: activeTemplate(),
+            audio_mode: recordingAudioMode,
+            audio_sources: requestedAudioSources
+        }));
 
         isRecording = true;
         startTimer();
@@ -8070,41 +7901,21 @@ async function startRecording() {
         recordBtn.classList.add("recording");
         cancelRecordingBtn.hidden = false;
 
-        if (tabAudioAvailable) {
-
-            setStatus(
-                "Recording system microphone + Google Meet tab audio..."
-            );
-
-            log(
-                "Meeting recording started: system microphone + Google Meet tab audio."
-            );
-
+        if (remoteAudioAvailable) {
+            setStatus("Recording microphone + remote Teams audio. Verify both voices in the transcript.");
+            log("Recording started with two audio sources: microphone + " + remoteSourceLabel);
         } else {
-
-            setStatus(
-                "Recording system microphone..."
-            );
-
-            log(
-                "Meeting recording started: system microphone only."
-            );
+            setStatus("Recording microphone only. Other participant's questions may be missing.");
+            log("Recording started in microphone-only mode.");
         }
 
     } catch (error) {
-
         log(`Start error: ${error.message}`);
-
-        setStatus(
-            error.message || "Could not start recording."
-        );
-
+        setStatus(error.message || "Could not start recording.");
         cleanupAudio();
 
         if (websocket) {
-            try {
-                websocket.close();
-            } catch (e) {}
+            try { websocket.close(); } catch (e) {}
             websocket = null;
         }
 
