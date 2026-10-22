@@ -3620,9 +3620,17 @@ let silentGainNode = null;
 
 let isRecording = false;
 
+// True while the "Cancel this recording?" dialog is open: audio is
+// dropped instead of recorded and the timer is frozen, so "Keep
+// Recording" picks up exactly where it left off.
+let recordingPaused = false;
+
 let startTime = 0;
 
 let timerInterval = null;
+
+// When the timer was paused (Date.now()), or 0 when it is running.
+let timerPausedAt = 0;
 
 let transcript = "";
 
@@ -3854,8 +3862,17 @@ function startTimer() {
     startTime =
         Date.now();
 
+    timerPausedAt =
+        0;
+
     timerEl.textContent =
         "00:00";
+
+    runTimer();
+}
+
+
+function runTimer() {
 
     if (timerInterval) {
 
@@ -3891,6 +3908,32 @@ function startTimer() {
             },
             250
         );
+}
+
+
+/* Freezes the timer on its current reading; resumeTimer carries on
+   from that reading, leaving the paused time out of the count. */
+function pauseTimer() {
+
+    stopTimer();
+
+    timerPausedAt =
+        Date.now();
+}
+
+
+function resumeTimer() {
+
+    if (timerPausedAt) {
+
+        startTime +=
+            Date.now() - timerPausedAt;
+
+        timerPausedAt =
+            0;
+    }
+
+    runTimer();
 }
 
 
@@ -7851,7 +7894,7 @@ async function startRecording() {
         mixBus.connect(processorNode);
 
         processorNode.onaudioprocess = function(event) {
-            if (!isRecording) return;
+            if (!isRecording || recordingPaused) return;
 
             const input = event.inputBuffer.getChannelData(0);
             if (!input || !input.length) return;
@@ -7894,6 +7937,7 @@ async function startRecording() {
         }));
 
         isRecording = true;
+        recordingPaused = false;
         startTimer();
 
         recordBtn.disabled = false;
@@ -8021,6 +8065,9 @@ function stopRecording() {
     isRecording =
         false;
 
+    recordingPaused =
+        false;
+
     stopRequested =
         true;
 
@@ -8108,6 +8155,9 @@ function cancelRecording() {
     }
 
     isRecording =
+        false;
+
+    recordingPaused =
         false;
 
     stopRequested =
@@ -12537,6 +12587,33 @@ cancelRecordingBtn.addEventListener(
     "click",
     function() {
 
+        if (
+            !isRecording
+            ||
+            recordingPaused
+        ) {
+
+            return;
+        }
+
+        // Paused while the user decides: nothing said in the meantime
+        // is recorded, and Keep Recording carries on from here.
+        recordingPaused =
+            true;
+
+        pauseTimer();
+
+        const statusBeforePause =
+            statusEl.textContent;
+
+        setStatus(
+            "Recording paused..."
+        );
+
+        log(
+            "Recording paused for cancel confirmation."
+        );
+
         const confirmed =
             window.MeetMindDialog
                 ? window.MeetMindDialog.confirm({
@@ -12561,8 +12638,34 @@ cancelRecordingBtn.addEventListener(
             ok => {
 
                 if (ok) {
+
                     cancelRecording();
+
+                    return;
                 }
+
+                // Stopped or cancelled some other way meanwhile.
+                if (
+                    !isRecording
+                    ||
+                    !recordingPaused
+                ) {
+
+                    return;
+                }
+
+                recordingPaused =
+                    false;
+
+                resumeTimer();
+
+                setStatus(
+                    statusBeforePause
+                );
+
+                log(
+                    "Recording resumed."
+                );
             }
         );
     }
