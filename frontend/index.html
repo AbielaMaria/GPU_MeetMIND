@@ -7852,12 +7852,12 @@ async function startRecording() {
             });
         });
 
-        if (!remoteAudioAvailable) {
-            throw new Error("Remote audio source was not established. Recording was not started.");
-        }
-
         if (remoteAudioAvailable) {
             log("Remote audio source ready: " + remoteSourceLabel);
+        } else {
+            /* The user accepted the warning and explicitly chose microphone-only.
+               Do not abort recording just because screen sharing has no audio track. */
+            log("Remote audio source unavailable; continuing with microphone-only recording as confirmed by the user.");
         }
 
         /* Existing Web Audio + 16 kHz PCM16 transport is preserved. */
@@ -8266,19 +8266,14 @@ function cancelRecording() {
 
 
 /* ============================================================
-   GENERATE (summary + mind map, per selected model)
+   GENERATE (one combined task per selected model)
    ------------------------------------------------------------
-   One click sends every missing output for every selected model
-   at once. They don't have to take turns: when this recording has
-   no meeting row yet, the server opens one for the first request
-   and every other request joins it by transcript (see
-   db.find_or_create_meeting in backend/database.py).
-
-   sessionEpoch guards against results that come back after the
-   page has moved on (new recording, a meeting opened from
-   history): those are dropped here instead of landing in panels
-   that now belong to a different meeting. The server has already
-   saved them to the meeting they were generated for.
+   One click starts one task per selected model. Within each model,
+   summary generation completes before mind-map generation starts;
+   this avoids overlapping requests to the same provider. If both
+   models are selected, their combined tasks still run concurrently.
+   A failure in one output does not prevent the other output from
+   being attempted, and successful results are kept.
 ============================================================ */
 
 function adoptMeetingId(
@@ -8325,56 +8320,31 @@ async function postGeneration(
         await fetch(
             path,
             {
-
-                method:
-                    "POST",
-
+                method: "POST",
                 headers: {
-
-                    "Content-Type":
-                        "application/json"
+                    "Content-Type": "application/json"
                 },
-
-                body:
-                    JSON.stringify(
-                        {
-                            transcript:
-                                transcript,
-                            meeting_id:
-                                currentMeetingId,
-                            duration_seconds:
-                                currentMeetingDuration,
-                            model:
-                                slot.model.key
-                        }
-                    )
+                body: JSON.stringify({
+                    transcript: transcript,
+                    meeting_id: currentMeetingId,
+                    duration_seconds: currentMeetingDuration,
+                    model: slot.model.key
+                })
             }
         );
 
     const data =
         await response.json();
 
-    if (
-        !response.ok
-    ) {
-
+    if (!response.ok) {
         throw new Error(
-            data.detail
-            ||
-            data.error
-            ||
-            failureMessage
+            data.detail || data.error || failureMessage
         );
     }
 
-    if (
-        !data.success
-    ) {
-
+    if (!data.success) {
         throw new Error(
-            data.error
-            ||
-            failureMessage
+            data.error || failureMessage
         );
     }
 
@@ -8388,104 +8358,45 @@ async function generateSummary(
     slot
 ) {
 
-    const epoch =
-        sessionEpoch;
+    const epoch = sessionEpoch;
+    const label = slot.model.label;
 
-    const label =
-        slot.model.label;
-
-    setGenerationStatus(
-        slot,
-        "summary",
-        "generating"
+    setGenerationStatus(slot, "summary", "generating");
+    slot.els.intelligence.innerHTML = loadingHtml(
+        `${label} is analyzing the complete transcript...`
     );
-
-    slot.els.intelligence.innerHTML =
-        loadingHtml(
-            `${label} is analyzing the complete transcript...`
-        );
-
-    mountWaveLoaders(
-        slot.els.intelligence
-    );
-
-    log(
-        `Sending complete transcript to ${label} for meeting intelligence.`
-    );
+    mountWaveLoaders(slot.els.intelligence);
+    log(`Sending complete transcript to ${label} for meeting intelligence.`);
 
     try {
+        const data = await postGeneration(
+            "/api/meeting/summarize",
+            slot,
+            "Summary generation failed."
+        );
 
-        const data =
-            await postGeneration(
-                "/api/meeting/summarize",
-                slot,
-                "Summary generation failed."
-            );
-
-        if (
-            epoch !== sessionEpoch
-        ) {
-
-            log(
-                `${label} summary arrived after the meeting on screen changed — not shown.`
-            );
-
+        if (epoch !== sessionEpoch) {
+            log(`${label} summary arrived after the meeting on screen changed — not shown.`);
             return null;
         }
 
-        adoptMeetingId(
-            data.meeting_id
-        );
-
-        renderIntelligence(
-            slot,
-            data
-        );
-
-        setGenerationStatus(
-            slot,
-            "summary",
-            "done"
-        );
-
-        log(
-            `Meeting intelligence received from ${label}.`
-        );
-
+        adoptMeetingId(data.meeting_id);
+        renderIntelligence(slot, data);
+        setGenerationStatus(slot, "summary", "done");
+        log(`Meeting intelligence received from ${label}.`);
         notifyResultsChanged();
-
         return true;
 
-    } catch (
-        error
-    ) {
+    } catch (error) {
+        if (epoch !== sessionEpoch) return null;
 
-        if (
-            epoch !== sessionEpoch
-        ) {
-
-            return null;
-        }
-
-        log(
-            `${label} summary error: ${error.message}`
-        );
-
-        slot.els.intelligence.innerHTML =
-            `
+        log(`${label} summary error: ${error.message}`);
+        slot.els.intelligence.innerHTML = `
             <div class="mindmap-empty result-error">
-                Summary generation failed:
-                ${escapeHtml(error.message)}
+                Summary generation failed: ${escapeHtml(error.message)}
             </div>
-            `;
-
-        setGenerationStatus(
-            slot,
-            "summary",
-            "error",
-            error.message
-        );
-
+        `;
+        setGenerationStatus(slot, "summary", "error", error.message);
         return false;
     }
 }
@@ -8495,192 +8406,124 @@ async function generateMindMap(
     slot
 ) {
 
-    const epoch =
-        sessionEpoch;
+    const epoch = sessionEpoch;
+    const label = slot.model.label;
 
-    const label =
-        slot.model.label;
-
-    setGenerationStatus(
-        slot,
-        "mindmap",
-        "generating"
+    setGenerationStatus(slot, "mindmap", "generating");
+    slot.els.mindMapContainer.innerHTML = loadingHtml(
+        `${label} is mapping the complete transcript...`
     );
-
-    slot.els.mindMapContainer.innerHTML =
-        loadingHtml(
-            `${label} is mapping the complete transcript...`
-        );
-
-    mountWaveLoaders(
-        slot.els.mindMapContainer
-    );
-
-    log(
-        `Sending complete transcript to ${label} for mind-map generation.`
-    );
+    mountWaveLoaders(slot.els.mindMapContainer);
+    log(`Sending complete transcript to ${label} for mind-map generation.`);
 
     try {
+        const data = await postGeneration(
+            "/api/meeting/mindmap",
+            slot,
+            "Mind-map generation failed."
+        );
 
-        const data =
-            await postGeneration(
-                "/api/meeting/mindmap",
-                slot,
-                "Mind-map generation failed."
-            );
-
-        if (
-            epoch !== sessionEpoch
-        ) {
-
-            log(
-                `${label} mind map arrived after the meeting on screen changed — not shown.`
-            );
-
+        if (epoch !== sessionEpoch) {
+            log(`${label} mind map arrived after the meeting on screen changed — not shown.`);
             return null;
         }
 
-        adoptMeetingId(
-            data.meeting_id
-        );
-
-        renderMindMap(
-            slot,
-            data.mindmap
-        );
-
+        adoptMeetingId(data.meeting_id);
+        renderMindMap(slot, data.mindmap);
         setGenerationStatus(
             slot,
             "mindmap",
-            slot.mindmap
-                ? "done"
-                : "error",
-            slot.mindmap
-                ? ""
-                : "No mind map was generated."
+            slot.mindmap ? "done" : "error",
+            slot.mindmap ? "" : "No mind map was generated."
         );
-
-        log(
-            `Mind map received from ${label}.`
-        );
-
+        log(`Mind map received from ${label}.`);
         notifyResultsChanged();
-
         return !!slot.mindmap;
 
-    } catch (
-        error
-    ) {
+    } catch (error) {
+        if (epoch !== sessionEpoch) return null;
 
-        if (
-            epoch !== sessionEpoch
-        ) {
-
-            return null;
-        }
-
-        log(
-            `${label} mind-map error: ${error.message}`
-        );
-
-        clearMindMap(
-            slot,
-            `
+        log(`${label} mind-map error: ${error.message}`);
+        clearMindMap(slot, `
             <div class="mindmap-empty result-error">
-                Mind map generation failed:
-                ${escapeHtml(error.message)}
+                Mind map generation failed: ${escapeHtml(error.message)}
             </div>
-            `
-        );
-
-        setGenerationStatus(
-            slot,
-            "mindmap",
-            "error",
-            error.message
-        );
-
+        `);
+        setGenerationStatus(slot, "mindmap", "error", error.message);
         return false;
     }
 }
 
 
+async function generateCombinedForModel(
+    slot
+) {
+    /* Snapshot what is missing when this model task starts. */
+    const needsSummary = !slot.intel;
+    const needsMindMap = !slot.mindmap;
+    const outcomes = [];
+
+    /* Deliberately sequential within a model, not two competing calls. */
+    if (needsSummary && slot.status.summary !== "generating") {
+        outcomes.push(await generateSummary(slot));
+    }
+
+    /* Still attempt the mind map even if summary generation failed. */
+    if (needsMindMap && slot.status.mindmap !== "generating") {
+        outcomes.push(await generateMindMap(slot));
+    }
+
+    return outcomes;
+}
+
+
 async function generateSelected() {
 
-    if (
-        !transcript
-        ||
-        !transcript.trim()
-    ) {
-
-        setStatus(
-            "No transcript available."
-        );
-
+    if (!transcript || !transcript.trim()) {
+        setStatus("No transcript available.");
         return;
     }
 
-    const jobs =
-        pendingGenerations(
-            selectedSlots()
-        );
+    const slots = selectedSlots().filter(
+        slot =>
+            (!slot.intel && slot.status.summary !== "generating")
+            ||
+            (!slot.mindmap && slot.status.mindmap !== "generating")
+    );
 
-    if (
-        !jobs.length
-    ) {
-
+    if (!slots.length) {
         setStatus(
             "The selected model(s) already have a summary and mind map — edit them with Save Changes."
         );
-
         return;
     }
 
-    const epoch =
-        sessionEpoch;
+    const epoch = sessionEpoch;
+    const labels = slots.map(slot => slot.model.label).join(" and ");
+    setStatus(`Generating summary and mind map with ${labels}...`);
 
-    const labels =
-        [
-            ...new Set(
-                jobs.map(
-                    job => job.slot.model.label
-                )
-            )
-        ].join(
-            " and "
-        );
-
-    setStatus(
-        `Generating with ${labels}...`
+    /* Each model is one combined task; different model tasks can run together. */
+    const outcomes = await Promise.all(
+        slots.map(slot => generateCombinedForModel(slot))
     );
 
-    const outcomes =
-        await Promise.all(
-            jobs.map(
-                job =>
-                    job.kind === "summary"
-                        ? generateSummary(job.slot)
-                        : generateMindMap(job.slot)
-            )
+    if (epoch !== sessionEpoch) return;
+
+    const flattened = outcomes.flat();
+    const failed = flattened.filter(outcome => outcome === false).length;
+    const succeeded = flattened.filter(outcome => outcome === true).length;
+
+    if (failed && succeeded) {
+        setStatus(
+            `Generation finished with ${failed} failure(s). Successful results were kept; retry Generate for failed outputs.`
         );
-
-    if (
-        epoch !== sessionEpoch
-    ) {
-
-        return;
+    } else if (failed) {
+        setStatus(
+            `Generation finished with ${failed} failure(s). Retry Generate for failed outputs.`
+        );
+    } else {
+        setStatus(`Summary and mind-map generation complete (${labels}).`);
     }
-
-    const failed =
-        outcomes.filter(
-            outcome => outcome === false
-        ).length;
-
-    setStatus(
-        failed
-            ? `Generation finished with ${failed} failure${failed === 1 ? "" : "s"} — panels marked Failed can be retried with Generate.`
-            : `Generation complete (${labels}).`
-    );
 }
 
 
