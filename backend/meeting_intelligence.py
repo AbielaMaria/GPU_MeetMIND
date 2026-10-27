@@ -1413,7 +1413,7 @@ MISTRAL_MODEL = os.getenv("MISTRAL_MODEL", DEFAULT_MISTRAL_MODEL)
 # This is the model/API context capacity we intend to support; the provider
 # must also support 128K for this to work in practice.
 MISTRAL_CONTEXT_WINDOW = int(os.getenv("MISTRAL_CONTEXT_WINDOW", "128000"))
-MISTRAL_MAX_OUTPUT_TOKENS = int(os.getenv("MISTRAL_MAX_OUTPUT_TOKENS", "4096"))
+MISTRAL_MAX_OUTPUT_TOKENS = int(os.getenv("MISTRAL_MAX_OUTPUT_TOKENS", "8192"))
 QWEN_API_URL = os.getenv(
        "QWEN_API_URL",
        "http://115.112.206.245/api/chat/completions",
@@ -1426,7 +1426,7 @@ QWEN_CONTEXT_WINDOW = int(
        os.getenv("QWEN_CONTEXT_WINDOW", "128000")
 )
 QWEN_MAX_OUTPUT_TOKENS = int(
-       os.getenv("QWEN_MAX_OUTPUT_TOKENS", "4096")
+       os.getenv("QWEN_MAX_OUTPUT_TOKENS", "8192")
 )
 JSON_ONLY_INSTRUCTION = """
 Return exactly one valid JSON object.
@@ -1607,6 +1607,13 @@ def _call_qwen(
        if not isinstance(content, str) or not content.strip():
            raise RuntimeError("Qwen API returned an empty response.")
        return content.strip()
+def _get_max_output_tokens(llm_call) -> int:
+    """Choose the configured output limit for the selected model API."""
+    if llm_call is _call_qwen:
+        return QWEN_MAX_OUTPUT_TOKENS
+    return MISTRAL_MAX_OUTPUT_TOKENS
+
+
 # ============================================================
 # ROBUST JSON EXTRACTION
 # ============================================================
@@ -1861,6 +1868,24 @@ def _normalize_meeting_result_data(data: dict) -> dict:
        normalized["tasks_assigned"] = normalized_tasks
        normalized = _normalize_dates_recursively(normalized)
        return normalized
+def _log_structured_output_failure(stage: str, content, error: Exception) -> None:
+    """Log safe response diagnostics; full content is opt-in for local debugging."""
+    if not isinstance(content, str):
+        content = ""
+    print(
+        f"[MeetMind JSON] stage={stage} "
+        f"error={type(error).__name__}: {error}; "
+        f"response_chars={len(content)}"
+    )
+    # Model output can contain meeting or medical information. Only print snippets
+    # when explicitly enabled in the local environment.
+    if os.getenv("MEETMIND_DEBUG_LLM_OUTPUT", "").strip().lower() in {
+        "1", "true", "yes"
+    }:
+        print(f"[MeetMind JSON] {stage} response start: {content[:1500]!r}")
+        print(f"[MeetMind JSON] {stage} response end: {content[-800:]!r}")
+
+
 def generate_meeting_summary(
     transcript: str,
     _llm_call=call_mistral,
@@ -1943,7 +1968,7 @@ Return only the JSON object.
             system_prompt=SYSTEM_PROMPT,
             user_prompt=user_prompt,
             temperature=0.0,
-            max_tokens=4096,
+            max_tokens=_get_max_output_tokens(_llm_call),
         )
     except Exception as exc:
         raise RuntimeError(
@@ -1955,8 +1980,9 @@ Return only the JSON object.
         result = parse_and_validate(content)
         return result.model_dump()
     except Exception as first_error:
+        _log_structured_output_failure("initial_summary", content, first_error)
         # Retry only schema/JSON failures. Keep the original transcript and
-        # ask the same model to repair its own output without adding facts.
+        # ask the same model to regenerate a compact response with the exact schema.
         repair_prompt = f"""
 The previous response did not match the required meeting-result JSON schema.
 Validation error:
@@ -1966,17 +1992,33 @@ of truth. Do not invent information. Return exactly one valid JSON object with
 all seven top-level fields:
 title, objective, meeting_summary, tasks_assigned, decision_points,
 objections, action_items.
+Required top-level JSON structure (all seven keys are mandatory):
+{{
+  "title": "Concise meeting title",
+  "objective": "One concise, transcript-grounded sentence",
+  "meeting_summary": "A concise plain-text summary string",
+  "tasks_assigned": [
+    {{"task": "Explicitly assigned task", "assignee": null, "deadline": null}}
+  ],
+  "decision_points": [],
+  "objections": [],
+  "action_items": []
+}}
+
 Requirements:
-- objective must be a meaningful, non-empty string.
-- meeting_summary must be one plain string with headings and paragraphs,
-  never an object, dictionary, array, or nested JSON.
+- Keep every key at the TOP LEVEL; do not wrap the object in "result", "data",
+  "meeting", or any other container.
+- objective and meeting_summary must be non-empty strings.
 - tasks_assigned must be a list of objects containing task, assignee, deadline.
 - decision_points, objections, and action_items must be lists of strings.
 - Use [] when no relevant items exist.
+- Use null for unknown task assignee/deadline; never invent values.
 - Do not include reasoning, Markdown fences, or explanatory text.
 - Do not add unsupported facts.
-INVALID PREVIOUS RESPONSE:
-{content}
+Do not copy or continue the malformed response. Regenerate a fresh, compact response.
+Keep meeting_summary concise enough to fit the output-token limit while preserving
+the important points. Use empty arrays when the transcript contains no supported
+items for a list field.
 COMPLETE MEETING TRANSCRIPT:
 ============================
 {transcript}
@@ -1992,13 +2034,16 @@ Return only the corrected JSON object.
                 ),
                 user_prompt=repair_prompt,
                 temperature=0.0,
-                max_tokens=4096,
+                max_tokens=_get_max_output_tokens(_llm_call),
             )
             if not isinstance(repaired_content, str) or not repaired_content.strip():
                 raise ValueError("The repair response was empty.")
             result = parse_and_validate(repaired_content)
             return result.model_dump()
         except Exception as repair_error:
+            _log_structured_output_failure(
+                "summary_repair", locals().get("repaired_content", ""), repair_error
+            )
             raise RuntimeError(
                 f"{_llm_model} returned invalid structured meeting output after "
                 f"one automatic repair attempt. Original error: {first_error}. "
@@ -2095,7 +2140,7 @@ Return only one valid JSON object.
                system_prompt=MINDMAP_SYSTEM_PROMPT,
                user_prompt=user_prompt,
                temperature=0.0,
-               max_tokens=4096,
+               max_tokens=_get_max_output_tokens(_llm_call),
            )
        except Exception as exc:
            raise RuntimeError(
@@ -2130,7 +2175,7 @@ Return only the repaired JSON object.
                    ),
                    user_prompt=repair_prompt,
                    temperature=0.0,
-                   max_tokens=4096,
+                   max_tokens=_get_max_output_tokens(_llm_call),
                )
                mindmap_data = _parse_mindmap_json(repaired_content)
            except Exception as repair_error:
@@ -2287,7 +2332,7 @@ CONSULTATION TRANSCRIPT:
             system_prompt=DOCTOR_PRESCRIPTION_SYSTEM_PROMPT,
             user_prompt=user_prompt,
             temperature=0.0,
-            max_tokens=4096,
+            max_tokens=_get_max_output_tokens(_llm_call),
         )
         cleaned = _extract_json_object(content, required_keys=set(fields))
         return _normalize_doctor_prescription(json.loads(cleaned))
@@ -2310,7 +2355,7 @@ Return only the JSON object."""
                 system_prompt=DOCTOR_PRESCRIPTION_SYSTEM_PROMPT,
                 user_prompt=repair_prompt,
                 temperature=0.0,
-                max_tokens=4096,
+                max_tokens=_get_max_output_tokens(_llm_call),
             )
             cleaned = _extract_json_object(repaired, required_keys=set(fields))
             return _normalize_doctor_prescription(json.loads(cleaned))
