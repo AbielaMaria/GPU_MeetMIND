@@ -1707,7 +1707,7 @@ def _parse_mindmap_json(text: str) -> dict:
 # ============================================================
 # MEETING INTELLIGENCE PROMPT
 # ============================================================
-SYSTEM_PROMPT = """You are MeetMind, an AI meeting intelligence system.
+SYSTEM_PROMPT = """You are Vidatha, an AI meeting intelligence system.
 Analyze the complete meeting transcript and return accurate, professional meeting intelligence grounded in the transcript. The transcript may contain English, Tamil, Tamil-English code-mixed speech, Indian English, informal speech, and ASR errors. Correct an ASR error only when the intended meaning is clear. Speaker diarization is disabled; do not create speaker labels.
 STRICT GROUNDING
 - Use only information supported by the transcript.
@@ -2030,7 +2030,7 @@ def _clean_mindmap_node(node: dict) -> dict:
 # MINDMAP GENERATION
 # ============================================================
 MINDMAP_SYSTEM_PROMPT = """
-You are MeetMind, a meeting mindmap generator.
+You are Vidatha, a meeting mindmap generator.
 Generate a hierarchical mindmap directly from the complete transcript.
 Do not generate the mindmap from a summary.
 Use only information supported by the transcript.
@@ -2168,7 +2168,7 @@ def generate_mindmap_qwen(transcript: str):
 # DOCTOR PRESCRIPTION TEMPLATE (ADDITIVE; MOM FUNCTIONS UNCHANGED)
 # ============================================================
 
-DOCTOR_PRESCRIPTION_SYSTEM_PROMPT = """You are MeetMind's clinical documentation assistant.
+DOCTOR_PRESCRIPTION_SYSTEM_PROMPT = """You are Vidatha's clinical documentation assistant.
 Extract a DRAFT doctor-visit prescription form from the supplied consultation transcript.
 This is documentation assistance only, not medical decision-making.
 STRICT SAFETY AND GROUNDING:

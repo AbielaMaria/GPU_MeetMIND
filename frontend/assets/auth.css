@@ -67,6 +67,18 @@ body[data-pending-kind="revoked"] .pending-icon {
     background: var(--danger-soft);
 }
 
+body[data-pending-kind="approved"] .pending-icon,
+body[data-pending-kind="welcome"] .pending-icon {
+    color: var(--success);
+    background: var(--success-soft);
+}
+
+/* "Continue" only exists for the first-sign-in notice ("welcome"); every
+   other pending kind shows "Back to sign in". */
+.btn[data-pending-action="continue"] { display: none; }
+body[data-pending-kind="welcome"] .btn[data-pending-action="continue"] { display: inline-flex; }
+body[data-pending-kind="welcome"] .btn[data-pending-action="back"] { display: none; }
+
 /* ---------- Left : brand panel ---------- */
 
 .auth-aside {
@@ -201,6 +213,10 @@ body[data-pending-kind="revoked"] .pending-icon {
     margin: 8px 0 26px;
     color: var(--text-muted);
     font-size: 14px;
+}
+
+.auth-card .sub p + p {
+    margin-top: 10px;
 }
 
 .auth-form .row-between {

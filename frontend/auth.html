@@ -19,7 +19,7 @@
 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign In — MeetMind</title>
+    <title>Sign In — Vidatha</title>
     <meta name="color-scheme" content="light dark">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -40,7 +40,7 @@
 
     <link rel="stylesheet" href="assets/theme.css?v=2">
     <link rel="stylesheet" href="assets/mock-widget.css?v=2">
-    <link rel="stylesheet" href="assets/auth.css?v=3">
+    <link rel="stylesheet" href="assets/auth.css?v=6">
 
 </head>
 
@@ -71,7 +71,7 @@
             <span class="brand-mark" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/></svg>
             </span>
-            MeetMind
+            Vidatha
         </a>
 
         <!-- animated centerpiece: same mock live-transcript widget as the landing hero -->
@@ -80,7 +80,7 @@
 
                 <div class="mock-bar">
                     <span class="mock-dot"></span><span class="mock-dot"></span><span class="mock-dot"></span>
-                    <span class="mock-title">MeetMind — live</span>
+                    <span class="mock-title">Vidatha — live</span>
                     <span class="mock-rec"><span class="mock-rec-dot"></span> REC</span>
                 </div>
 
@@ -177,7 +177,7 @@
                 </form>
 
                 <p class="auth-alt">
-                    New to MeetMind? <a href="#" data-auth-switch="signup">Create an account</a>
+                    New to Vidatha? <a href="#" data-auth-switch="signup">Create an account</a>
                 </p>
 
             </div>
@@ -308,10 +308,15 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
                 </span>
 
-                <h1 id="pendingTitle">Awaiting verification</h1>
-                <p class="sub" id="pendingMessage">Your account is waiting for an administrator to verify it. You'll be able to sign in as soon as that's done.</p>
+                <h1 id="pendingTitle">Account Pending Approval</h1>
+                <div class="sub" id="pendingMessage">
+                    <p>Your registration was successful and your account is awaiting administrator approval.</p>
+                    <p>Once your account has been verified, you can sign in to Vidatha using your registered credentials.</p>
+                    <p>Please try signing in again later.</p>
+                </div>
 
-                <a class="btn btn-accent btn-lg btn-block" href="#" data-auth-switch="signin">Back to sign in</a>
+                <a class="btn btn-accent btn-lg btn-block" href="#" data-auth-switch="signin" data-pending-action="back">Back to sign in</a>
+                <a class="btn btn-accent btn-lg btn-block" href="#" id="pendingContinue" data-pending-action="continue">Continue to Vidatha</a>
 
             </div>
 
@@ -322,8 +327,8 @@
 
 <script src="assets/theme.js?v=2"></script>
 <script src="assets/mock-widget.js?v=2"></script>
-<script src="assets/auth-store.js?v=4"></script>
-<script src="assets/auth-forms.js?v=4"></script>
+<script src="assets/auth-store.js?v=6"></script>
+<script src="assets/auth-forms.js?v=8"></script>
 
 </body>
 </html>

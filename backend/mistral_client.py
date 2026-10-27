@@ -336,7 +336,7 @@ def call_mistral(
 
     print("=" * 70)
 
-    print("MEETMIND - MISTRAL API REQUEST")
+    print("VIDATHA - MISTRAL API REQUEST")
 
     print("=" * 70)
 

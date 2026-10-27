@@ -450,7 +450,7 @@
                 "</div>" +
             "</div>" +
             '<footer class="ivr-footer">' +
-                "<span>AI-assisted evaluation by <strong>MeetMind</strong> from the interview transcript, " +
+                "<span>AI-assisted evaluation by <strong>Vidatha</strong> from the interview transcript, " +
                 "reviewed by the interviewer. Verify before using it in a hiring decision.</span>" +
                 "<span>" + esc([str(profile.organization_name), str(profile.website || profile.email)].filter(Boolean).join(" · ")) + "</span>" +
             "</footer>";
@@ -576,7 +576,7 @@
                 y = end;
                 page++;
             }
-            pdf.setProperties({ title: name.replace(/\.pdf$/i, ""), creator: "MeetMind" });
+            pdf.setProperties({ title: name.replace(/\.pdf$/i, ""), creator: "Vidatha" });
             pdf.save(name);
         }).finally(function () {
             holder.remove();

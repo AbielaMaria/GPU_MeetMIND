@@ -86,6 +86,20 @@
             }).then(function (session) { return { session: session }; });
         },
 
+        // Resolves with {state: "none" | "pending" | "approved"}. Used by the
+        // "pending approval" panel to notice an admin approving the account;
+        // the server recognises the browser by its pending cookie.
+        pendingStatus: function () {
+            return request("GET", "/auth/pending-status");
+        },
+
+        // The approved message's "Continue" button: signs the user in (the
+        // server recognises the browser by its pending cookie) and resolves
+        // with the session {username,email,role,...}.
+        continueAfterApproval: function () {
+            return request("POST", "/auth/continue");
+        },
+
         /* ---- email verification (OTP) ------------------------ */
         // Only for a self-signup's first verification with the OTP gate on;
         // these back the /verify-otp panel in auth-forms.js.

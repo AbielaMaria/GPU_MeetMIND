@@ -52,6 +52,8 @@ from pathlib import Path
 
 from typing import Any, List, Optional
 
+from urllib.parse import quote
+
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, WebSocket
 
 from fastapi.concurrency import run_in_threadpool
@@ -198,11 +200,11 @@ logger.info(
 
 app = FastAPI(
 
-    title="MeetMind",
+    title="Vidatha",
 
     description=(
 
-        "AI Meeting Intelligence using "
+        "AI powered Intelligence using "
 
         "Parrotlet-A 2.5 Pro and Mistral 128B"
 
@@ -588,9 +590,19 @@ async def app_view(
 
     if not user:
 
+        # Keep the query (e.g. ?template=doctor from the
+
+        # landing page) so sign-in returns to the same view.
+
+        next_path = "/app"
+
+        if request.url.query:
+
+            next_path += "?" + request.url.query
+
         return RedirectResponse(
 
-            url="/sign-in?next=/app"
+            url="/sign-in?next=" + quote(next_path, safe="/")
 
         )
 
@@ -620,13 +632,33 @@ def _redirect_if_already_signed_in(
 
     if user:
 
-        return RedirectResponse(
+        # Honour ?next= like the sign-in form does after signing
 
-            url=auth.landing_path_for_role(
+        # in (e.g. the landing page's "Try this template" links),
+
+        # but only for same-origin paths.
+
+        next_path = request.query_params.get("next", "")
+
+        if (
+
+            not next_path.startswith("/")
+
+            or next_path.startswith("//")
+
+            or "\\" in next_path
+
+        ):
+
+            next_path = auth.landing_path_for_role(
 
                 user["role"]
 
             )
+
+        return RedirectResponse(
+
+            url=next_path
 
         )
 
@@ -792,7 +824,7 @@ async def health():
 
         "status": "healthy",
 
-        "service": "MeetMind",
+        "service": "Vidatha",
 
         "speech_model": MODEL_NAME,
 
@@ -830,7 +862,7 @@ async def api_info():
 
     return {
 
-        "project": "MeetMind",
+        "project": "Vidatha",
 
         "version": "3.0.0",
 
@@ -1903,7 +1935,7 @@ def normalize_audio(input_path: Path, output_path: Path) -> Path:
 
             "FFmpeg is not installed or is not available in PATH. "
 
-            "Install FFmpeg on the MeetMind backend server and restart the app."
+            "Install FFmpeg on the Vidatha backend server and restart the app."
 
         )
 
@@ -3030,7 +3062,7 @@ async def startup_event():
 
     logger.info(
 
-        "MEETMIND BACKEND STARTED"
+        "VIDATHA BACKEND STARTED"
 
     )
 
@@ -3126,6 +3158,6 @@ async def shutdown_event():
 
     logger.info(
 
-        "MeetMind backend shutting down."
+        "Vidatha backend shutting down."
 
     )

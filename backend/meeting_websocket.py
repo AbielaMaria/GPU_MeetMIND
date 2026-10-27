@@ -1042,7 +1042,7 @@ async def meeting_websocket(
 
     print()
     print("=" * 70)
-    print("MEETMIND - MEETING WEBSOCKET")
+    print("VIDATHA - MEETING WEBSOCKET")
     print("=" * 70)
 
     print(
@@ -1525,14 +1525,14 @@ async def meeting_websocket(
     except WebSocketDisconnect:
 
         print(
-            "MeetMind browser disconnected."
+            "Vidatha browser disconnected."
         )
 
     except Exception as exc:
 
         print()
         print("=" * 70)
-        print("MEETMIND WEBSOCKET ERROR")
+        print("VIDATHA WEBSOCKET ERROR")
         print("=" * 70)
 
         print(

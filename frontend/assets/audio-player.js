@@ -305,7 +305,7 @@
                         reason === "signed-out" ? "Your session has ended. Sign in again to download this recording." :
                         reason === "forbidden" ? "You don't have access to this recording." :
                         reason === "missing" ? "This recording is no longer stored." :
-                        "Couldn't download the recording. Check the connection to the MeetMind server and try again.");
+                        "Couldn't download the recording. Check the connection to the Vidatha server and try again.");
                     return false;
                 });
         }

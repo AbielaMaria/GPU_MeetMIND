@@ -1167,4 +1167,22 @@
     renderProfileHeader();
     renderAll();
     applyTemplate("mom");
+
+    // /app?template=doctor|interview (the landing page's "Try this
+    // template" links) opens in that template. Switched on
+    // DOMContentLoaded so interview-template.js, loaded after this
+    // file, is listening for "meetmind:template-changed". The
+    // parameter is then dropped so a reload starts fresh.
+    var params = new URLSearchParams(location.search);
+    var requested = params.get("template");
+    if (params.has("template")) {
+        params.delete("template");
+        var query = params.toString();
+        history.replaceState(null, "", location.pathname + (query ? "?" + query : "") + location.hash);
+    }
+    if (requested && requested !== "mom" && HINTS[requested]) {
+        var openRequested = function () { window.selectMeetMindTemplate(requested); };
+        if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", openRequested);
+        else openRequested();
+    }
 })();

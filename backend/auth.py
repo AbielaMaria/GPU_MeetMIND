@@ -17,6 +17,7 @@ Login accepts either a username or an email in the same field; see
 """
 
 import hashlib
+import hmac
 import logging
 import os
 import secrets
@@ -25,6 +26,7 @@ from typing import Optional
 
 import bcrypt
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 import database as db
@@ -33,6 +35,11 @@ import mailer
 logger = logging.getLogger("meetmind")
 
 SESSION_COOKIE = "meetmind_session"
+# Marks a browser as waiting on admin approval, so the "pending" page can
+# notice the approval (even after a refresh) without holding a password.
+# Never a login session — see _pending_token().
+PENDING_COOKIE = "meetmind_pending"
+PENDING_SECONDS = 7 * 24 * 60 * 60   # 7 days
 SESSION_SECONDS = 30 * 24 * 60 * 60   # 30 days
 
 OTP_TTL_SECONDS = 10 * 60   # 10 minutes
@@ -43,6 +50,9 @@ OTP_MAX_ATTEMPTS = 5
 UNVERIFIED_LOGIN_MSG = "Please verify your email before signing in."
 AWAITING_ADMIN_MSG = "Your account is awaiting verification by an administrator."
 ADMIN_UNVERIFIED_MSG = "Your account is unverified. Contact your administrator."
+# Not an error: the one-time "your account was approved" notice, sent as a
+# refusal on the first sign-in after approval (see login()).
+ACCOUNT_APPROVED_MSG = "Your account has been verified by the administrator."
 
 # Only verified accounts can sign in. This switch decides how a
 # self-registered account gets verified (see .env / .env.example):
@@ -135,6 +145,59 @@ def _start_session(response: Response, user: dict) -> dict:
 
 def _hash_otp(code: str) -> str:
     return hashlib.sha256(code.encode("utf-8")).hexdigest()
+
+
+# What a pending cookie was issued for:
+#   "p" — signed up / was refused sign-in while awaiting approval. Can only
+#         answer "has this been approved yet?"; the user signs in normally.
+#   "n" — signed in with the right password right after approval (the
+#         one-time notice). Also allows the notice's "Continue" button to
+#         start the session, so they needn't retype the credentials.
+PENDING_WAITING = "p"
+PENDING_NOTICE = "n"
+
+
+def _pending_token(user: dict, expires_at: int, kind: str) -> str:
+    """
+    Stateless proof that this browser gave `user`'s right password, valid
+    until `expires_at` (unix seconds). Keyed on the password hash, so it
+    can't be forged without DB access and stops working if the password
+    changes. It is never accepted as the login cookie.
+    """
+    sig = hmac.new(
+        user["password_hash"].encode("utf-8"),
+        f"pending:{user['id']}:{expires_at}:{kind}".encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    return f"{user['id']}.{expires_at}.{kind}.{sig}"
+
+
+def _user_from_pending_cookie(request: Request):
+    """Returns (user, kind) for a valid, unexpired pending cookie, else None."""
+    raw = request.cookies.get(PENDING_COOKIE) or ""
+    parts = raw.split(".")
+    if len(parts) != 4 or not parts[0].isdigit() or not parts[1].isdigit():
+        return None
+    if parts[2] not in (PENDING_WAITING, PENDING_NOTICE):
+        return None
+    if int(parts[1]) < datetime.now(timezone.utc).timestamp():
+        return None
+    user = db.get_user_by_id(int(parts[0]))
+    if not user or not hmac.compare_digest(raw, _pending_token(user, int(parts[1]), parts[2])):
+        return None
+    return user, parts[2]
+
+
+def _set_pending_cookie(response, user: dict, kind: str = PENDING_WAITING) -> None:
+    expires_at = int(datetime.now(timezone.utc).timestamp()) + PENDING_SECONDS
+    response.set_cookie(
+        key=PENDING_COOKIE,
+        value=_pending_token(user, expires_at, kind),
+        max_age=PENDING_SECONDS,
+        httponly=True,
+        samesite="lax",
+        path="/",
+    )
 
 
 def _issue_otp(user: dict) -> None:
@@ -245,7 +308,7 @@ class AdminUserUpdate(BaseModel):
 # ============================================================
 
 @router.post("/auth/register")
-def register(payload: RegisterRequest):
+def register(payload: RegisterRequest, response: Response):
     email = _norm_email(payload.email)
     username = payload.username.strip()
     if not username:
@@ -263,6 +326,7 @@ def register(payload: RegisterRequest):
     )
 
     if not REQUIRE_EMAIL_VERIFICATION:
+        _set_pending_cookie(response, user)
         return {"pendingVerification": True, "awaitingAdmin": True, "email": email}
 
     try:
@@ -279,9 +343,66 @@ def login(payload: LoginRequest, response: Response):
     if not user or not verify_password(payload.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Incorrect username/email or password.")
     if not user["email_verified"]:
-        raise HTTPException(status_code=403, detail=_unverified_message(user))
+        detail = _unverified_message(user)
+        if detail == AWAITING_ADMIN_MSG:
+            # Remember this browser is waiting, so the pending page can pick
+            # up the approval later (see pending_status).
+            refusal = JSONResponse(status_code=403, content={"detail": detail})
+            _set_pending_cookie(refusal, user)
+            return refusal
+        raise HTTPException(status_code=403, detail=detail)
 
+    # One-time "an admin approved your account" notice (see admin_update_user):
+    # the first sign-in after approval is answered with the notice instead of
+    # a session. The page's "Continue" button then signs them in via
+    # continue_after_approval, with no need to type the credentials again.
+    if user["approval_notice_pending"]:
+        db.update_user(user["id"], approval_notice_pending=0)
+        notice = JSONResponse(status_code=403, content={"detail": ACCOUNT_APPROVED_MSG})
+        _set_pending_cookie(notice, user, PENDING_NOTICE)   # a refresh keeps the message + Continue
+        return notice
+
+    response.delete_cookie(PENDING_COOKIE, path="/")   # signed in: nothing pending any more
     return _start_session(response, user)
+
+
+@router.get("/auth/pending-status")
+def pending_status(request: Request):
+    """
+    Polled by the "pending approval" page (and run on every load of it) so a
+    tab left open — or refreshed — switches to the approved message once an
+    admin verifies the account. Seeing it here counts as the one-time notice,
+    but it keeps answering "approved" until the user signs in.
+
+    `canContinue` is true only for the first-sign-in-after-approval notice
+    (shown with a Continue button); otherwise the user is shown "Back to sign
+    in" and signs in normally. Answers "none" without a valid pending cookie.
+    """
+    found = _user_from_pending_cookie(request)
+    if not found:
+        return {"state": "none"}
+    user, kind = found
+    if not user["email_verified"]:
+        return {"state": "pending"}
+    if user["approval_notice_pending"]:
+        db.update_user(user["id"], approval_notice_pending=0)
+    # The cookie stays until the user signs in / continues (both drop it), so
+    # refreshing the page keeps showing "approved" instead of reverting.
+    return {"state": "approved", "canContinue": kind == PENDING_NOTICE}
+
+
+@router.post("/auth/continue")
+def continue_after_approval(request: Request, response: Response):
+    """
+    The "Continue" button on the first-sign-in approval notice. That notice
+    only follows a correct username/password, so once the account is verified
+    the session can start without asking for them again.
+    """
+    found = _user_from_pending_cookie(request)
+    if not found or found[1] != PENDING_NOTICE or not found[0]["email_verified"]:
+        raise HTTPException(status_code=401, detail="Please sign in to continue.")
+    response.delete_cookie(PENDING_COOKIE, path="/")
+    return _start_session(response, found[0])
 
 
 @router.post("/auth/logout")
@@ -427,11 +548,33 @@ def admin_update_user(email: str, payload: AdminUserUpdate, admin_user: dict = D
             otp_expires_at=None,
             otp_attempts=0,
         )
+        # Flag the one-time approval notice only on a real unverified ->
+        # verified flip; unverifying clears it. Re-saving an already
+        # verified account leaves a not-yet-shown notice alone.
+        if not payload.emailVerified:
+            fields["approval_notice_pending"] = 0
+        elif not existing["email_verified"]:
+            fields["approval_notice_pending"] = 1
 
     user = db.update_user(existing["id"], **fields)
     if payload.emailVerified is False:
         db.delete_sessions_for_user(existing["id"])
+    # DISABLED for now (SMTP isn't available when REQUIRE_EMAIL_VERIFICATION
+    # is false). To re-enable: uncomment this block and the helper below,
+    # and add `background_tasks: BackgroundTasks` to this route's signature.
+    # Tells the user they've been approved — only on the unverified ->
+    # verified flip, not when an admin re-saves an already-verified account.
+    # if payload.emailVerified and not existing["email_verified"]:
+    #     background_tasks.add_task(_send_approved_email, user["email"])
     return _public_user(user)
+
+
+# def _send_approved_email(to_email: str) -> None:
+#     # Runs after the response; a failed send must not undo the approval.
+#     try:
+#         mailer.send_account_approved_email(to_email)
+#     except Exception:
+#         logger.exception("Could not send account-approved email to %s", to_email)
 
 
 @router.delete("/users/{email}")

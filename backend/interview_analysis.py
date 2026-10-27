@@ -133,7 +133,7 @@ _SUMMARY_SCHEMA = """
   "conclusion": "evidence-based conclusion; no hiring decision\""""
 
 SYSTEM_PROMPT = (
-    "You are MeetMind's interview evaluator. Analyse only the supplied transcript "
+    "You are Vidatha's interview evaluator. Analyse only the supplied transcript "
     "and the interviewer-provided required skills.\n"
     + _EVALUATION_RULES + _PROFICIENCY_RULES +
     "\nReturn ONLY valid JSON — no Markdown fences, no commentary — matching:\n"
@@ -142,7 +142,7 @@ SYSTEM_PROMPT = (
 )
 
 PART_SYSTEM_PROMPT = (
-    "You are MeetMind's interview evaluator. You receive ONE PART of a long "
+    "You are Vidatha's interview evaluator. You receive ONE PART of a long "
     "interview transcript (`transcript_part`), plus a little of the text before "
     "it (`previous_context`) and after it (`next_context`).\n"
     "Evaluate only questions that are asked inside `transcript_part`. Use "
@@ -156,7 +156,7 @@ PART_SYSTEM_PROMPT = (
 )
 
 SUMMARY_SYSTEM_PROMPT = (
-    "You are MeetMind's interview evaluator. You receive the evaluated question-"
+    "You are Vidatha's interview evaluator. You receive the evaluated question-"
     "and-answer pairs of a whole interview (already judged) and the interviewer-"
     "provided required skills. Write the overall assessment from that evidence "
     "only. Do not re-judge the answers, do not invent evidence and do not make a "

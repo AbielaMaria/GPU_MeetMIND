@@ -15,8 +15,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>MeetMind — AI Meeting Transcription &amp; Intelligence</title>
-    <meta name="description" content="MeetMind records your meetings, transcribes them with Whisper-class speech AI, and turns the transcript into titles, summaries, decisions, and action items.">
+    <title>Vidatha — AI Meeting Transcription &amp; Intelligence</title>
+    <meta name="description" content="Vidatha records your meetings, transcribes them with Whisper-class speech AI, and turns the transcript into titles, summaries, decisions, and action items.">
 
     <meta name="color-scheme" content="light dark">
 
@@ -40,6 +40,7 @@
     <link rel="stylesheet" href="assets/theme.css?v=2">
     <link rel="stylesheet" href="assets/mock-widget.css?v=2">
     <link rel="stylesheet" href="assets/landing.css?v=2">
+    <link rel="stylesheet" href="assets/template-showcase.css?v=2">
 
 </head>
 
@@ -54,11 +55,12 @@
         <span class="brand-mark" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/></svg>
         </span>
-        MeetMind
+        Vidatha
     </a>
 
     <ul class="nav-links">
         <li><a href="#features">Features</a></li>
+        <li><a href="#templates">Templates</a></li>
         <li><a href="#how">How it Works</a></li>
         <li class="only-mobile"><a href="/sign-in">Sign In</a></li>
         <li class="only-mobile"><a href="/sign-up">Get Started</a></li>
@@ -98,12 +100,12 @@
 
             <!-- PLACEHOLDER headline -->
             <h1 class="hero-title reveal" data-delay="1">
-                Your meeting, <span class="grad">Captured and understood</span>.
+                Your Interaction, <span class="grad">Captured and understood</span>.
             </h1>
 
             <!-- PLACEHOLDER subheadline -->
             <p class="hero-lead reveal" data-delay="2">
-                MeetMind captures your meeting audio and uses Parrotlet ASR to convert speech into accurate transcripts. Al then transforms your conversations into concise summaries, key decisions, and actionable tasks
+                Vidatha captures your meeting audio and uses Parrotlet ASR to convert speech into accurate transcripts. Al then transforms your conversations into concise summaries, key decisions, and actionable tasks
             </p>
 
             <div class="hero-cta reveal" data-delay="3">
@@ -126,7 +128,7 @@
 
                 <div class="mock-bar">
                     <span class="mock-dot"></span><span class="mock-dot"></span><span class="mock-dot"></span>
-                    <span class="mock-title">MeetMind — live</span>
+                    <span class="mock-title">Vidatha — live</span>
                     <span class="mock-rec"><span class="mock-rec-dot"></span> REC</span>
                 </div>
 
@@ -204,7 +206,7 @@
             <h2 class="section-title reveal" data-delay="1">Built for the entire meeting workflow</h2>
             <p class="section-lead reveal" data-delay="2">
                 <!-- PLACEHOLDER copy -->
-                From recording to insights - MeetMind handles every step, so you can focus on the conversation.
+                From recording to insights - Vidatha handles every step, so you can focus on the conversation.
             </p>
         </div>
 
@@ -214,8 +216,8 @@
                 <span class="feature-ico">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
                 </span>
-                <h3>Meeting Recording</h3>
-                <p>Record your meetings directly in the browser with high-quality audio - no extra tools needed.</p>
+                <h3>Record or Upload Recording</h3>
+                <p>Record your meetings directly in the browser with high-quality audio or upload your own recoridng - no extra tools needed.</p>
             </article>
 
             <article class="feature-card reveal" data-delay="1">
@@ -230,7 +232,7 @@
                 <span class="feature-ico">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .962 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.962 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/></svg>
                 </span>
-                <h3>Al-generated Summaries</h3>
+                <h3>Al-generated Summaries & Mindmaps</h3>
                 <p>Turn long conversations into concise summaries with key discussion points, decisions, and outcomes.</p>
             </article>
 
@@ -265,6 +267,58 @@
 
 
 <!-- ============================================================
+     TEMPLATES
+     A sample transcript turning into each template's document.
+     Tabs, transcript, document and the "Try this template" link
+     are filled by assets/template-showcase.js.
+============================================================ -->
+<section class="section" id="templates">
+    <div class="shell">
+
+        <div class="text-center">
+            <span class="eyebrow reveal">Templates</span>
+            <h2 class="section-title reveal" data-delay="1">Watch a conversation become a document</h2>
+            <p class="section-lead reveal" data-delay="2">
+                Pick a template before you record. Once the transcript is ready, Vidatha picks out what matters
+                and files it into minutes, a prescription or an interview evaluation.
+            </p>
+        </div>
+
+        <div class="ts-tabs reveal" data-delay="3" role="tablist" aria-label="Templates" data-ts-tabs></div>
+
+        <div class="ts-grid reveal" data-delay="3">
+
+            <div>
+                <div class="ts-transcript">
+                    <div class="ts-transcript-bar">
+                        <span class="ts-dot"></span><span class="ts-dot"></span><span class="ts-dot"></span>
+                        <span class="ts-transcript-title" data-ts-title></span>
+                        <span class="ts-duration" data-ts-duration></span>
+                    </div>
+                    <p class="ts-transcript-text" data-ts-text></p>
+                    <div class="ts-transcript-foot">Template: <b data-ts-label></b></div>
+                </div>
+                <div class="ts-under">
+                    <div class="ts-status" data-ts-status><i></i><span></span></div>
+                    <button class="btn btn-ghost ts-replay" type="button" data-ts-replay>&#8635; Replay</button>
+                </div>
+            </div>
+
+            <div class="ts-doc-wrap">
+                <div class="ts-fit" data-ts-doc></div>
+            </div>
+
+        </div>
+
+        <div class="ts-cta">
+            <a class="btn btn-accent" href="/sign-up" data-ts-cta>Try this template</a>
+        </div>
+
+    </div>
+</section>
+
+
+<!-- ============================================================
      HOW IT WORKS
 ============================================================ -->
 <section class="section how" id="how">
@@ -283,7 +337,7 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
                 </span>
                 <h3>Record</h3>
-                <p>Hit record when the meeting starts. MeetMind streams clean, mono audio to the server in real time.</p>
+                <p>Hit record when the meeting starts. Vidatha streams clean, mono audio to the server in real time.</p>
             </li>
 
             <li class="step reveal" data-delay="1">
@@ -317,7 +371,7 @@
     <div class="bg-mesh" aria-hidden="true"><span></span><span></span><span></span></div>
     <div class="shell text-center reveal">
         <h2>Stop writing meetings down by hand.</h2>
-        <p>Record your next call with MeetMind and get the transcript, summary, and action items automatically.</p>
+        <p>Record your next call with Vidatha and get the transcript, summary, and action items automatically.</p>
         <a class="btn btn-accent btn-lg" href="/sign-up">
             Get Started Free
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
@@ -331,7 +385,7 @@
 ============================================================ -->
 <footer class="site-footer">
     <div class="shell footer-line">
-        <span class="footer-name">MeetMind</span>
+        <span class="footer-name">Vidatha</span>
         <span class="footer-support">
             For support, contact
             <a href="mailto:cdac@chennai.in">cdac@chennai.in</a>
@@ -343,6 +397,7 @@
 <script src="assets/theme.js?v=2"></script>
 <script src="assets/ui.js?v=2"></script>
 <script src="assets/mock-widget.js?v=2"></script>
+<script src="assets/template-showcase.js?v=2"></script>
 
 </body>
 </html>

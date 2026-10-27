@@ -74,17 +74,43 @@
     var UNVERIFIED_LOGIN_MSG = "Please verify your email before signing in.";
     var AWAITING_ADMIN_MSG = "Your account is awaiting verification by an administrator.";
     var ADMIN_UNVERIFIED_MSG = "Your account is unverified. Contact your administrator.";
+    var ACCOUNT_APPROVED_MSG = "Your account has been verified by the administrator.";
 
     var PENDING_COPY = {
         awaiting: {
-            title: "Awaiting verification",
-            message: "Your account is waiting for an administrator to verify it. " +
-                "You'll be able to sign in as soon as that's done."
+            title: "Account Pending Approval",
+            message: [
+                "Your registration was successful and your account is awaiting administrator approval.",
+                "Once your account has been verified, you can sign in to Vidatha using your registered credentials.",
+                "Please try signing in again later."
+            ]
+        },
+        // The pending tab was left open and the admin approved meanwhile:
+        // "Back to sign in", then a normal sign-in goes straight to the app.
+        approved: {
+            title: "Account Verified Successfully",
+            message: [
+                "Your account has been verified by the administrator. " +
+                    "You can now access Vidatha and start using its features.",
+                "Click back to sign in to get started."
+            ]
+        },
+        // First sign-in attempt after approval: they just gave their
+        // credentials, so "Continue to Vidatha" signs them in directly.
+        welcome: {
+            title: "Account Verified Successfully",
+            message: [
+                "Your account has been verified by the administrator. " +
+                    "You can now access Vidatha and start using its features.",
+                "Click continue to get started."
+            ]
         },
         revoked: {
             title: "Account unverified",
-            message: "Your account is currently unverified, so you can't sign in. " +
-                "Contact your administrator to restore access."
+            message: [
+                "Your account is currently unverified, so you can't sign in. " +
+                    "Contact your administrator to restore access."
+            ]
         }
     };
 
@@ -99,9 +125,61 @@
         var title = document.getElementById("pendingTitle");
         var message = document.getElementById("pendingMessage");
         if (title) title.textContent = copy.title;
-        if (message) message.textContent = copy.message;
-        document.body.setAttribute("data-pending-kind", kind === "revoked" ? "revoked" : "awaiting");
+        if (message) {
+            message.textContent = "";
+            copy.message.forEach(function (text) {
+                var p = document.createElement("p");
+                p.textContent = text;
+                message.appendChild(p);
+            });
+        }
+        document.body.setAttribute("data-pending-kind", PENDING_COPY[kind] ? kind : "awaiting");
         setMode("pending", true);
+    }
+
+    /* ---- "approved" check for the pending panel ----
+       The server recognises this browser by its pending cookie (set at
+       sign-up / on a refused sign-in), so no credentials are kept here.
+       Runs when the page loads in the pending state (a refresh), when the
+       tab regains focus, and on a short interval while it's visible. */
+
+    var approvalCheckBusy = false;
+
+    function checkApproval() {
+        if (!A || approvalCheckBusy) return;
+        // No kind yet = the page was just loaded on /account-pending.
+        var kind = document.body.getAttribute("data-pending-kind");
+        if (document.body.getAttribute("data-auth-mode") !== "pending" ||
+            (kind && kind !== "awaiting")) return;
+
+        approvalCheckBusy = true;
+        A.pendingStatus().then(function (res) {
+            approvalCheckBusy = false;
+            if (res && res.state === "approved") goToPending(res.canContinue ? "welcome" : "approved");
+        }).catch(function () {
+            approvalCheckBusy = false;   // offline: stay put, try again later
+        });
+    }
+
+    document.addEventListener("visibilitychange", function () {
+        if (!document.hidden) checkApproval();
+    });
+    window.addEventListener("focus", checkApproval);
+    setInterval(function () { if (!document.hidden) checkApproval(); }, 10000);
+
+    var continueBtn = document.getElementById("pendingContinue");
+    if (continueBtn) {
+        continueBtn.addEventListener("click", function (e) {
+            e.preventDefault();
+            setLoading(continueBtn, true);
+            A.continueAfterApproval().then(function (session) {
+                redirectAfterAuth(session.role);
+            }).catch(function () {
+                // Cookie expired / cleared: fall back to a normal sign-in.
+                setLoading(continueBtn, false);
+                setMode("signin", true);
+            });
+        });
     }
 
     // Routes a refusal from the server to the matching panel. Returns true
@@ -109,6 +187,7 @@
     function routeUnverified(message, email) {
         if (message === UNVERIFIED_LOGIN_MSG) { goToVerify(email); return true; }
         if (message === AWAITING_ADMIN_MSG) { goToPending("awaiting"); return true; }
+        if (message === ACCOUNT_APPROVED_MSG) { goToPending("welcome"); return true; }
         if (message === ADMIN_UNVERIFIED_MSG) { goToPending("revoked"); return true; }
         return false;
     }
@@ -131,10 +210,10 @@
     ============================================================ */
 
     var TITLES = {
-        signin: "Sign In — MeetMind",
-        signup: "Create your account — MeetMind",
-        verify: "Verify your email — MeetMind",
-        pending: "Account pending — MeetMind"
+        signin: "Sign In — Vidatha",
+        signup: "Create your account — Vidatha",
+        verify: "Verify your email — Vidatha",
+        pending: "Account pending — Vidatha"
     };
     var PATHS = { signin: "/sign-in", signup: "/sign-up", verify: "/verify-otp", pending: "/account-pending" };
 
@@ -167,6 +246,10 @@
 
     // Initial mode was already applied inline (no flash); re-affirm title.
     setMode(currentMode(), false);
+
+    // A refresh while on the pending panel lands here with the default
+    // "pending" copy; if the admin has approved since, swap it right away.
+    checkApproval();
 
     /* ============================================================
        SIGN IN

@@ -427,7 +427,7 @@
         }
         D.confirm({
             title: "Grant admin privileges?",
-            message: "Setting this role to Admin gives this account full control of MeetMind. " +
+            message: "Setting this role to Admin gives this account full control of Vidatha. " +
                 "Admin accounts are always verified and skip email verification. An admin can:",
             items: ADMIN_PRIVILEGES,
             confirmText: "Proceed",

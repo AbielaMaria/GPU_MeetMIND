@@ -96,6 +96,7 @@ def init_db():
         """)
         _migrate_users_otp_columns(conn)
         _migrate_users_otp_locked_column(conn)
+        _migrate_users_approval_notice_column(conn)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS sessions (
                 token TEXT PRIMARY KEY,
@@ -173,6 +174,19 @@ def _migrate_users_otp_locked_column(conn):
         "UPDATE users SET email_verified = 0, otp_locked = 1, status = 'active' "
         "WHERE status = 'inactive'"
     )
+
+
+def _migrate_users_approval_notice_column(conn):
+    """
+    Adds `approval_notice_pending`: set to 1 when an admin verifies an
+    unverified account, cleared on that user's next successful sign-in so
+    the "your account was approved" notice shows exactly once.
+    """
+    existing = {row["name"] for row in conn.execute("PRAGMA table_info(users)")}
+    if "approval_notice_pending" in existing:
+        return
+
+    conn.execute("ALTER TABLE users ADD COLUMN approval_notice_pending INTEGER NOT NULL DEFAULT 0")
 
 
 def _migrate_meetings_mindmap_column(conn):
