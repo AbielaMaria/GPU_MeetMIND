@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<!-- ============================================================
+     MeetMind — Admin (role = "admin" only)
+     ------------------------------------------------------------
+     Deliberately simple: one screen to see / add / edit / remove
+     users. Users live in the server's SQLite database (see
+     backend/database.py), via the admin-only /api/users endpoints
+     in backend/auth.py; changes here affect who can sign in,
+     everywhere. Below them, read-only views of every user's
+     meetings, doctor consultations (with their recordings and
+     prescriptions) and interviews (with their recordings and
+     evaluation reports).
+============================================================ -->
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin — Vidatha</title>
+    <meta name="color-scheme" content="light dark">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=DM+Serif+Display&display=swap">
+
+    <script>
+        (function () {
+            try {
+                var s = localStorage.getItem("meetmind-theme");
+                if (s === "light" || s === "dark") {
+                    document.documentElement.setAttribute("data-theme", s);
+                }
+            } catch (e) {}
+        })();
+    </script>
+
+    <!-- Access control for this page (signed in AND role "admin") is
+         enforced server-side before admin.html is served at all; see
+         backend/app.py's /admin route. No client-side guard here: a
+         second opinion can only disagree with the server, and when it
+         did, the two redirected the browser back and forth endlessly. -->
+    <script src="assets/auth-store.js?v=4"></script>
+
+    <link rel="stylesheet" href="assets/theme.css">
+    <link rel="stylesheet" href="assets/admin.css?v=6">
+    <link rel="stylesheet" href="assets/audio-player.css?v=3">
+    <link rel="stylesheet" href="assets/prescription.css?v=1">
+    <link rel="stylesheet" href="assets/interview-report.css?v=1">
+
+</head>
+
+<body>
+
+<div class="admin-shell">
+
+    <!-- ---------- top bar ---------- -->
+    <header class="admin-top">
+        <a class="brand" href="/">
+            <span class="brand-mark" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/></svg>
+            </span>
+            Vidatha <span class="admin-badge">Admin</span>
+        </a>
+
+        <span class="spacer"></span>
+
+        <span class="admin-who" id="whoEmail">admin@example.com</span>
+
+        <button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch color theme" title="Switch color theme">
+            <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+            <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+        </button>
+
+        <a class="btn btn-ghost" id="recorderBtn" href="/app">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/></svg>
+            Recorder
+        </a>
+
+        <button class="btn btn-ghost" id="logoutBtn" type="button">Log out</button>
+    </header>
+
+    <main class="admin-body">
+
+        <!-- ---------- overview stats ---------- -->
+        <section class="stats-grid" aria-label="Platform overview">
+
+            <div class="stat-card">
+                <span class="stat-icon stat-icon-accent" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                </span>
+                <span class="stat-info">
+                    <span class="stat-value" id="statTotalUsers">—</span>
+                    <span class="stat-label">Total users</span>
+                </span>
+            </div>
+
+            <div class="stat-card">
+                <span class="stat-icon stat-icon-success" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/></svg>
+                </span>
+                <span class="stat-info">
+                    <span class="stat-value" id="statVerifiedUsers">—</span>
+                    <span class="stat-label">Verified users</span>
+                </span>
+            </div>
+
+            <div class="stat-card">
+                <span class="stat-icon stat-icon-warning" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                </span>
+                <span class="stat-info">
+                    <span class="stat-value" id="statUnverifiedUsers">—</span>
+                    <span class="stat-label">Unverified users</span>
+                </span>
+            </div>
+
+            <div class="stat-card">
+                <span class="stat-icon stat-icon-violet" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.287 1.288L3 12l5.8 1.9a2 2 0 0 1 1.288 1.287L12 21l1.9-5.8a2 2 0 0 1 1.287-1.288L21 12l-5.8-1.9a2 2 0 0 1-1.288-1.287Z"/></svg>
+                </span>
+                <span class="stat-info">
+                    <span class="stat-value" id="statSummarized">—</span>
+                    <span class="stat-label">Meetings summarized</span>
+                    <span class="stat-breakdown" id="statSummarizedBy"></span>
+                </span>
+            </div>
+
+            <div class="stat-card">
+                <span class="stat-icon stat-icon-teal" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"/><path d="M12 12V8"/></svg>
+                </span>
+                <span class="stat-info">
+                    <span class="stat-value" id="statMindmapped">—</span>
+                    <span class="stat-label">Meetings mind-mapped</span>
+                    <span class="stat-breakdown" id="statMindmappedBy"></span>
+                </span>
+            </div>
+
+            <div class="stat-card">
+                <span class="stat-icon stat-icon-clinic" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 2v2"/><path d="M5 2v2"/><path d="M5 3H4a2 2 0 0 0-2 2v4a6 6 0 0 0 12 0V5a2 2 0 0 0-2-2h-1"/><path d="M8 15a6 6 0 0 0 12 0v-3"/><circle cx="20" cy="10" r="2"/></svg>
+                </span>
+                <span class="stat-info">
+                    <span class="stat-value" id="statConsultations">—</span>
+                    <span class="stat-label">Doctor consultations</span>
+                    <span class="stat-breakdown" id="statConsultationsBy"></span>
+                </span>
+            </div>
+
+            <div class="stat-card">
+                <span class="stat-icon stat-icon-interview" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/><rect width="20" height="14" x="2" y="6" rx="2"/></svg>
+                </span>
+                <span class="stat-info">
+                    <span class="stat-value" id="statInterviews">—</span>
+                    <span class="stat-label">Interviews</span>
+                    <span class="stat-breakdown" id="statInterviewsBy"></span>
+                </span>
+            </div>
+
+        </section>
+
+        <section class="panel">
+
+            <div class="panel-hd">
+                <h2>Users</h2>
+                <span class="hint" id="rowCount"></span>
+            </div>
+
+            <div class="panel-bd">
+
+                <div class="table-tools">
+                    <div class="search-wrap">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                        <input type="search" id="userSearch" placeholder="Search username or email…" autocomplete="off">
+                    </div>
+                    <select id="roleFilter" aria-label="Filter by role">
+                        <option value="">All roles</option>
+                        <option value="user">User</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                    <select id="verifiedFilter" aria-label="Filter by verification">
+                        <option value="">All users</option>
+                        <option value="verified">Verified</option>
+                        <option value="unverified">Unverified</option>
+                    </select>
+                    <span class="spacer"></span>
+                    <button class="btn btn-accent" id="addUserBtn" type="button">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                        Add user
+                    </button>
+                </div>
+
+                <div class="table-scroll">
+                    <table class="data">
+                        <thead>
+                            <tr>
+                                <th>Username</th>
+                                <th>Email</th>
+                                <th>Role</th>
+                                <th>Created</th>
+                                <th>Verification</th>
+                                <th class="col-actions">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="userRows"></tbody>
+                    </table>
+                </div>
+
+                <div class="pagination" id="userPagination"></div>
+
+            </div>
+
+        </section>
+
+
+        <!-- ---------- meetings ---------- -->
+        <section class="panel">
+
+            <div class="panel-hd">
+                <h2>Meetings</h2>
+                <span class="hint" id="meetingCount"></span>
+            </div>
+
+            <div class="panel-bd">
+
+                <div class="table-tools">
+                    <div class="search-wrap">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                        <input type="search" id="meetingSearch" placeholder="Search meeting or user…" autocomplete="off">
+                    </div>
+                    <select id="meetingUserFilter" aria-label="Filter by user">
+                        <option value="">All users</option>
+                    </select>
+                    <select id="meetingStatusFilter" aria-label="Filter by summary status">
+                        <option value="">All statuses</option>
+                        <option value="summarized">Summarized</option>
+                        <option value="transcript">Mind map only</option>
+                    </select>
+                    <select id="meetingModelFilter" aria-label="Filter by model">
+                        <option value="">All models</option>
+                    </select>
+                    <select id="meetingAudioFilter" aria-label="Filter by recording">
+                        <option value="">Any recording</option>
+                        <option value="with">With recording</option>
+                        <option value="without">No recording</option>
+                    </select>
+                    <label class="date-field">
+                        <span class="date-field-label">From</span>
+                        <input type="date" id="meetingDateFrom" aria-label="From date">
+                    </label>
+                    <label class="date-field">
+                        <span class="date-field-label">To</span>
+                        <input type="date" id="meetingDateTo" aria-label="To date">
+                    </label>
+                    <span class="spacer"></span>
+                    <button class="btn btn-ghost" id="meetingFilterReset" type="button">Reset filters</button>
+                </div>
+
+                <div class="table-scroll">
+                    <table class="data">
+                        <thead>
+                            <tr>
+                                <th>Meeting</th>
+                                <th>User</th>
+                                <th>Recorded</th>
+                                <th>Duration</th>
+                                <th>Contents</th>
+                                <th class="col-actions">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="meetingRows"></tbody>
+                    </table>
+                </div>
+
+                <div class="pagination" id="meetingPagination"></div>
+
+            </div>
+
+        </section>
+
+
+        <!-- ---------- doctor consultations (Doctor–Patient template) ---------- -->
+        <section class="panel">
+
+            <div class="panel-hd">
+                <h2>Doctor consultations</h2>
+                <span class="hint" id="consultCount"></span>
+            </div>
+
+            <div class="panel-bd">
+
+                <div class="table-tools">
+                    <div class="search-wrap">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                        <input type="search" id="consultSearch" placeholder="Search patient, diagnosis or doctor…" autocomplete="off">
+                    </div>
+                    <select id="consultUserFilter" aria-label="Filter by doctor">
+                        <option value="">All doctors</option>
+                    </select>
+                    <select id="consultStatusFilter" aria-label="Filter by prescription">
+                        <option value="">Any prescription</option>
+                        <option value="final">Final (downloaded)</option>
+                        <option value="draft">Draft only</option>
+                        <option value="none">No prescription</option>
+                    </select>
+                    <select id="consultAudioFilter" aria-label="Filter by recording">
+                        <option value="">Any recording</option>
+                        <option value="with">With recording</option>
+                        <option value="without">No recording</option>
+                    </select>
+                    <label class="date-field">
+                        <span class="date-field-label">From</span>
+                        <input type="date" id="consultDateFrom" aria-label="From date">
+                    </label>
+                    <label class="date-field">
+                        <span class="date-field-label">To</span>
+                        <input type="date" id="consultDateTo" aria-label="To date">
+                    </label>
+                    <span class="spacer"></span>
+                    <button class="btn btn-ghost" id="consultFilterReset" type="button">Reset filters</button>
+                </div>
+
+                <div class="table-scroll">
+                    <table class="data">
+                        <thead>
+                            <tr>
+                                <th>Patient</th>
+                                <th>Doctor</th>
+                                <th>Recorded</th>
+                                <th>Duration</th>
+                                <th>Contents</th>
+                                <th class="col-actions">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="consultRows"></tbody>
+                    </table>
+                </div>
+
+                <div class="pagination" id="consultPagination"></div>
+
+            </div>
+
+        </section>
+
+
+        <!-- ---------- interviews (Interview template) ---------- -->
+        <section class="panel">
+
+            <div class="panel-hd">
+                <h2>Interviews</h2>
+                <span class="hint" id="interviewCount"></span>
+            </div>
+
+            <div class="panel-bd">
+
+                <div class="table-tools">
+                    <div class="search-wrap">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                        <input type="search" id="interviewSearch" placeholder="Search candidate, position, skill or interviewer…" autocomplete="off">
+                    </div>
+                    <select id="interviewUserFilter" aria-label="Filter by interviewer">
+                        <option value="">All interviewers</option>
+                    </select>
+                    <select id="interviewStatusFilter" aria-label="Filter by evaluation">
+                        <option value="">Any evaluation</option>
+                        <option value="final">Final (downloaded)</option>
+                        <option value="draft">Draft only</option>
+                        <option value="none">Not evaluated</option>
+                    </select>
+                    <select id="interviewTypeFilter" aria-label="Filter by interview type">
+                        <option value="">All types</option>
+                        <option value="Technical">Technical</option>
+                        <option value="HR">HR</option>
+                        <option value="Behavioral">Behavioral</option>
+                        <option value="Mixed">Mixed</option>
+                    </select>
+                    <label class="date-field">
+                        <span class="date-field-label">From</span>
+                        <input type="date" id="interviewDateFrom" aria-label="From date">
+                    </label>
+                    <label class="date-field">
+                        <span class="date-field-label">To</span>
+                        <input type="date" id="interviewDateTo" aria-label="To date">
+                    </label>
+                    <span class="spacer"></span>
+                    <button class="btn btn-ghost" id="interviewFilterReset" type="button">Reset filters</button>
+                </div>
+
+                <div class="table-scroll">
+                    <table class="data">
+                        <thead>
+                            <tr>
+                                <th>Candidate</th>
+                                <th>Interviewer</th>
+                                <th>Recorded</th>
+                                <th>Duration</th>
+                                <th>Score</th>
+                                <th>Contents</th>
+                                <th class="col-actions">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="interviewRows"></tbody>
+                    </table>
+                </div>
+
+                <div class="pagination" id="interviewPagination"></div>
+
+            </div>
+
+        </section>
+
+    </main>
+
+</div>
+
+
+<!-- ---------- add / edit dialog ---------- -->
+<dialog id="userDialog" class="user-dialog">
+    <form method="dialog" id="userForm">
+
+        <h3 id="dialogTitle">Add user</h3>
+
+        <div class="form-alert error js-error" role="alert"></div>
+
+        <div class="field" data-field="username">
+            <label for="f_username">Username</label>
+            <div class="input-wrap">
+                <input type="text" id="f_username" name="username" autocomplete="off" required>
+            </div>
+            <div class="field-error" data-error-for="username"></div>
+        </div>
+
+        <div class="field" data-field="email">
+            <label for="f_email">Email</label>
+            <div class="input-wrap">
+                <input type="email" id="f_email" name="email" autocomplete="off" required>
+            </div>
+            <div class="field-error" data-error-for="email"></div>
+        </div>
+
+        <div class="field" data-field="password">
+            <label for="f_password"><span id="pwLabelText">Password</span></label>
+            <div class="input-wrap">
+                <input type="text" id="f_password" name="password" autocomplete="off">
+            </div>
+            <div class="field-error" data-error-for="password"></div>
+        </div>
+
+        <div class="field" data-field="role">
+            <label for="f_role">Role</label>
+            <div class="input-wrap">
+                <select id="f_role" name="role">
+                    <option value="user">User</option>
+                    <option value="admin">Admin</option>
+                </select>
+            </div>
+        </div>
+
+        <p class="hint" id="dialogVerifyNote">Users you add here are verified automatically and can sign in right away.</p>
+
+        <div class="dialog-actions">
+            <button class="btn btn-secondary" type="button" id="dialogCancel">Cancel</button>
+            <button class="btn btn-accent" type="submit" id="dialogSave">Save</button>
+        </div>
+
+    </form>
+</dialog>
+
+
+<!-- ---------- meeting transcript / summary viewer ---------- -->
+<dialog id="meetingDialog" class="user-dialog meeting-dialog" aria-labelledby="meetingDialogTitle">
+    <form method="dialog">
+
+        <div class="meeting-head">
+            <div class="meeting-head-text">
+                <h3 id="meetingDialogTitle">Meeting</h3>
+                <p class="hint" id="meetingDialogMeta"></p>
+            </div>
+            <button class="btn-tool btn-icon meeting-expand" id="meetingExpandBtn" type="button"
+                aria-pressed="false" aria-label="Expand the viewer" title="Expand"></button>
+        </div>
+
+        <!-- the meeting's saved recording (only when there is one) -->
+        <div class="dialog-player" id="meetingPlayerSlot"></div>
+
+        <!-- one button per model with results for this meeting -->
+        <div class="model-switch" id="meetingModelSwitch" role="group" aria-label="Model"></div>
+
+        <div class="meeting-tabs" role="tablist">
+            <button class="meeting-tab is-active" type="button" data-tab="summary" role="tab" aria-selected="true">Summary</button>
+            <button class="meeting-tab" type="button" data-tab="mindmap" role="tab" aria-selected="false">Mind Map</button>
+            <button class="meeting-tab" type="button" data-tab="transcript" role="tab" aria-selected="false">Transcript</button>
+        </div>
+
+        <div class="meeting-pane" id="meetingSummaryPane"></div>
+        <div class="meeting-pane meeting-pane--mindmap" id="meetingMindmapPane" hidden></div>
+        <div class="meeting-pane meeting-pane--transcript" id="meetingTranscriptPane" hidden>
+            <div class="transcript-tools">
+                <div class="search-wrap">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                    <input type="search" id="meetingTranscriptSearch" placeholder="Search transcript…" autocomplete="off" aria-label="Search transcript">
+                </div>
+                <button class="btn-tool btn-icon search-prev" id="meetingSearchPrev" type="button" aria-label="Previous match" title="Previous match" disabled></button>
+                <button class="btn-tool btn-icon search-next" id="meetingSearchNext" type="button" aria-label="Next match" title="Next match" disabled></button>
+                <span class="search-count" id="meetingSearchCount" aria-live="polite">0 matches</span>
+            </div>
+            <pre class="meeting-transcript" id="meetingTranscriptText"></pre>
+        </div>
+
+        <div class="dialog-actions">
+            <button class="btn btn-secondary" type="button" id="meetingDialogClose">Close</button>
+        </div>
+
+    </form>
+</dialog>
+
+<!-- ---------- consultation viewer: prescription, recording, transcript ---------- -->
+<dialog id="consultDialog" class="user-dialog meeting-dialog consult-dialog" aria-labelledby="consultDialogTitle">
+    <form method="dialog">
+
+        <div class="meeting-head">
+            <div class="meeting-head-text">
+                <h3 id="consultDialogTitle">Consultation</h3>
+                <p class="hint" id="consultDialogMeta"></p>
+            </div>
+            <button class="btn-tool btn-icon meeting-expand" id="consultExpandBtn" type="button"
+                aria-pressed="false" aria-label="Expand the viewer" title="Expand"></button>
+        </div>
+
+        <div class="dialog-player" id="consultPlayerSlot"></div>
+
+        <div class="meeting-tabs" role="tablist">
+            <button class="meeting-tab is-active" type="button" data-ctab="prescription" role="tab" aria-selected="true">Prescription</button>
+            <button class="meeting-tab" type="button" data-ctab="transcript" role="tab" aria-selected="false">Transcript</button>
+        </div>
+
+        <div class="meeting-pane consult-pane--rx" id="consultRxPane"></div>
+        <div class="meeting-pane meeting-pane--transcript" id="consultTranscriptPane" hidden>
+            <div class="transcript-tools">
+                <div class="search-wrap">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                    <input type="search" id="consultTranscriptSearch" placeholder="Search transcript…" autocomplete="off" aria-label="Search transcript">
+                </div>
+                <button class="btn-tool btn-icon search-prev" id="consultSearchPrev" type="button" aria-label="Previous match" title="Previous match" disabled></button>
+                <button class="btn-tool btn-icon search-next" id="consultSearchNext" type="button" aria-label="Next match" title="Next match" disabled></button>
+                <span class="search-count" id="consultSearchCount" aria-live="polite">0 matches</span>
+            </div>
+            <pre class="meeting-transcript" id="consultTranscriptText"></pre>
+        </div>
+
+        <div class="dialog-actions">
+            <button class="btn btn-secondary" type="button" id="consultDownloadBtn">Download PDF</button>
+            <button class="btn btn-secondary" type="button" id="consultDialogClose">Close</button>
+        </div>
+
+    </form>
+</dialog>
+
+<!-- ---------- interview viewer: evaluation report, recording, transcript ---------- -->
+<dialog id="interviewDialog" class="user-dialog meeting-dialog consult-dialog" aria-labelledby="interviewDialogTitle">
+    <form method="dialog">
+
+        <div class="meeting-head">
+            <div class="meeting-head-text">
+                <h3 id="interviewDialogTitle">Interview</h3>
+                <p class="hint" id="interviewDialogMeta"></p>
+            </div>
+            <button class="btn-tool btn-icon meeting-expand" id="interviewExpandBtn" type="button"
+                aria-pressed="false" aria-label="Expand the viewer" title="Expand"></button>
+        </div>
+
+        <div class="dialog-player" id="interviewPlayerSlot"></div>
+
+        <div class="meeting-tabs" role="tablist">
+            <button class="meeting-tab is-active" type="button" data-itab="report" role="tab" aria-selected="true">Evaluation report</button>
+            <button class="meeting-tab" type="button" data-itab="transcript" role="tab" aria-selected="false">Transcript</button>
+        </div>
+
+        <div class="meeting-pane consult-pane--rx" id="interviewReportPane"></div>
+        <div class="meeting-pane meeting-pane--transcript" id="interviewTranscriptPane" hidden>
+            <div class="transcript-tools">
+                <div class="search-wrap">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                    <input type="search" id="interviewTranscriptSearch" placeholder="Search transcript…" autocomplete="off" aria-label="Search transcript">
+                </div>
+                <button class="btn-tool btn-icon search-prev" id="interviewSearchPrev" type="button" aria-label="Previous match" title="Previous match" disabled></button>
+                <button class="btn-tool btn-icon search-next" id="interviewSearchNext" type="button" aria-label="Next match" title="Next match" disabled></button>
+                <span class="search-count" id="interviewSearchCount" aria-live="polite">0 matches</span>
+            </div>
+            <pre class="meeting-transcript" id="interviewTranscriptText"></pre>
+        </div>
+
+        <div class="dialog-actions">
+            <button class="btn btn-secondary" type="button" id="interviewDownloadBtn">Download PDF</button>
+            <button class="btn btn-secondary" type="button" id="interviewDialogClose">Close</button>
+        </div>
+
+    </form>
+</dialog>
+
+<script src="assets/theme.js?v=3"></script>
+<script src="assets/audio-player.js?v=5"></script>
+<script src="assets/prescription.js?v=1"></script>
+<script src="assets/interview-report.js?v=1"></script>
+<script src="assets/dialog.js?v=4"></script>
+<script src="assets/admin.js?v=12"></script>
+
+</body>
+</html>

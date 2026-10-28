@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<!-- ============================================================
+     PLACEHOLDER CONTENT — replace copy, stats, and testimonials
+     before launch. Every invented figure is marked with a
+     "PLACEHOLDER" comment nearby for easy grep.
+     ------------------------------------------------------------
+     MeetMind landing page — the marketing/info page shown to any
+     visitor before login. Links out to /sign-in, /sign-up and
+     (post-login) the app at /app.
+============================================================ -->
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Vidatha — AI Meeting Transcription &amp; Intelligence</title>
+    <meta name="description" content="Vidatha records your meetings, transcribes them with Whisper-class speech AI, and turns the transcript into titles, summaries, decisions, and action items.">
+
+    <meta name="color-scheme" content="light dark">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+
+    <!-- pre-paint theme (mirrors index.html) -->
+    <script>
+        (function () {
+            try {
+                var s = localStorage.getItem("meetmind-theme");
+                if (s === "light" || s === "dark") {
+                    document.documentElement.setAttribute("data-theme", s);
+                }
+            } catch (e) {}
+        })();
+    </script>
+
+    <link rel="stylesheet" href="assets/theme.css?v=2">
+    <link rel="stylesheet" href="assets/mock-widget.css?v=2">
+    <link rel="stylesheet" href="assets/landing.css?v=2">
+    <link rel="stylesheet" href="assets/template-showcase.css?v=2">
+
+</head>
+
+<body>
+
+<!-- ============================================================
+     NAV
+============================================================ -->
+<nav class="site-nav">
+
+    <a class="brand" href="/">
+        <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/></svg>
+        </span>
+        Vidatha
+    </a>
+
+    <ul class="nav-links">
+        <li><a href="#features">Features</a></li>
+        <li><a href="#templates">Templates</a></li>
+        <li><a href="#how">How it Works</a></li>
+        <li class="only-mobile"><a href="/sign-in">Sign In</a></li>
+        <li class="only-mobile"><a href="/sign-up">Get Started</a></li>
+    </ul>
+
+    <div class="nav-actions">
+        <button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch color theme" title="Switch color theme">
+            <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+            <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+        </button>
+
+        <a class="btn btn-ghost" href="/sign-in">Sign In</a>
+        <a class="btn btn-accent" href="/sign-up">Get Started</a>
+    </div>
+
+    <button class="nav-toggle" type="button" aria-label="Toggle menu" aria-expanded="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+    </button>
+
+</nav>
+
+
+<!-- ============================================================
+     HERO
+============================================================ -->
+<header class="hero">
+
+    <div class="bg-mesh" aria-hidden="true"><span></span><span></span><span></span></div>
+
+    <div class="shell hero-grid">
+
+        <div class="hero-copy">
+
+            <span class="eyebrow reveal">
+                <span class="pulse-dot"></span> AI meeting intelligence
+            </span>
+
+            <!-- PLACEHOLDER headline -->
+            <h1 class="hero-title reveal" data-delay="1">
+                Your Interaction, <span class="grad">Captured and understood</span>.
+            </h1>
+
+            <!-- PLACEHOLDER subheadline -->
+            <p class="hero-lead reveal" data-delay="2">
+                Vidatha captures your meeting audio and uses Parrotlet ASR to convert speech into accurate transcripts. Al then transforms your conversations into concise summaries, key decisions, and actionable tasks
+            </p>
+
+            <div class="hero-cta reveal" data-delay="3">
+                <a class="btn btn-accent btn-lg" href="/sign-up">
+                    Start a Meeting
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                </a>
+                <a class="btn btn-outline btn-lg" href="#demo">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+                    See it in Action
+                </a>
+            </div>
+
+        </div>
+
+        <!-- animated centerpiece: mock live-transcript widget + waveform -->
+        <div class="hero-visual reveal" data-delay="2" id="demo" aria-hidden="true">
+
+            <div class="mock-window">
+
+                <div class="mock-bar">
+                    <span class="mock-dot"></span><span class="mock-dot"></span><span class="mock-dot"></span>
+                    <span class="mock-title">Vidatha — live</span>
+                    <span class="mock-rec"><span class="mock-rec-dot"></span> REC</span>
+                </div>
+
+                <div class="mock-body">
+
+                    <div class="mock-wave">
+                        <span></span><span></span><span></span><span></span><span></span>
+                        <span></span><span></span><span></span><span></span><span></span>
+                        <span></span><span></span><span></span><span></span><span></span>
+                        <span></span><span></span><span></span><span></span><span></span>
+                    </div>
+
+                    <div class="mock-transcript" id="mockTranscript"></div>
+
+                    <div class="mock-insight">
+                        <div class="mock-insight-label">Action item detected</div>
+                        <div class="mock-insight-text" id="mockInsight">&nbsp;</div>
+                    </div>
+
+                </div>
+
+            </div>
+
+            <div class="hero-visual-glow" aria-hidden="true"></div>
+
+        </div>
+
+    </div>
+
+    <ul class="shell hero-highlights reveal" data-delay="4">
+
+        <li class="hero-highlight">
+            <span class="hero-highlight-ico">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+            </span>
+            <span class="hero-highlight-text">
+                <strong>Parrotlet ASR</strong>
+                <span>Accurate speech-to-text transcription</span>
+            </span>
+        </li>
+
+        <li class="hero-highlight">
+            <span class="hero-highlight-ico">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>
+            </span>
+            <span class="hero-highlight-text">
+                <strong>AI Summarization</strong>
+                <span>Concise summaries from your meetings</span>
+            </span>
+        </li>
+
+        <li class="hero-highlight">
+            <span class="hero-highlight-ico">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            </span>
+            <span class="hero-highlight-text">
+                <strong>Action Items</strong>
+                <span>Identify tasks and next steps</span>
+            </span>
+        </li>
+
+    </ul>
+
+</header>
+
+
+<!-- ============================================================
+     FEATURES
+============================================================ -->
+<section class="section" id="features">
+    <div class="shell">
+
+        <div class="text-center">
+            <span class="eyebrow reveal">Features</span>
+            <h2 class="section-title reveal" data-delay="1">Built for the entire meeting workflow</h2>
+            <p class="section-lead reveal" data-delay="2">
+                <!-- PLACEHOLDER copy -->
+                From recording to insights - Vidatha handles every step, so you can focus on the conversation.
+            </p>
+        </div>
+
+        <div class="feature-grid">
+
+            <article class="feature-card reveal">
+                <span class="feature-ico">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+                </span>
+                <h3>Meeting Recording &amp; Transcription</h3>
+                <p>Record meetings directly in your browser or upload existing audio recordings to generate accurate multilingual transcripts.</p>
+            </article>
+
+            <article class="feature-card reveal" data-delay="1">
+                <span class="feature-ico">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"/><path d="M12 12V8"/></svg>
+                </span>
+                <h3>AI Summaries &amp; Mind Maps</h3>
+                <p>Generate concise summaries, key discussion points, decisions, and visual mind maps from transcripts.</p>
+            </article>
+
+            <article class="feature-card reveal" data-delay="2">
+                <span class="feature-ico">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg>
+                </span>
+                <h3>Interview Evaluation</h3>
+                <p>Analyze candidate answers, assess correctness against required skills, and generate skill-level evaluation reports.</p>
+            </article>
+
+            <article class="feature-card reveal" data-delay="3">
+                <span class="feature-ico">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 2v2"/><path d="M5 2v2"/><path d="M5 3H4a2 2 0 0 0-2 2v4a6 6 0 0 0 12 0V5a2 2 0 0 0-2-2h-1"/><path d="M8 15a6 6 0 0 0 12 0v-3"/><circle cx="20" cy="10" r="2"/></svg>
+                </span>
+                <h3>Doctor–Patient Documentation</h3>
+                <p>Transcribe consultations and generate structured clinical notes and prescription reports.</p>
+            </article>
+
+            <article class="feature-card reveal" data-delay="4">
+                <span class="feature-ico">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><circle cx="11.5" cy="14.5" r="2.5"/><path d="M13.25 16.25 15 18"/></svg>
+                </span>
+                <h3>Searchable Transcripts</h3>
+                <p>Easily search through your transcripts to find important information in seconds.</p>
+            </article>
+
+            <article class="feature-card reveal" data-delay="5">
+                <span class="feature-ico">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M12 18v-6"/><path d="m9 15 3 3 3-3"/></svg>
+                </span>
+                <h3>Reports &amp; Export</h3>
+                <p>Download summaries, mind maps, and supported template reports for documentation and sharing.</p>
+            </article>
+
+        </div>
+
+    </div>
+</section>
+
+
+<!-- ============================================================
+     TEMPLATES
+     A sample transcript turning into each template's document.
+     Tabs, transcript, document and the "Try this template" link
+     are filled by assets/template-showcase.js.
+============================================================ -->
+<section class="section" id="templates">
+    <div class="shell">
+
+        <div class="text-center">
+            <span class="eyebrow reveal">Templates</span>
+            <h2 class="section-title reveal" data-delay="1">Watch a conversation become a document</h2>
+            <p class="section-lead reveal" data-delay="2">
+                Pick a template before you record. Once the transcript is ready, Vidatha picks out what matters
+                and files it into minutes, a prescription or an interview evaluation.
+            </p>
+        </div>
+
+        <div class="ts-tabs reveal" data-delay="3" role="tablist" aria-label="Templates" data-ts-tabs></div>
+
+        <div class="ts-grid reveal" data-delay="3">
+
+            <div>
+                <div class="ts-transcript">
+                    <div class="ts-transcript-bar">
+                        <span class="ts-dot"></span><span class="ts-dot"></span><span class="ts-dot"></span>
+                        <span class="ts-transcript-title" data-ts-title></span>
+                        <span class="ts-duration" data-ts-duration></span>
+                    </div>
+                    <p class="ts-transcript-text" data-ts-text></p>
+                    <div class="ts-transcript-foot">Template: <b data-ts-label></b></div>
+                </div>
+                <div class="ts-under">
+                    <div class="ts-status" data-ts-status><i></i><span></span></div>
+                    <button class="btn btn-ghost ts-replay" type="button" data-ts-replay>&#8635; Replay</button>
+                </div>
+            </div>
+
+            <div class="ts-doc-wrap">
+                <div class="ts-fit" data-ts-doc></div>
+            </div>
+
+        </div>
+
+        <div class="ts-cta">
+            <a class="btn btn-accent" href="/sign-up" data-ts-cta>Try this template</a>
+        </div>
+
+    </div>
+</section>
+
+
+<!-- ============================================================
+     HOW IT WORKS
+============================================================ -->
+<section class="section how" id="how">
+    <div class="shell">
+
+        <div class="text-center">
+            <span class="eyebrow reveal">How it works</span>
+            <h2 class="section-title reveal" data-delay="1">Three steps, start to insight</h2>
+        </div>
+
+        <ol class="steps">
+
+            <li class="step reveal">
+                <span class="step-num">1</span>
+                <span class="step-ico">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+                </span>
+                <h3>Record</h3>
+                <p>Hit record when the meeting starts. Vidatha streams clean, mono audio to the server in real time.</p>
+            </li>
+
+            <li class="step reveal" data-delay="1">
+                <span class="step-num">2</span>
+                <span class="step-ico">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>
+                </span>
+                <h3>Transcribe</h3>
+                <p>When you stop, a Parrotlet ASR model returns the full transcript in seconds, ready to read or edit.</p>
+            </li>
+
+            <li class="step reveal" data-delay="2">
+                <span class="step-num">3</span>
+                <span class="step-ico">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>
+                </span>
+                <h3>Get insights</h3>
+                <p>Click <em>Create Summary</em> and an LLM extracts the title, summary, decisions, tasks, and action items.</p>
+            </li>
+
+        </ol>
+
+    </div>
+</section>
+
+
+<!-- ============================================================
+     FINAL CTA
+============================================================ -->
+<section class="final-cta">
+    <div class="bg-mesh" aria-hidden="true"><span></span><span></span><span></span></div>
+    <div class="shell text-center reveal">
+        <h2>Stop writing meetings down by hand.</h2>
+        <p>Record your next call with Vidatha and get the transcript, summary, and action items automatically.</p>
+        <a class="btn btn-accent btn-lg" href="/sign-up">
+            Get Started Free
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+        </a>
+    </div>
+</section>
+
+
+<!-- ============================================================
+     FOOTER  (kept intentionally minimal for now)
+============================================================ -->
+<footer class="site-footer">
+    <div class="shell footer-line">
+        <span class="footer-name">Vidatha</span>
+        <span class="footer-support">
+            For support, contact
+            <a href="mailto:cdac@chennai.in">cdac@chennai.in</a>
+        </span>
+    </div>
+</footer>
+
+
+<script src="assets/theme.js?v=2"></script>
+<script src="assets/ui.js?v=2"></script>
+<script src="assets/mock-widget.js?v=2"></script>
+<script src="assets/template-showcase.js?v=2"></script>
+
+</body>
+</html>
