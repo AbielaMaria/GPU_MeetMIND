@@ -1,30 +1,3 @@
-/* ============================================================
-   MeetMind — recording player
-   ------------------------------------------------------------
-   A small, self-contained player for recordings stored in the
-   database (GET /api/meetings/{id}/audio,
-   /api/doctor/consultations/{id}/audio and
-   /api/interview/interviews/{id}/audio — all answer HTTP Range
-   requests, so seeking works without downloading everything).
-   Options: { teal: true } (consultations), { indigo: true }
-   (interviews).
-
-   Controls: play / pause, back 10 s, forward 10 s, a seek bar
-   (with buffered progress), elapsed / total time, playback speed
-   and a download link. Keyboard, while focus is in the player:
-   Space or K play/pause, ← / → 10 s, Home / End.
-
-   Usage:
-       var player = MeetMindAudioPlayer.create({ teal: true });
-       container.appendChild(player.el);
-       player.load("/api/meetings/12/audio", {
-           title: "Meeting recording",
-           meta: "MP3 · 1.2 MB",
-           downloadName: "meeting_12.mp3"
-       });
-       player.clear();   // stop and hide
-============================================================ */
-
 (function () {
     "use strict";
 
@@ -58,7 +31,6 @@
         return b;
     }
 
-    /* 75 -> "1:15", 3725 -> "1:02:05" */
     function fmt(seconds) {
         if (!isFinite(seconds) || seconds < 0) return "0:00";
         var total = Math.floor(seconds);
@@ -88,13 +60,11 @@
         "audio/webm": "webm"
     };
 
-    /* filename="meeting_12.mp3" from a Content-Disposition header, or "". */
     function dispositionName(header) {
         var match = /filename="?([^";]+)"?/i.exec(header || "");
         return match ? match[1].trim() : "";
     }
 
-    /* Read a fetch() response to a Blob, reporting progress (0–1). */
     function readWithProgress(response, onProgress) {
         var total = Number(response.headers.get("Content-Length")) || 0;
         if (!response.body || !response.body.getReader || !total) {
@@ -131,7 +101,6 @@
         var audio = document.createElement("audio");
         audio.preload = "metadata";
 
-        /* head */
         var head = el("div", "mm-player-head");
         head.appendChild(el("span", "mm-player-icon", ICONS.wave));
         var titles = el("div", "mm-player-titles");
@@ -145,7 +114,6 @@
         download.setAttribute("aria-label", "Download recording");
         head.appendChild(download);
 
-        /* controls */
         var controls = el("div", "mm-player-controls");
         var backBtn = button("mm-player-skip", "Back " + SKIP_SECONDS + " seconds",
             ICONS.back + "<span>" + SKIP_SECONDS + "</span>");
@@ -192,20 +160,10 @@
         var seeking = false;
         var downloadName = "";
         var downloadMime = "";
-        var downloading = null;   // the download in progress: { cancelled }
+        var downloading = null;
 
-        /* Download: the page fetches the file itself, over the same
-           connection playback already uses, then saves the finished Blob.
-           Handing the link to the browser's download manager instead
-           failed intermittently on this HTTPS deployment: its separate
-           request sometimes never reached the server, the Save dialog
-           showed "All files" (no response, so no type) and the download
-           ended in "Check internet connection". */
         var downloadText = download.querySelector(".mm-player-download-text");
 
-        /* Other Download buttons on the page (e.g. next to Upload
-           Recording) follow this player through onDownloadState(fn):
-           fn({ available, busy, percent, error }) on every change. */
         var downloadListeners = [];
         var downloadState = { available: false, busy: false, percent: 0, error: "" };
 
@@ -218,7 +176,7 @@
                 error: downloadState.error
             };
             downloadListeners.forEach(function (fn) {
-                try { fn(snapshot); } catch (e) { /* a listener's bug is its own */ }
+                try { fn(snapshot); } catch (e) {  }
             });
         }
 
@@ -245,7 +203,6 @@
             document.body.appendChild(link);
             link.click();
             link.remove();
-            // Long enough for the browser to start writing the file.
             setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
         }
 
@@ -269,7 +226,6 @@
                 })
                 .catch(function (error) {
                     var known = /^(signed-out|forbidden|missing|http-)/.test(error && error.message);
-                    // A dropped connection is retried once before giving up.
                     if (!known && attempt < 2 && !job.cancelled) {
                         return fetchRecording(href, job, attempt + 1);
                     }
@@ -277,9 +233,6 @@
                 });
         }
 
-        /* Download the loaded recording. Resolves true once the file has
-           been handed to the browser to save, false if it failed, was
-           cancelled, or nothing is loaded. */
         function startDownload() {
             if (downloading || !download.getAttribute("href")) return Promise.resolve(false);
             var job = { cancelled: false };
@@ -404,7 +357,6 @@
         root.addEventListener("keydown", function (e) {
             if (e.target.tagName === "A") return;
             var key = e.key;
-            // Space on a focused button is that button's own click.
             if (key === "k" || key === "K" || (key === " " && e.target.tagName !== "BUTTON")) {
                 e.preventDefault();
                 toggle();
@@ -456,9 +408,6 @@
             }
             metaEl.textContent = meta || "Saved recording";
             cancelDownload();
-            /* A separate URL from the <audio> src: the server sends it as an
-               attachment, uncached, so it never shares the player's partial
-               (range-only) cache entry. The click handler above fetches it. */
             download.href = src + (src.indexOf("?") === -1 ? "?" : "&") + "download=1";
             downloadName = info.downloadName || "";
             downloadMime = info.mimeType || "";

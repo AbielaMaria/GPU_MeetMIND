@@ -1,26 +1,3 @@
-/* ============================================================
-   MeetMind — real auth / user store (server-backed)
-   ============================================================
-   Talks to the FastAPI backend's /api/auth/* and /api/users
-   endpoints (see backend/auth.py + backend/database.py). Accounts
-   and sessions live in a SQLite database on the server, not in
-   this browser's localStorage — so an account registered on one
-   machine can sign in from any other machine hitting the same
-   backend, and the admin dashboard's changes persist for everyone.
-
-   The session itself is an HttpOnly cookie the server sets on
-   /api/auth/login — JS never reads or writes it directly. Closing
-   the tab/browser without "remember me" checked drops the cookie
-   (the server issues it with no Max-Age in that case), so the next
-   visit requires signing in again.
-
-   Every function below returns a Promise, since every call now
-   round-trips to the server. `auth-forms.js` and `admin.js` already
-   consume signIn()/signUp() as promises; the CRUD helpers changed
-   from synchronous to async here too, and their call sites were
-   updated to match.
-============================================================ */
-
 (function (global) {
     "use strict";
 
@@ -47,9 +24,6 @@
 
     var MeetMindAuth = {
 
-        /* ---- session ------------------------------------------- */
-
-        // Resolves with the session {username,email,role,...} or null.
         getSession: function () {
             return request("GET", "/auth/session").catch(function () { return null; });
         },
@@ -62,12 +36,6 @@
             return request("POST", "/auth/logout").catch(function () {});
         },
 
-        /* ---- sign up (self-service = always role "user") ------ */
-
-        // Resolves with {pendingVerification:true, awaitingAdmin, email}.
-        // New accounts never get a session straight away: awaitingAdmin is
-        // false when the user must enter an emailed OTP, true when an admin
-        // has to verify them (see REQUIRE_EMAIL_VERIFICATION in backend/auth.py).
         signUp: function (payload) {
             return request("POST", "/auth/register", {
                 username: payload.username,
@@ -76,9 +44,6 @@
             });
         },
 
-        /* ---- sign in ----------------------------------------- */
-
-        // `identifier` is a username or an email — the server figures out which.
         signIn: function (identifier, password) {
             return request("POST", "/auth/login", {
                 identifier: identifier,
@@ -86,23 +51,13 @@
             }).then(function (session) { return { session: session }; });
         },
 
-        // Resolves with {state: "none" | "pending" | "approved"}. Used by the
-        // "pending approval" panel to notice an admin approving the account;
-        // the server recognises the browser by its pending cookie.
         pendingStatus: function () {
             return request("GET", "/auth/pending-status");
         },
 
-        // The approved message's "Continue" button: signs the user in (the
-        // server recognises the browser by its pending cookie) and resolves
-        // with the session {username,email,role,...}.
         continueAfterApproval: function () {
             return request("POST", "/auth/continue");
         },
-
-        /* ---- email verification (OTP) ------------------------ */
-        // Only for a self-signup's first verification with the OTP gate on;
-        // these back the /verify-otp panel in auth-forms.js.
 
         verifyOtp: function (email, code) {
             return request("POST", "/auth/verify-otp", { email: email, code: code });
@@ -112,15 +67,9 @@
             return request("POST", "/auth/resend-otp", { email: email });
         },
 
-        /* ---- role routing / guard --------------------------- */
-
         landingPathForRole: function (role) {
             return role === "admin" ? "/admin" : "/app";
         },
-
-        /* ============================================================
-           ADMIN — user CRUD (server-backed, admin-only endpoints)
-        ============================================================ */
 
         listUsers: function () {
             return request("GET", "/users");
@@ -130,12 +79,10 @@
             return request("POST", "/users", data);
         },
 
-        // `originalEmail` identifies the row; patch may include a new email.
         updateUser: function (originalEmail, patch) {
             return request("PATCH", "/users/" + encodeURIComponent(originalEmail), patch);
         },
 
-        // Unverifying also signs the user out everywhere (server-side).
         setUserVerified: function (email, verified) {
             return this.updateUser(email, { emailVerified: !!verified });
         },

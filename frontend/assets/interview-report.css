@@ -1,13 +1,3 @@
-/* ============================================================
-   MeetMind — interview evaluation report sheet
-   (assets/interview-report.js)
-   ------------------------------------------------------------
-   An A4-width (794 px) page on the interviewer's letterhead. It is
-   paper: always light, whatever the app theme, so the screen preview
-   and the PDF look the same. Indigo accent, to tell it apart from
-   the Doctor–Patient template's teal prescription.
-============================================================ */
-
 .ivr-sheet {
     --ivr-ink: #1b1d3a;
     --ivr-text: #2f3350;
@@ -56,8 +46,6 @@
     height: 8px;
     background: linear-gradient(90deg, var(--ivr-accent-deep), var(--ivr-accent) 55%, var(--ivr-accent-bright));
 }
-
-/* ---- letterhead ---- */
 
 .ivr-letterhead {
     display: flex;
@@ -152,8 +140,6 @@
     color: var(--ivr-accent);
 }
 
-/* ---- title bar ---- */
-
 .ivr-titlebar {
     display: flex;
     justify-content: space-between;
@@ -196,8 +182,6 @@
     display: inline;
     margin-right: 4px;
 }
-
-/* ---- body ---- */
 
 .ivr-body {
     padding: 18px 44px 10px;
@@ -244,8 +228,6 @@
     font-size: 11px;
     font-weight: 600;
 }
-
-/* ---- score ---- */
 
 .ivr-score {
     display: flex;
@@ -345,8 +327,6 @@
     color: var(--ivr-muted);
 }
 
-/* ---- interviewer decision ---- */
-
 .ivr-decision {
     margin-top: 14px;
     padding: 12px 16px;
@@ -369,8 +349,6 @@
 .ivr-decision p {
     margin-top: 4px;
 }
-
-/* ---- sections ---- */
 
 .ivr-section {
     margin-top: 18px;
@@ -447,8 +425,6 @@
 .ivr-verdict--incorrect { background: var(--ivr-incorrect-soft); color: var(--ivr-incorrect); }
 .ivr-verdict--unknown { background: var(--ivr-unknown-soft); color: var(--ivr-unknown); }
 
-/* ---- Q&A ---- */
-
 .ivr-qa {
     margin-bottom: 10px;
     padding: 12px 14px;
@@ -505,8 +481,6 @@
     border-top: 1px dashed var(--ivr-line);
 }
 
-/* ---- strengths / improvements ---- */
-
 .ivr-cols {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -525,8 +499,6 @@
 
 .ivr-col--good li::marker { color: var(--ivr-correct); }
 .ivr-col--work li::marker { color: var(--ivr-partial); }
-
-/* ---- signature / footer ---- */
 
 .ivr-sign {
     display: flex;

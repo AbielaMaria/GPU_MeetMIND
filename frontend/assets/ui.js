@@ -1,12 +1,4 @@
-/* ============================================================
-   MeetMind — shared UI glue
-   Scroll-reveal, mobile nav, and footer year.
-   Used by landing / auth / admin pages. Purely presentational.
-============================================================ */
-
 (function () {
-
-    /* ---- scroll reveal ------------------------------------- */
 
     var revealEls = document.querySelectorAll(".reveal");
 
@@ -26,8 +18,6 @@
         revealEls.forEach(function (el) { io.observe(el); });
     }
 
-    /* ---- mobile nav -------------------------------------- */
-
     var nav = document.querySelector(".site-nav");
     var navToggle = document.querySelector(".nav-toggle");
 
@@ -44,8 +34,6 @@
             });
         });
     }
-
-    /* ---- footer year ------------------------------------ */
 
     document.querySelectorAll("[data-year]").forEach(function (el) {
         el.textContent = new Date().getFullYear();

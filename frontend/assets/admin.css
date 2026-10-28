@@ -1,15 +1,8 @@
-/* ============================================================
-   MeetMind — admin (admin.html). Simple: top bar + users table.
-   Tokens from theme.css.
-============================================================ */
-
 .admin-shell {
     max-width: 1600px;
     margin: 0 auto;
     padding: 0 clamp(20px, 3vw, 40px) 72px;
 }
-
-/* ---------- Top bar ---------- */
 
 .admin-top {
     display: flex;
@@ -21,14 +14,8 @@
     border-bottom: 1px solid var(--border);
 }
 
-/* ---------- Page body ---------- */
-/* Panels are stacked sections; without this they sit flush against each
-   other with no separation at all. */
-
 .admin-body {
     display: grid;
-    /* minmax(0, …): a wide filter row or table scrolls inside its panel
-       instead of stretching the page past the window. */
     grid-template-columns: minmax(0, 1fr);
     gap: 28px;
 }
@@ -57,8 +44,6 @@
     color: var(--text-muted);
     white-space: nowrap;
 }
-
-/* ---------- Overview stats ---------- */
 
 .stats-grid {
     display: grid;
@@ -167,8 +152,6 @@
     .stats-grid { grid-template-columns: 1fr; }
 }
 
-/* ---------- Panel ---------- */
-
 .panel {
     border: 1px solid var(--border);
     border-radius: var(--r-lg);
@@ -200,8 +183,6 @@
 .panel-bd {
     padding: 22px;
 }
-
-/* ---------- Toolbar ---------- */
 
 .table-tools {
     display: flex;
@@ -285,8 +266,6 @@
 @media (max-width: 720px) {
     .date-field-label { display: none; }
 }
-
-/* ---------- Table ---------- */
 
 .table-scroll {
     overflow-x: auto;
@@ -383,7 +362,6 @@ td.cell-actions {
 .pill.st-verified { color: var(--success); background: var(--success-soft); border-color: transparent; }
 .pill.st-unverified { color: var(--warning); background: var(--warning-soft); border-color: transparent; }
 
-/* Model tags in the meetings table: one per model with results. */
 .model-tags { display: flex; flex-wrap: wrap; gap: 6px; }
 .pill.model-pill { color: var(--accent); background: var(--accent-soft); border-color: transparent; white-space: nowrap; }
 .pill.model-pill::before { content: none; }
@@ -399,8 +377,6 @@ td.cell-actions {
     color: var(--text-muted);
     font-size: 13px;
 }
-
-/* ---------- Dialog ---------- */
 
 .user-dialog {
     width: min(440px, calc(100vw - 32px));
@@ -439,20 +415,10 @@ td.cell-actions {
     margin-top: 8px;
 }
 
-/* ---------- Responsive ---------- */
-
 @media (max-width: 560px) {
     .admin-who { display: none; }
     .dialog-row { grid-template-columns: 1fr; }
 }
-
-/* ============================================================
-   Meeting viewer  (added with the meeting-history feature)
-   ------------------------------------------------------------
-   Additive only: new classes for the meetings panel + viewer
-   dialog. Nothing above is modified, and every value is an
-   existing token so light/dark follow automatically.
-============================================================ */
 
 .meeting-dialog {
     width: min(760px, calc(100vw - 32px));
@@ -542,10 +508,6 @@ td.cell-actions {
     color: var(--text-muted);
 }
 
-/* ============================================================
-   Pagination (users + meetings tables)
-============================================================ */
-
 .pagination {
     display: flex;
     align-items: center;
@@ -589,24 +551,6 @@ td.cell-actions {
     color: var(--text-muted);
 }
 
-/* ============================================================
-   CONTROLS — matched to the recorder page (index.html)
-   ------------------------------------------------------------
-   Same control system as index.html's CONTROLS section, scoped to
-   this page so theme.css (shared with the sign-in and landing
-   pages) is left as it is:
-
-     regular controls   --control-h      buttons, search, filters
-     compact tools      --control-h-sm   row actions, pagination,
-                                         viewer tools
-     header row         --control-h-header
-
-     .btn-accent     primary   (accent fill)
-     .btn-secondary  secondary (accent outline): Cancel, Close
-     .btn-ghost      neutral:  Reset filters, top-bar links
-     .btn-filter     filter dropdowns: neutral, accent while filtering
-============================================================ */
-
 :root {
     --control-h: 38px;
     --control-h-sm: 32px;
@@ -625,8 +569,6 @@ td.cell-actions {
     --icon-chevron-up: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m18 15-6-6-6 6'/%3E%3C/svg%3E");
     --icon-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");
 }
-
-/* ---------- Top bar: one height for every control ---------- */
 
 .admin-top .btn,
 .admin-top .theme-toggle {
@@ -647,8 +589,6 @@ td.cell-actions {
 .admin-top .theme-toggle {
     width: var(--control-h-header);
 }
-
-/* ---------- Regular buttons ---------- */
 
 .admin-body .btn,
 .user-dialog .btn {
@@ -674,8 +614,6 @@ td.cell-actions {
     background: var(--accent-soft);
 }
 
-/* ---------- Search + date fields: regular height ---------- */
-
 .search-wrap input {
     height: var(--control-h);
     padding: 0 12px 0 32px;
@@ -686,8 +624,6 @@ td.cell-actions {
     height: var(--control-h);
     padding: 0 10px;
 }
-
-/* ---------- Compact tools (row actions, pagination, viewer) ---------- */
 
 .row-btn,
 .page-arrow,
@@ -744,8 +680,6 @@ td.cell-actions {
     -webkit-mask-repeat: no-repeat;
     mask-repeat: no-repeat;
 }
-
-/* ---------- Filter dropdowns (same component as the recorder page) ---------- */
 
 .dropdown {
     position: relative;
@@ -873,8 +807,6 @@ td.cell-actions {
     outline-offset: -2px;
 }
 
-/* ---------- Stats: per-model breakdown ---------- */
-
 .stat-breakdown {
     margin-top: 2px;
     font-size: 11px;
@@ -886,10 +818,6 @@ td.cell-actions {
 .stat-breakdown:empty {
     display: none;
 }
-
-/* ============================================================
-   MEETING VIEWER — per model
-============================================================ */
 
 .meeting-dialog {
     width: min(920px, calc(100vw - 32px));
@@ -925,7 +853,6 @@ td.cell-actions {
     mask-image: var(--icon-minimize);
 }
 
-/* Model switch: one segment per model with results. */
 .model-switch {
     display: inline-flex;
     align-self: flex-start;
@@ -943,7 +870,6 @@ td.cell-actions {
     display: none;
 }
 
-/* The transcript tab is shared by every model. */
 .model-switch.is-muted {
     opacity: .5;
 }
@@ -1055,7 +981,6 @@ td.cell-actions {
     margin-top: 18px;
 }
 
-/* Full view: the viewer fills almost the whole window. */
 .meeting-dialog.is-expanded {
     width: calc(100vw - 48px);
     max-width: none;
@@ -1096,10 +1021,6 @@ td.cell-actions {
         transition: none;
     }
 }
-
-/* ---------- Summary + mind map: copied from index.html ----------
-   The rules below are index.html's own, scoped to the viewer, so a
-   meeting reads the same here as on the recorder page. */
 
 .meeting-dialog .intelligence {
     padding: 16px 18px;
@@ -1523,11 +1444,6 @@ td.cell-actions {
     background: var(--success-soft);
 }
 
-/* ============================================================
-   Recordings + doctor consultations
-============================================================ */
-
-/* "Recording" pill: the meeting / consultation has saved audio. */
 .pill.audio-pill {
     color: var(--text-secondary);
     background: var(--bg-surface);
@@ -1557,7 +1473,6 @@ td.cell-actions {
     white-space: nowrap;
 }
 
-/* the recording player inside the meeting / consultation viewers */
 .dialog-player .mm-player {
     margin-top: 16px;
 }
@@ -1566,7 +1481,6 @@ td.cell-actions {
     display: none !important;
 }
 
-/* consultation viewer: the prescription page, scaled to the pane */
 .consult-pane--rx {
     padding-right: 4px;
 }
@@ -1619,7 +1533,6 @@ td.cell-actions {
     display: none;
 }
 
-/* interview viewer: the evaluation report, scaled to the pane */
 .pill.iv-score { white-space: nowrap; border-color: transparent; color: #4f46e5; background: rgba(79, 70, 229, .1); font-weight: 700; }
 :root[data-theme="dark"] .pill.iv-score { color: #a5b4fc; background: rgba(129, 140, 248, .14); }
 

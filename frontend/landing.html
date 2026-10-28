@@ -1,13 +1,4 @@
 <!DOCTYPE html>
-<!-- ============================================================
-     PLACEHOLDER CONTENT — replace copy, stats, and testimonials
-     before launch. Every invented figure is marked with a
-     "PLACEHOLDER" comment nearby for easy grep.
-     ------------------------------------------------------------
-     MeetMind landing page — the marketing/info page shown to any
-     visitor before login. Links out to /sign-in, /sign-up and
-     (post-login) the app at /app.
-============================================================ -->
 <html lang="en">
 
 <head>
@@ -20,22 +11,9 @@
 
     <meta name="color-scheme" content="light dark">
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+    <link rel="stylesheet" href="assets/fonts/fonts.css?v=1">
 
-    <!-- pre-paint theme (mirrors index.html) -->
-    <script>
-        (function () {
-            try {
-                var s = localStorage.getItem("meetmind-theme");
-                if (s === "light" || s === "dark") {
-                    document.documentElement.setAttribute("data-theme", s);
-                }
-            } catch (e) {}
-        })();
-    </script>
+    <script src="assets/theme-init.js?v=1"></script>
 
     <link rel="stylesheet" href="assets/theme.css?v=2">
     <link rel="stylesheet" href="assets/mock-widget.css?v=2">
@@ -46,9 +24,6 @@
 
 <body>
 
-<!-- ============================================================
-     NAV
-============================================================ -->
 <nav class="site-nav">
 
     <a class="brand" href="/">
@@ -83,9 +58,6 @@
 </nav>
 
 
-<!-- ============================================================
-     HERO
-============================================================ -->
 <header class="hero">
 
     <div class="bg-mesh" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -98,12 +70,10 @@
                 <span class="pulse-dot"></span> AI meeting intelligence
             </span>
 
-            <!-- PLACEHOLDER headline -->
             <h1 class="hero-title reveal" data-delay="1">
                 Your Interaction, <span class="grad">Captured and understood</span>.
             </h1>
 
-            <!-- PLACEHOLDER subheadline -->
             <p class="hero-lead reveal" data-delay="2">
                 Vidatha captures your meeting audio and uses Parrotlet ASR to convert speech into accurate transcripts. Al then transforms your conversations into concise summaries, key decisions, and actionable tasks
             </p>
@@ -121,7 +91,6 @@
 
         </div>
 
-        <!-- animated centerpiece: mock live-transcript widget + waveform -->
         <div class="hero-visual reveal" data-delay="2" id="demo" aria-hidden="true">
 
             <div class="mock-window">
@@ -195,9 +164,6 @@
 </header>
 
 
-<!-- ============================================================
-     FEATURES
-============================================================ -->
 <section class="section" id="features">
     <div class="shell">
 
@@ -205,7 +171,6 @@
             <span class="eyebrow reveal">Features</span>
             <h2 class="section-title reveal" data-delay="1">Built for the entire meeting workflow</h2>
             <p class="section-lead reveal" data-delay="2">
-                <!-- PLACEHOLDER copy -->
                 From recording to insights - Vidatha handles every step, so you can focus on the conversation.
             </p>
         </div>
@@ -266,12 +231,6 @@
 </section>
 
 
-<!-- ============================================================
-     TEMPLATES
-     A sample transcript turning into each template's document.
-     Tabs, transcript, document and the "Try this template" link
-     are filled by assets/template-showcase.js.
-============================================================ -->
 <section class="section" id="templates">
     <div class="shell">
 
@@ -318,9 +277,6 @@
 </section>
 
 
-<!-- ============================================================
-     HOW IT WORKS
-============================================================ -->
 <section class="section how" id="how">
     <div class="shell">
 
@@ -364,9 +320,6 @@
 </section>
 
 
-<!-- ============================================================
-     FINAL CTA
-============================================================ -->
 <section class="final-cta">
     <div class="bg-mesh" aria-hidden="true"><span></span><span></span><span></span></div>
     <div class="shell text-center reveal">
@@ -380,9 +333,6 @@
 </section>
 
 
-<!-- ============================================================
-     FOOTER  (kept intentionally minimal for now)
-============================================================ -->
 <footer class="site-footer">
     <div class="shell footer-line">
         <span class="footer-name">Vidatha</span>

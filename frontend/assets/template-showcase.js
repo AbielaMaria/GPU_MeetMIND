@@ -1,13 +1,3 @@
-/* ============================================================
-   MeetMind — landing "Templates" showcase behaviour
-   For each template: the sample transcript appears sentence by
-   sentence, its highlighted phrases fly into the document's
-   fields, the rest of the document fills in, and after a pause
-   the next template plays. Loops forever while the section is
-   on screen; hovering the showcase holds the finished document.
-   PLACEHOLDER content — sample transcripts and documents only.
-============================================================ */
-
 (function () {
 
     var root = document.getElementById("templates");
@@ -25,8 +15,6 @@
 
     var ARROW = icon('<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>');
 
-    /* Same keys as the app's template pills (assets/doctor-template.js),
-       so "Try this template" can open /app?template=<key>. */
     var ORDER = ["mom", "doctor", "interview"];
 
     var T = {
@@ -57,7 +45,6 @@
                     '<div class="ts-task" data-f="a1"><span class="ts-chk"></span><span>Finish the export API</span><span class="ts-own">Arjun · by Friday</span></div>' +
                     '<div class="ts-task" data-f="a2"><span class="ts-chk"></span><span>Draft the release notes</span><span class="ts-own">Meera · by next Wednesday</span></div>' +
                     "<h4>Mind map</h4>" +
-                    // Top-down tree, drawn like the app's generated mind map.
                     '<div class="ts-mindmap" data-f="mm">' +
                         '<div class="ts-mm-root">Q4 Roadmap Sync</div>' +
                         '<div class="ts-mm-branches">' +
@@ -131,9 +118,9 @@
                     '<div class="ts-score" data-f="ov"><span class="ts-score-value">83%</span>' +
                         '<span class="ts-meta">3 questions · 2 correct · 1 partially correct</span></div>' +
                     "<h4>Skill-wise assessment</h4>" +
-                    '<div class="ts-skill" data-f="sql"><span>SQL<small>Advanced</small></span><div class="ts-bar"><i style="--w:100%"></i></div><b>100%</b></div>' +
-                    '<div class="ts-skill" data-f="sd"><span>System design<small>Beginner</small></span><div class="ts-bar"><i style="--w:50%"></i></div><b>50%</b></div>' +
-                    '<div class="ts-skill" data-f="py"><span>Python<small>Advanced</small></span><div class="ts-bar"><i style="--w:100%"></i></div><b>100%</b></div>' +
+                    '<div class="ts-skill" data-f="sql"><span>SQL<small>Advanced</small></span><div class="ts-bar"><i data-w="100"></i></div><b>100%</b></div>' +
+                    '<div class="ts-skill" data-f="sd"><span>System design<small>Beginner</small></span><div class="ts-bar"><i data-w="50"></i></div><b>50%</b></div>' +
+                    '<div class="ts-skill" data-f="py"><span>Python<small>Advanced</small></span><div class="ts-bar"><i data-w="100"></i></div><b>100%</b></div>' +
                     "<h4>Strengths</h4>" +
                     '<p data-f="str">Hands-on Python and SQL, with production experience.</p>' +
                     "<h4>Improvement areas</h4>" +
@@ -161,9 +148,7 @@
     var timer = null;
     var inView = false;
     var hovering = false;
-    var paperHeight = 0;     // tallest of the three papers, unscaled
-
-    /* ---- tabs ---------------------------------------------- */
+    var paperHeight = 0;
 
     tabsEl.innerHTML = ORDER.map(function (key) {
         return '<button type="button" class="ts-tab" role="tab" data-key="' + key + '">' +
@@ -184,11 +169,6 @@
         tabsEl.querySelector('[data-key="' + next + '"]').focus();
     });
 
-    /* ---- paper sizing --------------------------------------- */
-
-    // The papers are laid out at 520px and scaled to the column, with
-    // the box sized for the tallest one so the page never jumps
-    // between templates.
     function measurePapers() {
         var probe = document.createElement("div");
         probe.style.cssText = "position:absolute;left:-9999px;top:0;visibility:hidden;width:" + PAPER_WIDTH + "px";
@@ -208,8 +188,6 @@
         scaler.style.transform = "scale(" + k + ")";
         docEl.style.height = Math.ceil(paperHeight * k) + "px";
     }
-
-    /* ---- rendering ------------------------------------------ */
 
     function setStatus(text, done) {
         statusEl.classList.toggle("is-done", !!done);
@@ -257,7 +235,6 @@
         textEl.appendChild(span);
     }
 
-    // A copy of the phrase flies from the transcript to its field.
     function flyPhrase(mark, target) {
         var from = mark.getBoundingClientRect();
         var to = target.getBoundingClientRect();
@@ -277,16 +254,12 @@
         setTimeout(function () { ghost.remove(); }, 820);
     }
 
-    /* ---- the animation ------------------------------------- */
-
     function stop() {
         runId++;
         clearTimeout(timer);
         document.querySelectorAll(".ts-ghost").forEach(function (g) { g.remove(); });
     }
 
-    // Each step runs, then returns how long to wait before the next
-    // one (or null when it has handed over to another run).
     function buildSteps(t) {
         var steps = [function () { return 500; }];
 
@@ -359,7 +332,6 @@
         function next() {
             if (id !== runId) return;
             if (i === steps.length) {
-                // Hold the finished document while the pointer is on it.
                 if (hovering) {
                     timer = setTimeout(next, 500);
                     return;
@@ -378,8 +350,6 @@
 
     gridEl.addEventListener("mouseenter", function () { hovering = true; });
     gridEl.addEventListener("mouseleave", function () { hovering = false; });
-
-    /* ---- start / pause with visibility ---------------------- */
 
     measurePapers();
     render(current);

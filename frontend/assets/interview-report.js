@@ -1,25 +1,3 @@
-/* ============================================================
-   MeetMind — interview evaluation report sheet
-   ------------------------------------------------------------
-   Renders an interview's evaluation as an A4 report on the
-   interviewer's letterhead (styles: assets/interview-report.css)
-   and turns it into a PDF. Used by the Interview template
-   (assets/interview-template.js) and the admin viewer.
-
-     var sheet = MeetMindInterviewReport.createSheet();
-     sheet.setProfile(profile);          // /api/interview/profile
-     sheet.setData(report, { interviewId: 7, createdAt: iso,
-                             durationSeconds: 1800 });
-     sheet.downloadPdf();                // -> Promise
-
-   `report` is the evaluation the backend stores
-   (interview_database.interview_evaluations.report_json, shaped by
-   interview_analysis.normalise_report). normalize()/recompute()
-   mirror that function so on-screen edits show the same counts and
-   scores the server will save. Needs jsPDF and html2canvas for the
-   PDF (loaded by index.html / admin.html).
-============================================================ */
-
 (function () {
     "use strict";
 
@@ -39,8 +17,6 @@
         globe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>'
     };
 
-    /* ---- helpers ---- */
-
     function str(value) {
         return value == null ? "" : String(value).trim();
     }
@@ -51,7 +27,6 @@
             .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
     }
 
-    /* Multi-line text as paragraphs-with-<br>, escaped. */
     function para(value) {
         return esc(str(value)).replace(/\n/g, "<br>");
     }
@@ -104,12 +79,9 @@
         });
     }
 
-    /* "Skill a, skill b; skill c" or one per line -> skill names. */
     function parseSkills(text) {
         return skillList(String(text || "").split(/[,;\n]+/));
     }
-
-    /* ---- data ---- */
 
     function score(c, p, i) {
         var judged = c + p + i;
@@ -127,11 +99,6 @@
         return t;
     }
 
-    /*
-     * Recompute every count and score from the Q&A verdicts, in place.
-     * Proficiency levels and evidence are the interviewer's to set and
-     * are kept; a skill without one gets the same default the server uses.
-     */
     function recompute(report) {
         var skills = report.interview_details.required_skills;
         var byFold = {};
@@ -185,7 +152,6 @@
         return report;
     }
 
-    /* A deep, well-formed copy of an evaluation (as stored or returned). */
     function normalize(source) {
         source = source || {};
         var d = source.interview_details || {};
@@ -223,7 +189,6 @@
         return recompute(report);
     }
 
-    /* Only what the server stores (no status/model metadata). */
     function toPayload(report) {
         var r = normalize(report);
         r.qa_analysis = r.qa_analysis.filter(function (q) { return q.question || q.participant_answer; });
@@ -259,8 +224,6 @@
         return value == null ? "—" : value + "%";
     }
 
-    /* ---- letterhead (also the profile card's live preview) ---- */
-
     function letterheadHTML(profile) {
         profile = profile || {};
         var org = str(profile.organization_name);
@@ -293,8 +256,6 @@
         "</header>";
     }
 
-    /* ---- the sheet ---- */
-
     function detailCell(label, value) {
         return '<div class="ivr-detail"><span class="ivr-k">' + esc(label) + '</span><span class="ivr-v">' +
             (str(value) ? esc(value) : '<span class="ivr-muted">—</span>') + "</span></div>";
@@ -303,10 +264,10 @@
     function scorePanelHTML(s) {
         var total = s.correct + s.partially_correct + s.incorrect + s.unable_to_evaluate;
         function seg(n, tone) {
-            return n ? '<span class="ivr-bar-seg ivr-bar-seg--' + tone + '" style="flex:' + n + '"></span>' : "";
+            return n ? '<span class="ivr-bar-seg ivr-bar-seg--' + tone + '" data-flex="' + n + '"></span>' : "";
         }
         return '<section class="ivr-score" data-keep>' +
-            '<div class="ivr-score-ring" style="--p:' + (s.score_percent || 0) + '">' +
+            '<div class="ivr-score-ring" data-p="' + (s.score_percent || 0) + '">' +
                 '<div class="ivr-score-value">' + (s.score_percent == null ? "—" : s.score_percent + "<small>%</small>") + "</div>" +
                 '<div class="ivr-score-label">Score</div>' +
             "</div>" +
@@ -314,7 +275,7 @@
                 '<div class="ivr-bar">' + (total
                     ? seg(s.correct, "correct") + seg(s.partially_correct, "partial") +
                       seg(s.incorrect, "incorrect") + seg(s.unable_to_evaluate, "unknown")
-                    : '<span class="ivr-bar-seg ivr-bar-seg--empty" style="flex:1"></span>') + "</div>" +
+                    : '<span class="ivr-bar-seg ivr-bar-seg--empty" data-flex="1"></span>') + "</div>" +
                 '<div class="ivr-legend">' +
                     '<span><b>' + s.total_questions + "</b> questions</span>" +
                     '<span class="ivr-dot ivr-dot--correct"><b>' + s.correct + "</b> correct</span>" +
@@ -465,6 +426,12 @@
 
         function render() {
             root.innerHTML = sheetHTML(report, profile, context);
+            root.querySelectorAll("[data-flex]").forEach(function (el) {
+                el.style.flex = el.getAttribute("data-flex");
+            });
+            root.querySelectorAll("[data-p]").forEach(function (el) {
+                el.style.setProperty("--p", el.getAttribute("data-p"));
+            });
         }
 
         render();
@@ -491,8 +458,6 @@
         };
     }
 
-    /* ---- PDF ---- */
-
     function waitForImages(node) {
         return Promise.all(Array.prototype.map.call(node.querySelectorAll("img"), function (img) {
             if (img.complete) return Promise.resolve();
@@ -503,12 +468,6 @@
         }));
     }
 
-    /*
-     * Renders a copy of the sheet at full A4 width and saves it as an A4
-     * PDF. Long reports continue on further pages; a page never ends in
-     * the middle of a [data-keep] block (a question, a table row, the
-     * score panel…) unless that block is taller than a page.
-     */
     function exportPdf(sheetEl, name) {
         if (!window.html2canvas || !window.jspdf || !window.jspdf.jsPDF) {
             return Promise.reject(new Error("The PDF library didn't load. Refresh the page and try again."));
@@ -544,7 +503,7 @@
             var pageH = 297;
             var pxPerMm = canvas.width / pageW;
             var ratio = canvas.width / clone.offsetWidth;
-            var marginPx = Math.round(10 * pxPerMm);   // top/bottom margin on continuation pages
+            var marginPx = Math.round(10 * pxPerMm);
             var fullPagePx = Math.floor(pageH * pxPerMm);
 
             var y = 0;
@@ -553,7 +512,6 @@
                 var room = page ? fullPagePx - 2 * marginPx : fullPagePx - marginPx;
                 var end = Math.min(canvas.height, y + room);
                 if (end < canvas.height) {
-                    // Pull the break up to the start of any block it would cut.
                     keeps.forEach(function (k) {
                         var s = k.start * ratio;
                         var e = k.end * ratio;

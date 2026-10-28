@@ -1,13 +1,3 @@
-/* ============================================================
-   MeetMind — landing "Templates" showcase
-   A sample transcript turns into each template's document:
-   highlighted phrases fly from the transcript into the
-   document's fields. Behaviour: assets/template-showcase.js.
-   The documents stay paper-white in both themes, like the
-   PDFs the app produces.
-============================================================ */
-
-/* ---------- Template tabs (mirror the in-app pills) ---------- */
 
 .ts-tabs {
     display: flex;
@@ -49,8 +39,6 @@
     border-color: color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
-/* ---------- Layout ---------- */
-
 .ts-grid {
     display: grid;
     grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
@@ -63,7 +51,6 @@
     justify-content: center;
 }
 
-/* A 520px-wide paper, scaled down to fit (template-showcase.js). */
 .ts-fit {
     position: relative;
     width: 100%;
@@ -77,8 +64,6 @@
     width: 520px;
     transform-origin: top left;
 }
-
-/* ---------- Transcript card ---------- */
 
 .ts-transcript {
     display: flex;
@@ -209,7 +194,6 @@
     margin-top: 32px;
 }
 
-/* The phrase in flight from transcript to document. */
 .ts-ghost {
     position: fixed;
     z-index: 60;
@@ -223,8 +207,6 @@
     box-shadow: 0 10px 24px -6px rgba(79, 70, 229, .55);
     transition: transform .8s cubic-bezier(.6, 0, .2, 1), opacity .8s ease;
 }
-
-/* ---------- The paper documents ---------- */
 
 .ts-paper {
     position: relative;
@@ -331,8 +313,6 @@
     color: #6b665f;
 }
 
-/* Mind map: a top-down tree like the app's (root, a connector bar,
-   then a column per branch with grey lines behind the nodes). */
 .ts-mindmap {
     padding: 4px 0 2px;
 }
@@ -369,7 +349,6 @@
     padding-top: 16px;
 }
 
-/* the bar joining the branch columns */
 .ts-mm-branches::before {
     content: "";
     position: absolute;
@@ -533,6 +512,9 @@
     transition: width .9s cubic-bezier(.2, .8, .2, 1);
 }
 
+.ts-bar i[data-w="100"] { --w: 100%; }
+.ts-bar i[data-w="50"] { --w: 50%; }
+
 .ts-decision {
     display: inline-block;
     padding: 3px 10px;
@@ -543,7 +525,6 @@
     font-weight: 600;
 }
 
-/* Fields start as skeleton bars and fill in as the phrases land. */
 .ts-paper [data-f] {
     border-radius: 5px;
     transition: background-color .35s ease, color .35s ease;
@@ -575,14 +556,11 @@
     100% { background: transparent; }
 }
 
-/* ---------- Responsive ---------- */
-
 @media (max-width: 900px) {
     .ts-grid {
         grid-template-columns: minmax(0, 1fr);
     }
 
-    /* the document first, the transcript under it */
     .ts-doc-wrap {
         order: -1;
     }

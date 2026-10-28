@@ -1,16 +1,4 @@
 <!DOCTYPE html>
-<!-- ============================================================
-     MeetMind — Admin (role = "admin" only)
-     ------------------------------------------------------------
-     Deliberately simple: one screen to see / add / edit / remove
-     users. Users live in the server's SQLite database (see
-     backend/database.py), via the admin-only /api/users endpoints
-     in backend/auth.py; changes here affect who can sign in,
-     everywhere. Below them, read-only views of every user's
-     meetings, doctor consultations (with their recordings and
-     prescriptions) and interviews (with their recordings and
-     evaluation reports).
-============================================================ -->
 <html lang="en">
 
 <head>
@@ -20,27 +8,10 @@
     <title>Admin — Vidatha</title>
     <meta name="color-scheme" content="light dark">
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=DM+Serif+Display&display=swap">
+    <link rel="stylesheet" href="assets/fonts/fonts.css?v=1">
 
-    <script>
-        (function () {
-            try {
-                var s = localStorage.getItem("meetmind-theme");
-                if (s === "light" || s === "dark") {
-                    document.documentElement.setAttribute("data-theme", s);
-                }
-            } catch (e) {}
-        })();
-    </script>
+    <script src="assets/theme-init.js?v=1"></script>
 
-    <!-- Access control for this page (signed in AND role "admin") is
-         enforced server-side before admin.html is served at all; see
-         backend/app.py's /admin route. No client-side guard here: a
-         second opinion can only disagree with the server, and when it
-         did, the two redirected the browser back and forth endlessly. -->
     <script src="assets/auth-store.js?v=4"></script>
 
     <link rel="stylesheet" href="assets/theme.css">
@@ -48,6 +19,7 @@
     <link rel="stylesheet" href="assets/audio-player.css?v=3">
     <link rel="stylesheet" href="assets/prescription.css?v=1">
     <link rel="stylesheet" href="assets/interview-report.css?v=1">
+    <link rel="stylesheet" href="assets/dialog.css?v=1">
 
 </head>
 
@@ -55,7 +27,6 @@
 
 <div class="admin-shell">
 
-    <!-- ---------- top bar ---------- -->
     <header class="admin-top">
         <a class="brand" href="/">
             <span class="brand-mark" aria-hidden="true">
@@ -83,7 +54,6 @@
 
     <main class="admin-body">
 
-        <!-- ---------- overview stats ---------- -->
         <section class="stats-grid" aria-label="Platform overview">
 
             <div class="stat-card">
@@ -216,7 +186,6 @@
         </section>
 
 
-        <!-- ---------- meetings ---------- -->
         <section class="panel">
 
             <div class="panel-hd">
@@ -282,7 +251,6 @@
         </section>
 
 
-        <!-- ---------- doctor consultations (Doctor–Patient template) ---------- -->
         <section class="panel">
 
             <div class="panel-hd">
@@ -346,7 +314,6 @@
         </section>
 
 
-        <!-- ---------- interviews (Interview template) ---------- -->
         <section class="panel">
 
             <div class="panel-hd">
@@ -417,7 +384,6 @@
 </div>
 
 
-<!-- ---------- add / edit dialog ---------- -->
 <dialog id="userDialog" class="user-dialog">
     <form method="dialog" id="userForm">
 
@@ -470,7 +436,6 @@
 </dialog>
 
 
-<!-- ---------- meeting transcript / summary viewer ---------- -->
 <dialog id="meetingDialog" class="user-dialog meeting-dialog" aria-labelledby="meetingDialogTitle">
     <form method="dialog">
 
@@ -483,10 +448,8 @@
                 aria-pressed="false" aria-label="Expand the viewer" title="Expand"></button>
         </div>
 
-        <!-- the meeting's saved recording (only when there is one) -->
         <div class="dialog-player" id="meetingPlayerSlot"></div>
 
-        <!-- one button per model with results for this meeting -->
         <div class="model-switch" id="meetingModelSwitch" role="group" aria-label="Model"></div>
 
         <div class="meeting-tabs" role="tablist">
@@ -517,7 +480,6 @@
     </form>
 </dialog>
 
-<!-- ---------- consultation viewer: prescription, recording, transcript ---------- -->
 <dialog id="consultDialog" class="user-dialog meeting-dialog consult-dialog" aria-labelledby="consultDialogTitle">
     <form method="dialog">
 
@@ -559,7 +521,6 @@
     </form>
 </dialog>
 
-<!-- ---------- interview viewer: evaluation report, recording, transcript ---------- -->
 <dialog id="interviewDialog" class="user-dialog meeting-dialog consult-dialog" aria-labelledby="interviewDialogTitle">
     <form method="dialog">
 

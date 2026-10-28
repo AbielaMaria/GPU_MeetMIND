@@ -1,26 +1,9 @@
-/* ============================================================
-   MeetMind — meeting history drawer
-   ------------------------------------------------------------
-   A slide-over panel listing the signed-in user's past meetings,
-   plus the "viewing a saved meeting" bar above the transcript.
-   Hidden until asked for, so it adds nothing to the page's layout.
-
-   Built from index.html's own tokens (--bg-*, --text-*, --border*,
-   --r-*, --shadow-*, --control-h*) and matched to its controls:
-   the close button is a tool button, the model tags are the same
-   pills as the model chips, the group headings use the summary's
-   section-label type, and Back to recording is a .btn-secondary.
-   It inherits light/dark exactly like the rest of the page.
-============================================================ */
-
 .history-drawer,
 .history-viewing,
 .history-btn {
     --icon-history: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8'/%3E%3Cpath d='M3 3v5h5'/%3E%3Cpath d='M12 7v5l4 2'/%3E%3C/svg%3E");
     --icon-close: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18 6 6 18'/%3E%3Cpath d='m6 6 12 12'/%3E%3C/svg%3E");
 }
-
-/* ---------- trigger (matches .theme-toggle, its neighbour) ---------- */
 
 .history-btn {
     width: var(--control-h-header, 34px);
@@ -52,8 +35,6 @@
     mask: var(--icon-history) center / contain no-repeat;
 }
 
-/* ---------- overlay (same backdrop as the page's modals) ---------- */
-
 .history-scrim {
     position: fixed;
     inset: 0;
@@ -68,8 +49,6 @@
     opacity: 1;
     pointer-events: auto;
 }
-
-/* ---------- drawer ---------- */
 
 .history-drawer {
     position: fixed;
@@ -148,7 +127,6 @@
     color: var(--text-muted);
 }
 
-/* Same look as index.html's .btn-tool.btn-icon. */
 .history-close {
     margin-left: auto;
     width: var(--control-h-sm, 32px);
@@ -178,8 +156,6 @@
     border-color: var(--border-strong);
     background: var(--bg-elevated);
 }
-
-/* ---------- list ---------- */
 
 .history-list {
     flex: 1;
@@ -266,8 +242,6 @@
     grid-column: 1 / -1;
 }
 
-/* ---------- model tags (same pill as the model columns' chips) ---------- */
-
 .history-tags {
     display: flex;
     flex-wrap: wrap;
@@ -300,8 +274,6 @@
     opacity: .8;
 }
 
-/* A saved recording, and a consultation's prescription status
-   (the Doctor–Patient template's history). */
 .history-tag--audio {
     gap: 5px;
     background: var(--bg-elevated);
@@ -334,7 +306,6 @@
     box-shadow: inset 0 0 0 1px var(--border);
 }
 
-/* An interview's evaluation score (the Interview template's history). */
 .history-tag--score {
     background: var(--iv-accent-soft, #eef0fe);
     color: var(--iv-accent, #4f46e5);
@@ -349,8 +320,6 @@
     text-overflow: ellipsis;
     white-space: nowrap;
 }
-
-/* ---------- loading / empty / error ---------- */
 
 .history-skeleton {
     margin: 14px 0 8px;
@@ -403,8 +372,6 @@
     -webkit-mask: var(--icon-history) center / contain no-repeat;
     mask: var(--icon-history) center / contain no-repeat;
 }
-
-/* ---------- "you are viewing a saved meeting" bar ---------- */
 
 .history-viewing {
     display: none;

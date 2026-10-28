@@ -1,9 +1,3 @@
-/* ============================================================
-   MeetMind — mock app window widget behaviour
-   - typing loop for every ".mock-window" on the page
-   PLACEHOLDER script — fake meeting snippet, loops forever.
-============================================================ */
-
 (function () {
 
     var windows = document.querySelectorAll(".mock-window");

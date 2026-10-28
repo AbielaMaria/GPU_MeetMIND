@@ -1,36 +1,3 @@
-/* ============================================================
-   MeetMind — Doctor–Patient template (loaded by index.html)
-   ------------------------------------------------------------
-   Everything the Doctor–Patient template adds to the recorder
-   page. The recorder, upload and transcript are shared with the
-   Meeting (MOM) template; this file adds, in page order:
-
-     1. Doctor / Clinic Profile    the letterhead details, saved
-                                   per user (/api/doctor/profile).
-                                   Open until first saved, then
-                                   collapsed (never hidden).
-     2. Generate Prescription      in the transcript panel, in
-                                   place of the MOM model picker.
-     3. Doctor Prescription        review & edit the AI draft.
-     4. Download Prescription      the letterhead page exactly as
-                                   it will print, editable in
-                                   place; Download PDF saves the
-                                   final copy to the consultation.
-
-   Consultations are saved in their own tables (see
-   backend/database.py), never in meeting history.
-
-   The template pills (section 1) also switch to the Interview
-   template, whose cards live in assets/interview-template.js.
-
-   Hooks it relies on from index.html: selectMeetMindTemplate()
-   is called by the template pills; window.meetmindHistory
-   (loadConsultation / reset) and window.meetmindRecordingPlayer;
-   the "meetmind:transcript-state" event; and the globals
-   `transcript`, `isRecording`, `recordBtn`, `setStatus`.
-   It exposes window.meetmindDoctor for index.html / history.js.
-============================================================ */
-
 (function () {
     "use strict";
 
@@ -67,8 +34,6 @@
         pointer: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.38 3.62a1 1 0 0 1 3 3L7.37 18.64a2 2 0 0 1-.86.5l-2.87.84a.5.5 0 0 1-.62-.62l.84-2.87a2 2 0 0 1 .5-.86Z"/></svg>'
     };
 
-    /* Review & edit form: groups of prescription fields, in the order
-       a prescription is read. Every field exists in the backend. */
     var FORM_GROUPS = [
         { title: "Patient", fields: [
             ["patient_name", "Patient name"],
@@ -114,26 +79,22 @@
     var IMAGE_TYPES = /^image\/(png|jpeg|webp)$/;
     var IMAGE_MAX_BYTES = 5 * 1024 * 1024;
 
-    /* ---------------- state ---------------- */
-
     var state = {
         template: "mom",
         profile: null,
         profileLoaded: false,
         consultationId: null,
         createdAt: null,
-        prescription: null,      // Rx.normalize()d, or null
-        status: "none",          // none | generating | draft | final | error
+        prescription: null,
+        status: "none",
         model: null,
         modelLabel: "Mistral 128B",
         updatedAt: null,
         finalizedAt: null,
         editedSinceFinal: false,
         error: "",
-        epoch: 0                 // bumps whenever the screen is reset
+        epoch: 0
     };
-
-    /* ---------------- helpers ---------------- */
 
     function el(tag, className, html) {
         var node = document.createElement(tag);
@@ -192,10 +153,6 @@
         }));
     }
 
-    /* ============================================================
-       1. TEMPLATE SWITCH
-    ============================================================ */
-
     var subtitleEl = document.querySelector(".app-header .subtitle");
     var transcriptTitle = document.querySelector(".panel--transcript .panel-head h2");
     var hintEl = document.getElementById("templateHint");
@@ -229,7 +186,6 @@
 
     var TEMPLATE_NAMES = { mom: "Meeting (MOM)", doctor: "Doctor–Patient", interview: "Interview" };
 
-    // What each template saves a recording as (its history: "past …s").
     var ITEM_NAMES = { mom: "meeting", doctor: "consultation", interview: "interview" };
 
     function hasContentOnScreen() {
@@ -269,9 +225,12 @@
         });
     };
 
-    // Arrow keys move between the pills (radio-group behaviour).
     var pills = document.querySelector(".template-pills");
     if (pills) {
+        pills.addEventListener("click", function (e) {
+            var btn = e.target.closest(".template-choice[data-template]");
+            if (btn) window.selectMeetMindTemplate(btn.getAttribute("data-template"));
+        });
         pills.addEventListener("keydown", function (e) {
             if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
             e.preventDefault();
@@ -283,10 +242,6 @@
             if (btn) btn.focus();
         });
     }
-
-    /* ============================================================
-       2. DOCTOR / CLINIC PROFILE
-    ============================================================ */
 
     var profileCard = el("section", "card dr-card dr-profile dr-only");
     profileCard.id = "doctorProfileCard";
@@ -376,7 +331,6 @@
     var previewHost = profileCard.querySelector("[data-preview]");
     var checklist = profileCard.querySelector("[data-checklist]");
 
-    // Per image: a newly picked File, or a request to remove the saved one.
     var images = {
         logo: { file: null, remove: false, objectUrl: null },
         signature: { file: null, remove: false, objectUrl: null }
@@ -487,7 +441,6 @@
         }).join("");
     }
 
-    // The preview is a full-width (794 px) letterhead scaled to the panel.
     function fitPreview() {
         var sheet = previewHost.querySelector(".rx-sheet");
         if (!sheet || !previewHost.clientWidth) return;
@@ -619,23 +572,17 @@
             fillProfileForm();
             renderProfileHeader();
             applyProfileEverywhere();
-            // Open until the doctor has saved a profile; collapsed after.
             setProfileOpen(!state.profile);
         });
     }
 
     function applyProfileEverywhere() {
         sheet.setProfile(state.profile);
-        // A fresh draft without a doctor's name takes the profile's.
         if (state.prescription && !state.prescription.doctor_name && state.profile) {
             state.prescription.doctor_name = state.profile.doctor_name;
             syncFromState();
         }
     }
-
-    /* ============================================================
-       3. GENERATE PRESCRIPTION (transcript panel)
-    ============================================================ */
 
     var actions = el("div", "doctor-actions dr-only");
     actions.innerHTML =
@@ -657,8 +604,6 @@
 
     document.addEventListener("meetmind:transcript-state", renderGenerateButton);
 
-    // The recorder button is disabled while a recording is being finalised
-    // or a file uploads; Generate follows it.
     if (typeof recordBtn !== "undefined" && recordBtn && window.MutationObserver) {
         new MutationObserver(renderGenerateButton).observe(recordBtn, {
             attributes: true,
@@ -666,7 +611,6 @@
         });
     }
 
-    // The label of the model the prescription is drafted with.
     fetch("/api/models", { credentials: "same-origin" }).then(function (r) { return r.ok ? r.json() : []; })
         .then(function (models) {
             var entry = (models || []).filter(function (m) { return m.key === PRESCRIPTION_MODEL; })[0];
@@ -745,10 +689,6 @@
         });
     }
 
-    /* ============================================================
-       4. DOCTOR PRESCRIPTION — review & edit
-    ============================================================ */
-
     var rxCard = el("section", "card dr-card dr-rx dr-only");
     rxCard.id = "prescriptionCard";
     rxCard.setAttribute("aria-labelledby", "drRxTitle");
@@ -816,7 +756,7 @@
                 fs.innerHTML +=
                     '<div class="dr-med-wrap"><table class="dr-med-table"><thead><tr><th>#</th>' +
                     Rx.MEDICINE_FIELDS.map(function (f) { return "<th>" + Rx.MEDICINE_LABELS[f] + "</th>"; }).join("") +
-                    '<th><span class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Remove</span></th></tr></thead>' +
+                    '<th><span class="sr-only">Remove</span></th></tr></thead>' +
                     "<tbody data-med-body></tbody></table></div>" +
                     '<button type="button" class="dr-add-med" data-add-med>+ Add medicine</button>';
                 rxGrid.appendChild(fs);
@@ -954,10 +894,6 @@
             : "";
     }
 
-    /* ============================================================
-       5. DOWNLOAD PRESCRIPTION — the letterhead page
-    ============================================================ */
-
     var downloadCard = el("section", "card dr-card dr-download dr-only");
     downloadCard.id = "prescriptionDownloadCard";
     downloadCard.setAttribute("aria-labelledby", "drDownloadTitle");
@@ -1021,7 +957,6 @@
         downloadLabel.textContent = "Preparing PDF…";
         setSaveState("");
 
-        // Downloading is the doctor signing off: save this copy as final.
         var save = state.consultationId
             ? requestJSON("/api/doctor/consultations/" + encodeURIComponent(state.consultationId) + "/prescription", {
                 method: "PUT",
@@ -1060,10 +995,6 @@
         });
     });
 
-    /* ============================================================
-       RENDER
-    ============================================================ */
-
     function renderAll() {
         var has = !!state.prescription;
         var generating = state.status === "generating";
@@ -1084,10 +1015,6 @@
         renderStatus();
         renderGenerateButton();
     }
-
-    /* ============================================================
-       RESET / LOAD (bridge for index.html and history.js)
-    ============================================================ */
 
     function resetDoctor() {
         state.epoch++;
@@ -1112,12 +1039,10 @@
 
         isGenerating: function () { return state.status === "generating"; },
 
-        /* A new live recording or upload is starting. */
         clearForNewRecording: resetDoctor,
 
         reset: resetDoctor,
 
-        /* The recording just transcribed was saved as consultation `id`. */
         onTranscribed: function (info) {
             resetDoctor();
             state.consultationId = info && info.consultationId ? info.consultationId : null;
@@ -1126,7 +1051,6 @@
             emitConsultationChanged();
         },
 
-        /* Show a saved consultation (GET /api/doctor/consultations/{id}). */
         load: function (consultation) {
             resetDoctor();
             state.consultationId = consultation.id;
@@ -1146,10 +1070,6 @@
         }
     };
 
-    /* ============================================================
-       MOUNT
-    ============================================================ */
-
     var header = document.querySelector(".app-header");
     var transcriptPanel = document.querySelector(".panel--transcript");
     if (header && header.parentNode) header.parentNode.insertBefore(profileCard, header.nextSibling);
@@ -1168,11 +1088,6 @@
     renderAll();
     applyTemplate("mom");
 
-    // /app?template=doctor|interview (the landing page's "Try this
-    // template" links) opens in that template. Switched on
-    // DOMContentLoaded so interview-template.js, loaded after this
-    // file, is listening for "meetmind:template-changed". The
-    // parameter is then dropped so a reload starts fresh.
     var params = new URLSearchParams(location.search);
     var requested = params.get("template");
     if (params.has("template")) {

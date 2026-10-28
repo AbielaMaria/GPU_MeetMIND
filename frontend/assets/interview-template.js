@@ -1,37 +1,3 @@
-/* ============================================================
-   MeetMind — Interview template (loaded by index.html)
-   ------------------------------------------------------------
-   Everything the Interview template adds to the recorder page.
-   The recorder, upload and transcript are shared with the other
-   templates; this file adds, in page order:
-
-     1. Interviewer Profile      the letterhead (organisation,
-                                 interviewer, logo, signature),
-                                 saved per user (/api/interview/profile).
-     2. Interview Setup          candidate, interviewer, position,
-                                 type and the required skills. Saved
-                                 to the interview once it is recorded.
-     3. Evaluate Interview       in the transcript panel, in place of
-                                 the MOM model picker (Qwen3 27B).
-     4. Interview Evaluation     review & edit the AI evaluation:
-                                 verdicts, skills, proficiency, and
-                                 the interviewer's own decision.
-                                 Scores recompute as you edit.
-     5. Download Report          the report on the letterhead; the
-                                 PDF download saves the final copy.
-
-   Interviews are saved in their own tables (backend/
-   interview_database.py), never in meeting or consultation history.
-
-   Hooks it relies on from index.html: window.meetmindHistory
-   (reset), window.meetmindRecordingPlayer, the
-   "meetmind:template-changed" / "meetmind:transcript-state" events
-   and the globals `transcript`, `isRecording`, `recordBtn`,
-   `setStatus`, `currentMeetingDuration`. The template pills live in
-   assets/doctor-template.js. Exposes window.meetmindInterview for
-   index.html / history.js / doctor-template.js.
-============================================================ */
-
 (function () {
     "use strict";
 
@@ -71,8 +37,6 @@
         ["Unable to Evaluate", "unknown", "Can't judge"]
     ];
 
-    /* ---------------- state ---------------- */
-
     function emptySetup() {
         return { candidate_name: "", interviewer_name: "", position: "", interview_type: "Technical", required_skills: [] };
     }
@@ -82,23 +46,21 @@
         profile: null,
         profileLoaded: false,
         setup: emptySetup(),
-        setupFromSaved: false,   // the setup shown belongs to a saved interview
+        setupFromSaved: false,
         interviewId: null,
         createdAt: null,
         durationSeconds: null,
-        report: null,            // R.normalize()d, or null
-        status: "none",          // none | generating | draft | final | error
+        report: null,
+        status: "none",
         modelLabel: "Qwen3 27B",
         updatedAt: null,
         finalizedAt: null,
         editedSinceSave: false,
-        draftSaved: false,       // the interviewer has saved their edits (not downloaded)
+        draftSaved: false,
         error: "",
         filter: "all",
-        epoch: 0                 // bumps whenever the screen is reset
+        epoch: 0
     };
-
-    /* ---------------- helpers ---------------- */
 
     function el(tag, className, html) {
         var node = document.createElement(tag);
@@ -161,10 +123,6 @@
     function setTone(node, tone) {
         if (tone) node.dataset.tone = tone; else node.removeAttribute("data-tone");
     }
-
-    /* ============================================================
-       1. INTERVIEWER PROFILE (letterhead)
-    ============================================================ */
 
     var profileCard = el("section", "card iv-card iv-profile iv-only");
     profileCard.id = "interviewProfileCard";
@@ -341,7 +299,6 @@
         fitLetterheadPreview();
     }
 
-    // The preview is a full-width (794 px) letterhead scaled to the panel.
     function fitLetterheadPreview() {
         var sheetEl = previewHost.querySelector(".ivr-sheet");
         if (!sheetEl || !previewHost.clientWidth) return;
@@ -470,7 +427,6 @@
             fillProfileForm();
             renderProfileHeader();
             applyProfileEverywhere();
-            // Open until the interviewer has saved a profile; collapsed after.
             setProfileOpen(!state.profile);
         });
     }
@@ -481,10 +437,6 @@
         sheet.setProfile(state.profile);
         schedulePreview();
     }
-
-    /* ============================================================
-       2. INTERVIEW SETUP
-    ============================================================ */
 
     var setupCard = el("section", "card iv-card iv-setup iv-only");
     setupCard.id = "interviewSetupCard";
@@ -540,7 +492,6 @@
         renderSkillNote();
     }
 
-    /* Changing skills after an evaluation needs a new evaluation. */
     function renderSkillNote() {
         var stale = false;
         if (state.report) {
@@ -589,7 +540,6 @@
     });
 
     skillInput.addEventListener("input", function () {
-        // Pasted "a, b, c": take every complete entry.
         if (/[,;\n]/.test(skillInput.value)) {
             var parts = skillInput.value.split(/[,;\n]/);
             var rest = parts.pop();
@@ -652,7 +602,6 @@
     }
 
     function onSetupChanged() {
-        // The report's header shows the setup; its skills stay the ones it was evaluated against.
         if (state.report) {
             var details = state.report.interview_details;
             var p = setupPayload();
@@ -697,10 +646,6 @@
             status(error.message || "The interview setup couldn't be saved.");
         });
     }
-
-    /* ============================================================
-       3. EVALUATE INTERVIEW (transcript panel)
-    ============================================================ */
 
     var actions = el("div", "iv-actions-bar iv-only");
     actions.innerHTML =
@@ -813,14 +758,9 @@
         state.modelLabel = evaluation.modelLabel || state.modelLabel;
         state.updatedAt = evaluation.updatedAt || new Date().toISOString();
         state.finalizedAt = evaluation.finalizedAt || null;
-        // A saved draft edited since the AI wrote it (the server bumps updatedAt on every save).
         state.draftSaved = !!(evaluation.createdAt && evaluation.updatedAt &&
             evaluation.updatedAt !== evaluation.createdAt);
     }
-
-    /* ============================================================
-       4. INTERVIEW EVALUATION — review & edit
-    ============================================================ */
 
     var reviewCard = el("section", "card iv-card iv-review iv-only");
     reviewCard.id = "interviewReportCard";
@@ -933,8 +873,6 @@
         if (last) last.focus();
     });
 
-    /* ---- building ---- */
-
     function verdictTone(evaluation) {
         return R.verdictTone(evaluation);
     }
@@ -1022,8 +960,6 @@
         refreshDerived();
     }
 
-    /* ---- derived parts (counts, scores, tones) ---- */
-
     function tile(value, label, tone) {
         return '<div class="iv-tile' + (tone ? " iv-tile--" + tone : "") + '"><strong>' + value + "</strong><span>" + esc(label) + "</span></div>";
     }
@@ -1096,8 +1032,6 @@
         refreshDerived();
     });
 
-    /* ---- editing ---- */
-
     function changed(structural) {
         R.recompute(state.report);
         if (structural) buildQaList();
@@ -1112,7 +1046,7 @@
         if (!item || !state.report || !t.dataset.qf) return;
         var q = state.report.qa_analysis[Number(item.dataset.q)];
         if (!q) return;
-        if (t.tagName !== "TEXTAREA") return;  // the skill <select> is handled on "change"
+        if (t.tagName !== "TEXTAREA") return;
         q[t.dataset.qf] = t.value;
         autoGrow(t);
         onEdited();
@@ -1151,7 +1085,6 @@
         }
     });
 
-    // Arrow keys move between the verdict buttons (radio-group behaviour).
     qaList.addEventListener("keydown", function (e) {
         var btn = e.target.closest && e.target.closest("[data-verdict]");
         if (!btn || (e.key !== "ArrowLeft" && e.key !== "ArrowRight")) return;
@@ -1236,8 +1169,6 @@
         saveDraftBtn.disabled = !state.report || !state.editedSinceSave || !state.interviewId;
     }
 
-    /* ---- saving ---- */
-
     function reportPayload() {
         var payload = R.toPayload(state.report);
         var p = setupPayload();
@@ -1278,10 +1209,6 @@
             renderStatus();
         });
     });
-
-    /* ============================================================
-       5. DOWNLOAD REPORT
-    ============================================================ */
 
     var downloadCard = el("section", "card iv-card iv-download iv-only");
     downloadCard.id = "interviewDownloadCard";
@@ -1353,7 +1280,6 @@
         downloadLabel.textContent = "Preparing PDF…";
         setSaveState("");
 
-        // Downloading is the interviewer signing off: save this copy as final.
         var save = saveEvaluation(true).then(function (result) { return { ok: true, result: result }; },
             function (error) { return { ok: false, error: error }; });
 
@@ -1365,7 +1291,6 @@
                 state.finalizedAt = ev.finalizedAt || new Date().toISOString();
                 state.updatedAt = ev.updatedAt || state.finalizedAt;
                 state.editedSinceSave = false;
-                // The server drops empty questions and renumbers: show its copy.
                 buildReview();
                 renderStatus();
                 emitChanged();
@@ -1392,10 +1317,6 @@
         });
     });
 
-    /* ============================================================
-       RENDER
-    ============================================================ */
-
     function renderAll() {
         var has = !!state.report;
         var generating = state.status === "generating";
@@ -1417,11 +1338,6 @@
         renderStatus();
         renderEvaluateButton();
     }
-
-    /* ============================================================
-       RESET / LOAD (bridge for index.html, history.js and
-       doctor-template.js)
-    ============================================================ */
 
     function resetInterview(keepSetup) {
         state.epoch++;
@@ -1459,13 +1375,10 @@
 
         hasContent: function () { return !!state.report || !!state.interviewId; },
 
-        /* A new live recording or upload is starting: keep a setup the
-           interviewer typed for it, drop one that came from history. */
         clearForNewRecording: function () { resetInterview(true); },
 
         reset: function () { resetInterview(true); },
 
-        /* The recording just transcribed was saved as interview `id`. */
         onTranscribed: function (info) {
             resetInterview(true);
             state.interviewId = info && info.interviewId ? info.interviewId : null;
@@ -1482,7 +1395,6 @@
             emitChanged();
         },
 
-        /* Show a saved interview (GET /api/interview/interviews/{id}). */
         load: function (interview) {
             resetInterview(false);
             state.interviewId = interview.id;
@@ -1509,10 +1421,6 @@
         }
     };
 
-    /* ============================================================
-       TEMPLATE
-    ============================================================ */
-
     document.addEventListener("meetmind:template-changed", function (e) {
         state.active = !!(e.detail && e.detail.template === "interview");
         if (!state.active) return;
@@ -1521,10 +1429,6 @@
         renderAll();
         requestAnimationFrame(fitSheet);
     });
-
-    /* ============================================================
-       MOUNT
-    ============================================================ */
 
     var header = document.querySelector(".app-header");
     var transcriptPanel = document.querySelector(".panel--transcript");

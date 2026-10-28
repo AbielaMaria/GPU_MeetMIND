@@ -1,14 +1,3 @@
-/* ============================================================
-   MeetMind — shared theme toggle
-   ------------------------------------------------------------
-   Behaviour + storage key ("meetmind-theme") are identical to
-   the inline module in index.html, so a theme chosen on the
-   landing/auth/admin pages carries into the app and back.
-
-   Every new page also needs the tiny pre-paint snippet inline
-   in <head> (see any of the new .html files) to avoid a flash.
-============================================================ */
-
 (function () {
     var STORAGE_KEY = "meetmind-theme";
     var root = document.documentElement;

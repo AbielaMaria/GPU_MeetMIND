@@ -1,0 +1,45 @@
+#mm-account-bar {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font: 500 12px/1 var(--font-sans, system-ui);
+}
+
+#mm-account-bar .mm-who {
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+#mm-account-bar a,
+#mm-account-bar button {
+    font: 600 12px/1 var(--font-sans, system-ui);
+    cursor: pointer;
+    text-decoration: none;
+    white-space: nowrap;
+    padding: 8px 13px;
+    border-radius: var(--r-md, 12px);
+    border: 1px solid var(--border, #e7e3dd);
+    color: var(--text-secondary, #56524c);
+    background: var(--bg-surface, #faf9f7);
+    transition: color .15s, border-color .15s;
+}
+
+#mm-account-bar a::before,
+#mm-account-bar button::before {
+    content: none;
+    display: none;
+}
+
+#mm-account-bar a:hover {
+    color: var(--text-primary, #1b1a18);
+    border-color: var(--border-strong, #d7d2ca);
+}
+
+#mm-account-bar button:hover {
+    color: var(--danger, #dc2626);
+    border-color: var(--danger, #dc2626);
+}
+
+@media (max-width: 640px) {
+    #mm-account-bar .mm-who { display: none; }
+}

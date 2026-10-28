@@ -1,37 +1,9 @@
-/* ============================================================
-   MeetMind — auth form validation + submit (single auth.html)
-   ============================================================
-   One page, two panels (sign in / sign up) toggled in place.
-   All DOM lookups are SCOPED to each <form> so the two forms
-   can coexist without id collisions.
-
-   Client-side validation only. Account/session work is delegated
-   to window.MeetMindAuth (assets/auth-store.js) — the MOCK you
-   replace with real API calls.
-
-   Password rules are intentionally minimal for now: required,
-   and sign-up's "confirm" must match. No length/strength gate.
-
-   TODO(backend):
-     - Swap MeetMindAuth.signIn/signUp implementations in
-       auth-store.js; the call-sites here should not change.
-     - After real auth, the SERVER decides role + redirect.
-============================================================ */
-
 (function () {
     "use strict";
 
     var A = window.MeetMindAuth;
 
-    /* An already-signed-in visitor never reaches this page: /sign-in and
-       /sign-up redirect them server-side before the HTML is served (see
-       backend/app.py). Doing it here as well used to race with that check
-       and, against a stale cached app-guard.js, looped the browser between
-       /sign-in and /app indefinitely. The server is the only authority. */
-
     var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-    /* ---- scoped helpers -------------------------------- */
 
     function setError(root, name, msg) {
         var field = root.querySelector('.field[data-field="' + name + '"]');
@@ -62,15 +34,12 @@
     }
 
     function redirectAfterAuth(role) {
-        // Honour ?next= only if it is a same-origin absolute path.
         var next = new URLSearchParams(location.search).get("next");
         if (next) { try { next = decodeURIComponent(next); } catch (e) { next = null; } }
         if (next && /^\/(?!\/)/.test(next)) { location.assign(next); return; }
         location.assign(A ? A.landingPathForRole(role) : "/app");
     }
 
-    // Must match the fixed strings in backend/auth.py, so a refused sign-in
-    // (or OTP attempt) can route to the right panel instead of an alert.
     var UNVERIFIED_LOGIN_MSG = "Please verify your email before signing in.";
     var AWAITING_ADMIN_MSG = "Your account is awaiting verification by an administrator.";
     var ADMIN_UNVERIFIED_MSG = "Your account is unverified. Contact your administrator.";
@@ -85,8 +54,6 @@
                 "Please try signing in again later."
             ]
         },
-        // The pending tab was left open and the admin approved meanwhile:
-        // "Back to sign in", then a normal sign-in goes straight to the app.
         approved: {
             title: "Account Verified Successfully",
             message: [
@@ -95,8 +62,6 @@
                 "Click back to sign in to get started."
             ]
         },
-        // First sign-in attempt after approval: they just gave their
-        // credentials, so "Continue to Vidatha" signs them in directly.
         welcome: {
             title: "Account Verified Successfully",
             message: [
@@ -137,17 +102,10 @@
         setMode("pending", true);
     }
 
-    /* ---- "approved" check for the pending panel ----
-       The server recognises this browser by its pending cookie (set at
-       sign-up / on a refused sign-in), so no credentials are kept here.
-       Runs when the page loads in the pending state (a refresh), when the
-       tab regains focus, and on a short interval while it's visible. */
-
     var approvalCheckBusy = false;
 
     function checkApproval() {
         if (!A || approvalCheckBusy) return;
-        // No kind yet = the page was just loaded on /account-pending.
         var kind = document.body.getAttribute("data-pending-kind");
         if (document.body.getAttribute("data-auth-mode") !== "pending" ||
             (kind && kind !== "awaiting")) return;
@@ -157,7 +115,7 @@
             approvalCheckBusy = false;
             if (res && res.state === "approved") goToPending(res.canContinue ? "welcome" : "approved");
         }).catch(function () {
-            approvalCheckBusy = false;   // offline: stay put, try again later
+            approvalCheckBusy = false;
         });
     }
 
@@ -175,15 +133,12 @@
             A.continueAfterApproval().then(function (session) {
                 redirectAfterAuth(session.role);
             }).catch(function () {
-                // Cookie expired / cleared: fall back to a normal sign-in.
                 setLoading(continueBtn, false);
                 setMode("signin", true);
             });
         });
     }
 
-    // Routes a refusal from the server to the matching panel. Returns true
-    // when it did, so callers only fall back to an inline alert otherwise.
     function routeUnverified(message, email) {
         if (message === UNVERIFIED_LOGIN_MSG) { goToVerify(email); return true; }
         if (message === AWAITING_ADMIN_MSG) { goToPending("awaiting"); return true; }
@@ -191,8 +146,6 @@
         if (message === ADMIN_UNVERIFIED_MSG) { goToPending("revoked"); return true; }
         return false;
     }
-
-    /* ---- password show / hide ------------------------- */
 
     document.querySelectorAll("[data-toggle-pw]").forEach(function (btn) {
         btn.addEventListener("click", function () {
@@ -204,10 +157,6 @@
             btn.setAttribute("aria-label", toText ? "Hide password" : "Show password");
         });
     });
-
-    /* ============================================================
-       MODE SWITCHING  (sign in  <->  sign up)
-    ============================================================ */
 
     var TITLES = {
         signin: "Sign In — Vidatha",
@@ -224,7 +173,7 @@
 
     function setMode(mode, userInitiated) {
         if (!TITLES.hasOwnProperty(mode)) mode = "signin";
-        document.body.setAttribute("data-auth-mode", mode);   // CSS shows the right panel
+        document.body.setAttribute("data-auth-mode", mode);
         document.title = TITLES[mode];
 
         if (userInitiated) {
@@ -244,16 +193,9 @@
         });
     });
 
-    // Initial mode was already applied inline (no flash); re-affirm title.
     setMode(currentMode(), false);
 
-    // A refresh while on the pending panel lands here with the default
-    // "pending" copy; if the admin has approved since, swap it right away.
     checkApproval();
-
-    /* ============================================================
-       SIGN IN
-    ============================================================ */
 
     var signInForm = document.getElementById("signInForm");
 
@@ -292,10 +234,6 @@
         });
     }
 
-    /* ============================================================
-       SIGN UP
-    ============================================================ */
-
     var signUpForm = document.getElementById("signUpForm");
 
     if (signUpForm) {
@@ -307,7 +245,6 @@
         pwInput.addEventListener("input", function () {
             clearError(signUpForm, "password");
             hideAlerts(suPanel);
-            // keep the confirm error in sync as the password changes
             if (cfInput.value) {
                 setError(signUpForm, "confirm", cfInput.value === pwInput.value ? "" : "Passwords don't match.");
             }
@@ -335,7 +272,6 @@
             if (!email) ok = setError(signUpForm, "email", "Email is required.") && ok;
             else if (!EMAIL_RE.test(email)) ok = setError(signUpForm, "email", "Enter a valid email address.") && ok;
 
-            // Minimal password rule: just not empty.
             if (!password) ok = setError(signUpForm, "password", "Password is required.") && ok;
 
             if (!confirm) ok = setError(signUpForm, "confirm", "Please confirm your password.") && ok;
@@ -347,9 +283,6 @@
 
             A.signUp({ username: username, email: email, password: password, role: "user" })
                 .then(function (res) {
-                    // New accounts always start unverified. The server says how
-                    // they get verified (REQUIRE_EMAIL_VERIFICATION in backend/auth.py):
-                    // an emailed OTP, or an administrator.
                     setLoading(suBtn, false);
                     signUpForm.reset();
                     if (res && res.awaitingAdmin) {
@@ -365,10 +298,6 @@
         });
     }
 
-    /* ============================================================
-       VERIFY EMAIL (OTP)
-    ============================================================ */
-
     var verifyForm = document.getElementById("verifyForm");
 
     if (verifyForm) {
@@ -378,8 +307,6 @@
         var vfCode = verifyForm.querySelector('[name="code"]');
         var resendLink = document.getElementById("resendOtpLink");
 
-        // Prefill from ?email= (e.g. arriving here after sign-up or a
-        // blocked sign-in), so the person doesn't retype it.
         var qEmail = new URLSearchParams(location.search).get("email");
         if (qEmail && !vfEmail.value) vfEmail.value = qEmail;
 

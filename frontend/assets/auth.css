@@ -1,16 +1,8 @@
-/* ============================================================
-   MeetMind — auth page (single auth.html)
-   Split-screen: brand panel + form card. Two panels (sign in /
-   sign up) toggled via body[data-auth-mode]. Tokens from theme.css.
-============================================================ */
-
 .auth-wrap {
     min-height: 100vh;
     display: grid;
     grid-template-columns: 1.05fr 1fr;
 }
-
-/* ---------- Panel + aside-copy visibility (mode-driven) ---------- */
 
 [data-panel] { display: none; }
 
@@ -43,8 +35,6 @@ body[data-auth-mode="pending"] [data-copy="signin"] {
     display: block;
 }
 
-/* ---------- Account pending panel ---------- */
-
 .pending-icon {
     display: inline-flex;
     align-items: center;
@@ -73,13 +63,9 @@ body[data-pending-kind="welcome"] .pending-icon {
     background: var(--success-soft);
 }
 
-/* "Continue" only exists for the first-sign-in notice ("welcome"); every
-   other pending kind shows "Back to sign in". */
 .btn[data-pending-action="continue"] { display: none; }
 body[data-pending-kind="welcome"] .btn[data-pending-action="continue"] { display: inline-flex; }
 body[data-pending-kind="welcome"] .btn[data-pending-action="back"] { display: none; }
-
-/* ---------- Left : brand panel ---------- */
 
 .auth-aside {
     position: relative;
@@ -117,9 +103,6 @@ body[data-pending-kind="welcome"] .btn[data-pending-action="back"] { display: no
     -webkit-backdrop-filter: blur(4px);
     backdrop-filter: blur(4px);
 }
-
-/* ---------- Left : mock app window (shared widget, scaled down) ---------- */
-/* Flat, static card — no tilt, no hover interaction (unlike the hero version). */
 
 .auth-visual .mock-window {
     transform: none;
@@ -176,8 +159,6 @@ body[data-pending-kind="welcome"] .btn[data-pending-action="back"] { display: no
     margin-top: 1px;
     color: #fff;
 }
-
-/* ---------- Right : form side ---------- */
 
 .auth-main {
     display: flex;
@@ -239,6 +220,19 @@ body[data-pending-kind="welcome"] .btn[data-pending-action="back"] { display: no
     color: var(--text-secondary);
 }
 
+.link-btn {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    color: var(--accent);
+    cursor: pointer;
+}
+
+.link-btn:hover {
+    color: var(--accent-hover);
+}
+
 .auth-divider {
     display: flex;
     align-items: center;
@@ -263,8 +257,6 @@ body[data-pending-kind="welcome"] .btn[data-pending-action="back"] { display: no
     text-align: center;
     line-height: 1.5;
 }
-
-/* ---------- Responsive ---------- */
 
 @media (max-width: 860px) {
     .auth-wrap {

@@ -1,18 +1,4 @@
 <!DOCTYPE html>
-<!-- ============================================================
-     PLACEHOLDER CONTENT — copy, testimonial, and (crucially) the
-     auth logic are stubs. Real backend wiring points are marked
-     TODO(backend) in assets/auth-forms.js and assets/auth-store.js.
-     ------------------------------------------------------------
-     MeetMind — single auth page. One card, two panels toggled in
-     place (sign in / sign up). Served at BOTH /sign-in and
-     /sign-up; the initial panel is chosen from the URL.
-
-     ONE sign-in for everyone. Admins log in here exactly like
-     users; their account just has role "admin" and gets routed
-     to /admin afterwards. Sign-up always creates role "user" —
-     admins are seeded or added by another admin in the dashboard.
-============================================================ -->
 <html lang="en">
 
 <head>
@@ -22,21 +8,9 @@
     <title>Sign In — Vidatha</title>
     <meta name="color-scheme" content="light dark">
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+    <link rel="stylesheet" href="assets/fonts/fonts.css?v=1">
 
-    <script>
-        (function () {
-            try {
-                var s = localStorage.getItem("meetmind-theme");
-                if (s === "light" || s === "dark") {
-                    document.documentElement.setAttribute("data-theme", s);
-                }
-            } catch (e) {}
-        })();
-    </script>
+    <script src="assets/theme-init.js?v=1"></script>
 
     <link rel="stylesheet" href="assets/theme.css?v=2">
     <link rel="stylesheet" href="assets/mock-widget.css?v=2">
@@ -46,23 +20,10 @@
 
 <body data-auth-mode="signin">
 
-<!-- Pick the initial panel from the URL BEFORE first paint (no flash).
-     ?mode=... wins, then the path (/verify-otp, /account-pending, /sign-up), else sign in. -->
-<script>
-    (function () {
-        var sp = new URLSearchParams(location.search).get("mode");
-        var mode = (sp === "signup" || sp === "signin" || sp === "verify" || sp === "pending")
-            ? sp
-            : (location.pathname.indexOf("verify-otp") !== -1 ? "verify"
-                : location.pathname.indexOf("account-pending") !== -1 ? "pending"
-                : location.pathname.indexOf("sign-up") !== -1 ? "signup" : "signin");
-        document.body.setAttribute("data-auth-mode", mode);
-    })();
-</script>
+<script src="assets/auth-mode.js?v=1"></script>
 
 <div class="auth-wrap">
 
-    <!-- ---------- brand panel ---------- -->
     <aside class="auth-aside">
 
         <div class="bg-mesh" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -74,7 +35,6 @@
             Vidatha
         </a>
 
-        <!-- animated centerpiece: same mock live-transcript widget as the landing hero -->
         <div class="auth-visual" aria-hidden="true">
             <div class="mock-window">
 
@@ -127,7 +87,6 @@
 
     </aside>
 
-    <!-- ---------- form side ---------- -->
     <main class="auth-main">
         <div class="auth-card">
 
@@ -138,9 +97,6 @@
                 </button>
             </div>
 
-            <!-- ============================================
-                 PANEL: SIGN IN
-            ============================================= -->
             <div data-panel="signin">
 
                 <h1>Sign in</h1>
@@ -148,7 +104,7 @@
 
                 <div class="form-alert error js-error" role="alert"></div>
 
-                <form class="auth-form" id="signInForm" novalidate>
+                <form class="auth-form" id="signInForm" method="post" novalidate>
 
                     <div class="field" data-field="identifier">
                         <label for="si_identifier">Username or email</label>
@@ -177,14 +133,11 @@
                 </form>
 
                 <p class="auth-alt">
-                    New to Vidatha? <a href="#" data-auth-switch="signup">Create an account</a>
+                    New to Vidatha? <a href="/sign-up" data-auth-switch="signup">Create an account</a>
                 </p>
 
             </div>
 
-            <!-- ============================================
-                 PANEL: SIGN UP
-            ============================================= -->
             <div data-panel="signup">
 
                 <h1>Create your account</h1>
@@ -193,7 +146,7 @@
                 <div class="form-alert error js-error" role="alert"></div>
                 <div class="form-alert success js-success" role="status"></div>
 
-                <form class="auth-form" id="signUpForm" novalidate>
+                <form class="auth-form" id="signUpForm" method="post" novalidate>
 
                     <div class="field" data-field="username">
                         <label for="su_username">Username</label>
@@ -239,23 +192,16 @@
                         <div class="field-error" data-error-for="confirm"></div>
                     </div>
 
-                    <!-- Role fixed to "user" for self-service. Admins are
-                         provisioned separately. Sent explicitly to the backend. -->
-                    <input type="hidden" id="su_role" name="role" value="user">
-
                     <button type="submit" class="btn btn-accent btn-lg btn-block">Create account</button>
 
                 </form>
 
                 <p class="auth-alt">
-                    Already have an account? <a href="#" data-auth-switch="signin">Sign in</a>
+                    Already have an account? <a href="/sign-in" data-auth-switch="signin">Sign in</a>
                 </p>
 
             </div>
 
-            <!-- ============================================
-                 PANEL: VERIFY EMAIL (OTP)
-            ============================================= -->
             <div data-panel="verify">
 
                 <h1>Verify your email</h1>
@@ -264,7 +210,7 @@
                 <div class="form-alert error js-error" role="alert"></div>
                 <div class="form-alert success js-success" role="status"></div>
 
-                <form class="auth-form" id="verifyForm" novalidate>
+                <form class="auth-form" id="verifyForm" method="post" novalidate>
 
                     <div class="field" data-field="email">
                         <label for="vf_email">Email</label>
@@ -289,19 +235,14 @@
                 </form>
 
                 <p class="auth-alt">
-                    Didn't get a code? <a href="#" id="resendOtpLink">Resend code</a>
+                    Didn't get a code? <button type="button" class="link-btn" id="resendOtpLink">Resend code</button>
                 </p>
                 <p class="auth-alt">
-                    <a href="#" data-auth-switch="signin">Back to sign in</a>
+                    <a href="/sign-in" data-auth-switch="signin">Back to sign in</a>
                 </p>
 
             </div>
 
-            <!-- ============================================
-                 PANEL: ACCOUNT PENDING (unverified — only an
-                 admin can verify it). Title/message are swapped
-                 by auth-forms.js depending on why.
-            ============================================= -->
             <div data-panel="pending">
 
                 <span class="pending-icon" aria-hidden="true">
@@ -315,8 +256,8 @@
                     <p>Please try signing in again later.</p>
                 </div>
 
-                <a class="btn btn-accent btn-lg btn-block" href="#" data-auth-switch="signin" data-pending-action="back">Back to sign in</a>
-                <a class="btn btn-accent btn-lg btn-block" href="#" id="pendingContinue" data-pending-action="continue">Continue to Vidatha</a>
+                <a class="btn btn-accent btn-lg btn-block" href="/sign-in" data-auth-switch="signin" data-pending-action="back">Back to sign in</a>
+                <a class="btn btn-accent btn-lg btn-block" href="/app" id="pendingContinue" data-pending-action="continue">Continue to Vidatha</a>
 
             </div>
 

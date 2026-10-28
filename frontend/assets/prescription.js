@@ -1,29 +1,3 @@
-/* ============================================================
-   MeetMind — prescription sheet
-   ------------------------------------------------------------
-   Renders a consultation's prescription as an A4 letterhead page
-   (styles: assets/prescription.css) and turns it into a PDF.
-
-   The fields are exactly the ones the backend extracts
-   (meeting_intelligence.DOCTOR_PRESCRIPTION_FIELDS) and stores
-   (database.doctor_prescriptions); the letterhead comes from the
-   doctor's saved profile (/api/doctor/profile).
-
-     var sheet = MeetMindRx.createSheet({
-         editable: true,                 // click-to-edit text
-         onChange: function (data) {},   // after any edit in the sheet
-         onEditProfile: function () {}   // letterhead clicked
-     });
-     host.appendChild(sheet.el);
-     sheet.setProfile(profile);          // or null
-     sheet.setData(prescription, { consultationId: 4, createdAt: iso });
-     sheet.getData();                    // current values
-     sheet.downloadPdf();                // -> Promise
-
-   Used by assets/doctor-template.js (recorder page) and
-   assets/admin.js (read-only viewer).
-============================================================ */
-
 (function () {
     "use strict";
 
@@ -66,7 +40,6 @@
         return value == null ? "" : String(value).trim();
     }
 
-    /* A blank prescription with every field the backend knows. */
     function empty() {
         var data = {};
         TEXT_FIELDS.forEach(function (name) { data[name] = ""; });
@@ -74,7 +47,6 @@
         return data;
     }
 
-    /* Copy of `source` holding only known fields, all strings. */
     function normalize(source) {
         var data = empty();
         source = source || {};
@@ -94,7 +66,6 @@
         return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
     }
 
-    /* "RX-2026-0042" from the consultation id and the year it was recorded. */
     function rxNumber(consultationId, createdAt) {
         if (!consultationId) return "";
         var d = createdAt ? new Date(createdAt) : new Date();
@@ -110,8 +81,6 @@
         if (patient) parts.push(patient);
         return parts.join("_") + ".pdf";
     }
-
-    /* ---- letterhead (also used for the profile card's live preview) ---- */
 
     function letterheadHTML(profile) {
         profile = profile || {};
@@ -142,8 +111,6 @@
             "</div>" +
         "</header>";
     }
-
-    /* ---- the sheet ---- */
 
     function field(name, placeholder, extraClass) {
         return '<span class="rx-field ' + (extraClass || "") + '" data-field="' + name + '" data-placeholder="' +
@@ -232,7 +199,6 @@
     }
 
     function readText(node) {
-        // innerText keeps the line breaks typed with Enter.
         return (node.innerText || node.textContent || "").replace(/ /g, " ").replace(/\n{3,}/g, "\n\n").trim();
     }
 
@@ -260,8 +226,6 @@
         var medsBody = root.querySelector("[data-meds]");
         var addMedBtn = root.querySelector(".rx-add-med");
 
-        // Unlike getData(), keeps a just-added blank medicine row, so
-        // whatever mirrors the sheet shows that row too.
         function emitChange() {
             if (options.onChange) options.onChange(normalize(data));
         }
@@ -351,7 +315,6 @@
                     var med = data.medicines[Number(node.dataset.med)];
                     if (med) med[node.dataset.medField] = value;
                 }
-                // An emptied field shows its placeholder again.
                 if (!value && node.innerHTML !== "") node.innerHTML = "";
                 refreshEmptyFlags();
                 emitChange();
@@ -436,8 +399,6 @@
         };
     }
 
-    /* ---- PDF ------------------------------------------------- */
-
     function waitForImages(node) {
         var images = Array.prototype.slice.call(node.querySelectorAll("img"));
         return Promise.all(images.map(function (img) {
@@ -449,11 +410,6 @@
         }));
     }
 
-    /*
-     * Renders a copy of the sheet at full A4 width (no editing outlines,
-     * no empty sections) and saves it as an A4 PDF. A prescription longer
-     * than one page continues on further pages.
-     */
     function exportPdf(sheetEl, name) {
         if (!window.html2canvas || !window.jspdf || !window.jspdf.jsPDF) {
             return Promise.reject(new Error("The PDF library didn't load. Refresh the page and try again."));
@@ -490,8 +446,6 @@
             if (canvas.height <= pagePx + 4) {
                 pdf.addImage(canvas.toDataURL("image/jpeg", 0.95), "JPEG", 0, 0, pageW, canvas.height * pageW / canvas.width);
             } else if (canvas.height <= pagePx * 1.15) {
-                // Just over one page: shrink it onto one page rather than
-                // pushing the signature or footer onto a page of its own.
                 var fitW = pageW * pagePx / canvas.height;
                 pdf.addImage(canvas.toDataURL("image/jpeg", 0.95), "JPEG", (pageW - fitW) / 2, 0, fitW, pageH);
             } else {

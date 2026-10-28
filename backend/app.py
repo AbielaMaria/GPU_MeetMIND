@@ -48,6 +48,8 @@ import uuid
 
 import re
 
+import mimetypes
+
 from pathlib import Path
 
 from typing import Any, List, Optional
@@ -446,6 +448,11 @@ def _resolve_model(
 
 # ============================================================
 
+# Self-hosted web fonts (frontend/assets/fonts). Python's mimetypes
+# table has no entry for .woff2, which would otherwise be served as
+# text/plain.
+mimetypes.add_type("font/woff2", ".woff2")
+
 if ASSETS_DIR.exists():
 
     app.mount(
@@ -528,19 +535,25 @@ async def _security_headers(request: Request, call_next):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000"
 
-    # Start with Report-Only so we can test the policy safely.
-    response.headers["Content-Security-Policy-Report-Only"] = (
+    # Enforced policy. The frontend has no inline scripts, inline styles
+    # or third-party hosts (fonts and jsPDF / html2canvas / lottie are
+    # self-hosted under /assets). The one style hash is the fixed
+    # <style> block html2canvas injects into its document clone to hide
+    # pseudo-elements during PDF export; it must be recomputed if
+    # assets/vendor/html2canvas.min.js is ever upgraded.
+    response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
-        "base-uri 'self'; "
+        "script-src 'self'; "
+        "style-src 'self' 'sha256-UP0QZg7irvSMvOBz9mH2PIIE28+57UiavRfeVea0l3g='; "
+        "img-src 'self' data: blob:; "
+        "font-src 'self'; "
+        "connect-src 'self'; "
         "object-src 'none'; "
-        "frame-ancestors 'none'; "
+        "base-uri 'self'; "
         "form-action 'self'; "
-        "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; "
-        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
-        "font-src 'self' data: https://fonts.gstatic.com; "
-        "img-src 'self' data: blob: https:; "
-        "connect-src 'self' https: wss:; "
+        "frame-ancestors 'none'"
     )
 
     return response

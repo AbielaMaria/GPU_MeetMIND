@@ -1,19 +1,8 @@
-/* ============================================================
-   MeetMind — admin: list / add / edit / remove users
-   ============================================================
-   Server-backed via assets/auth-store.js, which calls the
-   admin-only /api/users endpoints (backend/auth.py). Changes here
-   persist in the shared SQLite database, so they're visible to
-   every machine hitting this backend — not just this browser.
-============================================================ */
-
 (function () {
     "use strict";
 
     var A = window.MeetMindAuth;
     var D = window.MeetMindDialog;
-
-    /* ---- refs ------------------------------------------ */
 
     var tbody = document.getElementById("userRows");
     var searchEl = document.getElementById("userSearch");
@@ -45,10 +34,7 @@
     };
     var verifyNote = document.getElementById("dialogVerifyNote");
 
-    // null = adding; string = editing this (original) email
     var editingEmail = null;
-    // Role select value before the latest change, so Cancel on the
-    // "grant admin" warning can put it back.
     var roleBefore = "user";
 
     var ADMIN_PRIVILEGES = [
@@ -59,8 +45,6 @@
         "View every user's meetings, consultations and interviews, with their recordings and reports"
     ];
 
-    // Cache of the last fetched list, so opening the edit dialog
-    // doesn't need a second round-trip.
     var allUsers = [];
     var session = null;
 
@@ -68,10 +52,6 @@
     var userPage = 1;
     var USERS_PER_PAGE = 5;
 
-    /* ---- helpers ------------------------------------- */
-
-    // Shared by the users and meetings tables: prev/next arrows plus
-    // clickable page numbers (with an ellipsis once there are many pages).
     function renderPagination(container, page, totalPages, onChange) {
         container.innerHTML = "";
         if (totalPages <= 1) return;
@@ -141,15 +121,6 @@
         alertEl.classList.remove("is-shown");
     }
 
-    /* ---- filter dropdowns ------------------------------ */
-
-    // Every toolbar <select> is shown as the same dropdown the recorder
-    // page uses: a trigger button plus a menu of options with a check
-    // mark on the current one. The <select> stays in the page (hidden)
-    // as the source of truth, so the filters keep reading .value and
-    // listening for "change", and option lists rebuilt in code (the
-    // meetings' user and model filters) show up the next time the menu
-    // opens. A trigger turns accent-coloured while it is filtering.
     var dropdowns = [];
 
     function enhanceSelect(select) {
@@ -248,7 +219,6 @@
             if (next) { e.preventDefault(); next.focus(); }
         });
 
-        // Option lists rebuilt in code, and values set by code.
         new MutationObserver(dd.sync).observe(select, { childList: true });
         select.addEventListener("change", dd.sync);
 
@@ -266,8 +236,6 @@
             if (dd.isOpen() && !dd.wrap.contains(e.target)) dd.close();
         });
     });
-
-    /* ---- overview stats ------------------------------ */
 
     function renderStats() {
         var verified = allUsers.filter(function (u) { return u.emailVerified; }).length;
@@ -290,7 +258,6 @@
             : "";
     }
 
-    /* "Mistral 128B 17 · Qwen3 27B 3": meetings with that output, per model. */
     function modelBreakdown(field) {
         var counts = {};
         allMeetings.forEach(function (m) {
@@ -302,8 +269,6 @@
             return modelLabel(key) + " " + (counts[key] || 0);
         }).join(" · ");
     }
-
-    /* ---- render table ------------------------------- */
 
     function renderUserRows() {
         renderStats();
@@ -369,8 +334,6 @@
         });
     }
 
-    /* ---- dialog: open / close ---------------------- */
-
     function openAdd() {
         editingEmail = null;
         dialogTitle.textContent = "Add user";
@@ -397,7 +360,6 @@
         f.password.value = "";
         f.role.value = u.role === "admin" ? "admin" : "user";
         roleBefore = f.role.value;
-        // The server refuses self-demotion; don't offer it.
         f.role.disabled = u.email === session.email;
         verifyNote.hidden = true;
         hideAlert();
@@ -444,7 +406,6 @@
     document.getElementById("addUserBtn").addEventListener("click", openAdd);
     document.getElementById("dialogCancel").addEventListener("click", function () { dialog.close(); });
 
-    // row actions (delegated)
     tbody.addEventListener("click", function (e) {
         var editBtn = e.target.closest("[data-edit]");
         if (editBtn) { openEdit(editBtn.getAttribute("data-edit")); return; }
@@ -510,10 +471,8 @@
         }
     });
 
-    /* ---- dialog: submit --------------------------- */
-
     form.addEventListener("submit", function (e) {
-        e.preventDefault();            // we control close()
+        e.preventDefault();
         hideAlert();
         clearFieldErrors();
 
@@ -531,7 +490,6 @@
         if (!editingEmail && !data.password) { fieldError("password", "Password is required."); bad = true; }
         if (bad) return;
 
-        // Editing without a new password: don't send an empty one.
         var payload = data;
         if (editingEmail && !data.password) {
             payload = { username: data.username, email: data.email, role: data.role };
@@ -546,12 +504,9 @@
         });
     });
 
-    // close on backdrop click
     dialog.addEventListener("click", function (e) {
         if (e.target === dialog) dialog.close();
     });
-
-    /* ---- filters ---------------------------------- */
 
     searchEl.addEventListener("input", function () { userPage = 1; renderUserRows(); });
     roleEl.addEventListener("change", function () { userPage = 1; renderUserRows(); });
@@ -559,14 +514,6 @@
 
     enhanceSelect(roleEl);
     enhanceSelect(verifiedEl);
-
-    /* ============================================================
-       MEETINGS — every user's transcripts + summaries
-       ------------------------------------------------------------
-       Read-only. Uses the same /api/meetings endpoints as the user's
-       own history drawer; the server widens the scope to all users
-       because this session's role is "admin".
-    ============================================================ */
 
     var mtBody = document.getElementById("meetingRows");
     var mtSearch = document.getElementById("meetingSearch");
@@ -592,14 +539,10 @@
 
     var allMeetings = [];
 
-    // [{key, label, modelId}] from GET /api/models (backend LLM_MODELS).
     var modelCatalog = [];
 
-    // Model-filter value: meetings with results from every model.
     var EVERY_MODEL = "__every__";
 
-    /* Model keys in display order: the catalog's, then any model that
-       only appears in saved meetings (no longer offered). */
     function knownModels() {
         var keys = modelCatalog.map(function (mm) { return mm.key; });
         allMeetings.forEach(function (m) {
@@ -656,9 +599,6 @@
             ", " + d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
     }
 
-    /* Recording length down to the second: "45 sec", "5 min 43 sec",
-       "1 h 12 min 5 sec". A unit that is zero is left out ("38 min").
-       Empty for meetings saved before durations were recorded. */
     function fmtDuration(seconds) {
         var total = Math.round(Number(seconds));
         if (!total || total < 0) return "";
@@ -703,9 +643,6 @@
 
     var AUDIO_PILL = '<span class="pill audio-pill" title="The recording is saved and can be played back">Recording</span>';
 
-    /* One pill per model with results for the meeting (the `models`
-       field of /api/meetings), saying which outputs it has when it
-       only has one. Same tags as the history drawer on the app page. */
     function modelTagsHtml(models) {
         if (!models || !models.length) return "";
         return models.map(function (mm) {
@@ -811,13 +748,6 @@
         });
     }
 
-    /* ---- viewer dialog -----------------------------
-       Read-only view of one meeting, per model: a switch picks the
-       model, and the Summary / Mind Map tabs show that model's results
-       laid out like the recorder page (same sections, labels and icons;
-       the same mind-map tree). The transcript is shared by every model.
-    -------------------------------------------------- */
-
     var mtModelSwitch = document.getElementById("meetingModelSwitch");
     var mtExpandBtn = document.getElementById("meetingExpandBtn");
     var mtTranscriptText = document.getElementById("meetingTranscriptText");
@@ -829,8 +759,6 @@
     var viewedMeeting = null;
     var viewedModel = null;
     var viewedTab = "summary";
-
-    /* ---- recording players (meeting + consultation viewers) ---- */
 
     function makePlayer(slotId, teal) {
         var slot = document.getElementById(slotId);
@@ -913,7 +841,6 @@
             ? decisions.map(function (d) { return '<div class="decision">' + esc(d) + "</div>"; }).join("")
             : '<div class="meta">No decisions identified.</div>');
 
-        // Like the recorder page, these two only appear when present.
         if (objections.length) {
             html += sectionHtml("objections", "Objections", objections.map(function (o) {
                 return '<div class="item objection">' + esc(o) + "</div>";
@@ -928,7 +855,6 @@
         mtSummaryPane.innerHTML = '<div class="intelligence">' + html + "</div>";
     }
 
-    /* Same tree markup as the recorder page's mind map, minus editing. */
     function buildMindmapNode(node, isRoot) {
         if (!node || !node.title) return null;
 
@@ -970,8 +896,6 @@
         mtMindmapPane.appendChild(container);
     }
 
-    /* The tree is wider than the pane: open it scrolled to its centre
-       (only possible once the pane is visible and laid out). */
     function centerMindmap() {
         var container = mtMindmapPane.querySelector(".mindmap-container");
         if (!container || mtMindmapPane.hidden) return;
@@ -1033,7 +957,6 @@
             t.classList.toggle("is-active", active);
             t.setAttribute("aria-selected", String(active));
         });
-        // The transcript belongs to the meeting, not to a model.
         mtModelSwitch.classList.toggle("is-muted", which === "transcript");
         if (which === "mindmap") centerMindmap();
     }
@@ -1043,8 +966,6 @@
             showTab(tab.getAttribute("data-tab"));
         });
     });
-
-    /* ---- full view ---- */
 
     function setExpanded(expanded) {
         mtDialog.classList.toggle("is-expanded", expanded);
@@ -1057,9 +978,6 @@
     mtExpandBtn.addEventListener("click", function () {
         setExpanded(!mtDialog.classList.contains("is-expanded"));
     });
-
-    /* ---- transcript search (same behaviour as the recorder page) ----
-       Shared by the meeting and consultation viewers. */
 
     function makeTranscriptSearch(o) {
         var matches = [];
@@ -1120,7 +1038,6 @@
 
         o.input.addEventListener("input", render);
         o.input.addEventListener("keydown", function (e) {
-            // Enter would otherwise submit (and close) the dialog's form.
             if (e.key === "Enter") {
                 e.preventDefault();
                 if (matches.length) setMatch(index + (e.shiftKey ? -1 : 1));
@@ -1143,8 +1060,6 @@
         pre: mtTranscriptText,
         text: function () { return (viewedMeeting && viewedMeeting.transcript) || ""; }
     });
-
-    /* ---- open ---- */
 
     function openMeeting(id) {
         api("/api/meetings/" + encodeURIComponent(id)).then(function (m) {
@@ -1222,15 +1137,6 @@
     enhanceSelect(mtStatusFilter);
     enhanceSelect(mtModelFilter);
     enhanceSelect(mtAudioFilter);
-
-    /* ============================================================
-       DOCTOR CONSULTATIONS — every user's Doctor–Patient sessions
-       ------------------------------------------------------------
-       Read-only, like meetings. A consultation is shown with its
-       recording, its prescription on that doctor's letterhead
-       (assets/prescription.js — the same page the doctor downloads)
-       and its transcript. /api/doctor/consultations?scope=all.
-    ============================================================ */
 
     var csBody = document.getElementById("consultRows");
     var csSearch = document.getElementById("consultSearch");
@@ -1379,8 +1285,6 @@
     enhanceSelect(csStatusFilter);
     enhanceSelect(csAudioFilter);
 
-    /* ---- consultation viewer ---- */
-
     var csDialog = document.getElementById("consultDialog");
     var csTitle = document.getElementById("consultDialogTitle");
     var csMeta = document.getElementById("consultDialogMeta");
@@ -1401,7 +1305,6 @@
         text: function () { return (viewedConsult && viewedConsult.transcript) || ""; }
     });
 
-    /* The A4 sheet is laid out at full width and scaled to the pane. */
     function fitSheet() {
         if (!csSheet || csRxPane.hidden) return;
         var paper = csRxPane.querySelector(".consult-paper");
@@ -1526,16 +1429,6 @@
         setConsultExpanded(false);
         csPlayer.clear();
     });
-
-    /* ============================================================
-       INTERVIEWS — every user's Interview template sessions
-       ------------------------------------------------------------
-       Read-only, like consultations. An interview is shown with its
-       recording, its evaluation report on that interviewer's
-       letterhead (assets/interview-report.js — the same page the
-       interviewer downloads) and its transcript.
-       /api/interview/interviews?scope=all.
-    ============================================================ */
 
     var ivBody = document.getElementById("interviewRows");
     var ivSearch = document.getElementById("interviewSearch");
@@ -1700,8 +1593,6 @@
     enhanceSelect(ivStatusFilter);
     enhanceSelect(ivTypeFilter);
 
-    /* ---- interview viewer ---- */
-
     var ivDialog = document.getElementById("interviewDialog");
     var ivTitle = document.getElementById("interviewDialogTitle");
     var ivMeta = document.getElementById("interviewDialogMeta");
@@ -1723,7 +1614,6 @@
         text: function () { return (viewedInterview && viewedInterview.transcript) || ""; }
     });
 
-    /* The A4 report is laid out at full width and scaled to the pane. */
     function fitInterviewSheet() {
         if (!ivSheet || ivReportPane.hidden) return;
         var paper = ivReportPane.querySelector(".consult-paper");
@@ -1848,11 +1738,9 @@
         ivPlayer.clear();
     });
 
-    /* ---- boot -------------------------------------- */
-
     if (A) {
         A.getSession().then(function (s) {
-            if (!s) return; // guard already redirected
+            if (!s) return;
             session = s;
             document.getElementById("whoEmail").textContent = session.email || "";
             document.getElementById("logoutBtn").addEventListener("click", function () {

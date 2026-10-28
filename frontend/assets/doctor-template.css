@@ -1,12 +1,3 @@
-/* ============================================================
-   MeetMind — Doctor–Patient template (assets/doctor-template.js)
-   ------------------------------------------------------------
-   The template selector, the Doctor / Clinic Profile card, the
-   Generate Prescription action, the Doctor Prescription editor
-   and the Download Prescription card. Theme tokens come from
-   index.html; doctor mode adds a teal clinical accent.
-============================================================ */
-
 :root {
     --dr-accent: #0f766e;
     --dr-accent-strong: #0b4f4a;
@@ -34,10 +25,6 @@
     --dr-green-soft: rgba(52, 211, 153, .10);
     --dr-desk: #0e1420;
 }
-
-/* ============================================================
-   TEMPLATE SELECTOR
-============================================================ */
 
 .template-selector {
     display: flex;
@@ -87,8 +74,6 @@
     }
 }
 
-/* Three pills don't fit a phone's width on one line: let them wrap
-   instead of pushing the page sideways. */
 @media (max-width: 480px) {
     .template-pills {
         flex-wrap: wrap;
@@ -138,12 +123,6 @@
     }
 }
 
-/* ============================================================
-   WHAT EACH TEMPLATE SHOWS
-============================================================ */
-
-/* Doctor mode: transcription stays, the MOM model columns, model
-   picker / Generate Summary button and report builder go. */
 body[data-meetmind-template="doctor"] #modelGrid,
 body[data-meetmind-template="doctor"] #reportBuilder,
 body[data-meetmind-template="doctor"] .panel--transcript .intelligence-actions {
@@ -160,15 +139,9 @@ body:not([data-meetmind-template="doctor"]) .dr-only {
     display: none !important;
 }
 
-/* Doctor mode recolours the transcript panel's icon and the recorder
-   status accents to the clinical teal. */
 body[data-meetmind-template="doctor"] .panel--transcript .panel-head h2::before {
     background: var(--dr-accent);
 }
-
-/* ============================================================
-   SHARED PIECES
-============================================================ */
 
 .dr-card {
     position: relative;
@@ -287,7 +260,6 @@ body[data-meetmind-template="doctor"] .panel--transcript .panel-head h2::before 
     to { transform: rotate(360deg); }
 }
 
-/* status chips */
 .dr-status {
     display: inline-flex;
     align-items: center;
@@ -337,7 +309,6 @@ body[data-meetmind-template="doctor"] .panel--transcript .panel-head h2::before 
     50% { opacity: .25; }
 }
 
-/* form controls */
 .dr-field {
     display: flex;
     flex-direction: column;
@@ -405,10 +376,6 @@ body[data-meetmind-template="doctor"] .panel--transcript .panel-head h2::before 
     color: var(--text-muted);
     opacity: .8;
 }
-
-/* ============================================================
-   DOCTOR / CLINIC PROFILE
-============================================================ */
 
 .dr-profile {
     padding: 0;
@@ -549,7 +516,6 @@ body[data-meetmind-template="doctor"] .panel--transcript .panel-head h2::before 
     grid-column: 1 / -1;
 }
 
-/* logo / signature tiles */
 .dr-upload {
     display: flex;
     gap: 13px;
@@ -663,7 +629,6 @@ body[data-meetmind-template="doctor"] .panel--transcript .panel-head h2::before 
     color: var(--dr-green);
 }
 
-/* live letterhead preview */
 .dr-preview {
     position: sticky;
     top: 16px;
@@ -787,10 +752,6 @@ body[data-meetmind-template="doctor"] .panel--transcript .panel-head h2::before 
     }
 }
 
-/* ============================================================
-   GENERATE PRESCRIPTION (transcript panel)
-============================================================ */
-
 .doctor-actions {
     display: flex;
     align-items: center;
@@ -813,10 +774,6 @@ body[data-meetmind-template="doctor"] .panel--transcript .panel-head h2::before 
     height: 14px;
     color: var(--dr-accent);
 }
-
-/* ============================================================
-   DOCTOR PRESCRIPTION (review & edit)
-============================================================ */
 
 .dr-empty {
     display: flex;
@@ -995,7 +952,6 @@ body[data-meetmind-template="doctor"] .panel--transcript .panel-head h2::before 
     min-height: 64px;
 }
 
-/* medicines editor */
 .dr-med-wrap {
     overflow-x: auto;
     border: 1px solid var(--border);
@@ -1148,10 +1104,6 @@ body[data-meetmind-template="doctor"] .panel--transcript .panel-head h2::before 
     }
 }
 
-/* ============================================================
-   DOWNLOAD PRESCRIPTION
-============================================================ */
-
 .dr-download-actions {
     display: flex;
     align-items: center;
@@ -1211,4 +1163,12 @@ body[data-meetmind-template="doctor"] .panel--transcript .panel-head h2::before 
     .dr-btn-busy::after {
         animation: none;
     }
+}
+
+.dr-med-table .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
 }
