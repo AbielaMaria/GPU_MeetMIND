@@ -3868,13 +3868,7 @@ searchNextBtn.addEventListener(
 
 
 async function startRecording() {
-
     if (isRecording) return;
-
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
-        setStatus("This browser does not support screen/tab audio sharing. Use a supported desktop browser.");
-        return;
-    }
 
     let modeChoice = "2";
 
@@ -3890,118 +3884,213 @@ async function startRecording() {
     startNewSession();
     updateGenerateButton();
 
-    setStatus("Preparing microphone and selected audio source...");
+    setStatus("Preparing microphone and audio source...");
 
     transcriptEl.innerHTML = `
         <div class="placeholder">
             Recording in progress...
         </div>
     `;
+
     resetTranscriptSearch();
     modelSlots.forEach(slot => resetSlot(slot, "recording"));
 
     try {
-        setStatus("Choose the Teams tab/window/screen in the browser sharing popup and enable audio sharing if available...");
-        try {
-            meetTabStream = await navigator.mediaDevices.getDisplayMedia({
-                video: true,
-                audio: true
-            });
-        } catch (shareError) {
-            throw new Error(
-                "The browser sharing popup was cancelled or could not be opened. " +
-                "No recording was started. Click Start Recording again and select the Teams tab/window/screen. Details: " +
-                (shareError.message || shareError)
+        let sharedRemoteAudioAvailable = false;
+
+        const canShareScreenAudio = Boolean(
+            navigator.mediaDevices &&
+            typeof navigator.mediaDevices.getDisplayMedia === "function"
+        );
+
+        /*
+         * DESKTOP / SUPPORTED BROWSERS
+         * Request screen or tab sharing to capture meeting audio.
+         */
+        if (canShareScreenAudio) {
+            setStatus(
+                "Select the meeting tab or window and enable audio sharing if available..."
+            );
+
+            try {
+                meetTabStream =
+                    await navigator.mediaDevices.getDisplayMedia({
+                        video: true,
+                        audio: true
+                    });
+            } catch (shareError) {
+                throw new Error(
+                    "Screen/tab sharing was cancelled or could not be opened. " +
+                    "No recording was started. Click Start Recording again to retry. Details: " +
+                    (shareError.message || shareError)
+                );
+            }
+
+            sharedRemoteAudioAvailable =
+                meetTabStream.getAudioTracks().length > 0;
+
+            /*
+             * The browser supports sharing, but the selected source
+             * did not provide an audio track.
+             */
+            if (!sharedRemoteAudioAvailable) {
+                const noAudioMessage =
+                    "The selected source did not provide meeting audio. " +
+                    "Vidatha can continue using your microphone, but other " +
+                    "participants' voices may be missing from the transcript.";
+
+                const continueMicOnly = window.MeetMindDialog
+                    ? await window.MeetMindDialog.confirm({
+                        title: "Meeting Audio Not Shared",
+                        message: noAudioMessage,
+                        items: [
+                            "Continue with microphone-only recording.",
+                            "Cancel recording and try again."
+                        ],
+                        confirmText: "Continue",
+                        cancelText: "Cancel"
+                    })
+                    : window.confirm(
+                        "Meeting Audio Not Shared\n\n" +
+                        noAudioMessage +
+                        "\n\nContinue with microphone-only recording?"
+                    );
+
+                if (!continueMicOnly) {
+                    throw new Error(
+                        "Recording cancelled because meeting audio was not shared. " +
+                        "Try again and enable Share tab audio if available."
+                    );
+                }
+
+                meetTabStream.getTracks().forEach(track => {
+                    try {
+                        track.stop();
+                    } catch (e) {}
+                });
+
+                meetTabStream = null;
+
+                setStatus(
+                    "Microphone-only recording selected. Other participants may be missing."
+                );
+
+                log(
+                    "User chose microphone-only recording because shared audio was unavailable."
+                );
+            }
+
+            /*
+             * Video is only required to initiate the browser's sharing
+             * dialog. Keep shared audio active when available.
+             */
+            if (meetTabStream) {
+                meetTabStream.getVideoTracks().forEach(track => {
+                    try {
+                        track.stop();
+                    } catch (e) {}
+                });
+            }
+        } else {
+            /*
+             * MOBILE / UNSUPPORTED BROWSERS
+             * Continue with microphone-only recording instead of
+             * blocking recording because getDisplayMedia is unavailable.
+             */
+            meetTabStream = null;
+            sharedRemoteAudioAvailable = false;
+
+            setStatus(
+                "Screen sharing is unavailable. Requesting microphone permission..."
+            );
+
+            log(
+                "Display audio sharing is unsupported. Using microphone-only recording."
             );
         }
 
-        const sharedAudioTracks = meetTabStream.getAudioTracks();
-        let sharedRemoteAudioAvailable = sharedAudioTracks.length > 0;
-
-        if (!sharedRemoteAudioAvailable) {
-            const noAudioMessage =
-                "The selected tab, window, or screen did not provide an audio track. Vidatha may record only your microphone audio, so other participants' voices may be missing from the transcript.\n\n" +
-                "To capture both sides, Select the tab or window where your meeting or interview is open, and turn on audio sharing.";
-            const noAudioChoices = [
-                "OK: Continue recording with microphone audio only.",
-                "Cancel: Stop recording and try again."
-            ];
-
-            const continueMicOnly = window.MeetMindDialog
-                ? await window.MeetMindDialog.confirm({
-                    title: "Meeting Audio Not Shared",
-                    message: noAudioMessage,
-                    items: noAudioChoices,
-                    confirmText: "OK",
-                    cancelText: "Cancel"
-                })
-                : window.confirm(
-                    "Meeting Audio Not Shared\n\n" +
-                    noAudioMessage + "\n\n" +
-                    noAudioChoices.join("\n")
-                );
-
-            if (!continueMicOnly) {
-                meetTabStream.getTracks().forEach(t => {
-                    try { t.stop(); } catch (e) {}
-                });
-                meetTabStream = null;
-                throw new Error(
-                    "Recording cancelled because meeting audio was not shared. Click Start Recording again and enable Share tab audio for the Teams tab, if available."
-                );
-            }
-
-            meetTabStream.getTracks().forEach(t => {
-                try { t.stop(); } catch (e) {}
-            });
-            meetTabStream = null;
-            setStatus("Warning: microphone-only recording selected. Other participants may be missing from the transcript.");
-            log("User chose to continue with microphone-only recording because the shared source had no audio track.");
-        }
-
-        if (meetTabStream) {
-            meetTabStream.getVideoTracks().forEach(t => {
-                try { t.stop(); } catch (e) {}
-            });
-        }
-
+        /*
+         * CONNECT TO BACKEND
+         */
         await openWebSocket();
 
-        if (!websocket || websocket.readyState !== WebSocket.OPEN) {
+        if (
+            !websocket ||
+            websocket.readyState !== WebSocket.OPEN
+        ) {
             throw new Error("WebSocket connection failed.");
         }
 
+        /*
+         * REQUEST MICROPHONE PERMISSION
+         */
         setStatus("Requesting microphone permission...");
-        microphoneStream = await navigator.mediaDevices.getUserMedia({
-            audio: {
-                channelCount: 1,
-                echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: true
-            }
-        });
+
+        if (
+            !navigator.mediaDevices ||
+            typeof navigator.mediaDevices.getUserMedia !== "function"
+        ) {
+            throw new Error(
+                "Microphone recording is not supported by this browser. " +
+                "Open Vidatha using HTTPS in a supported browser."
+            );
+        }
+
+        microphoneStream =
+            await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    channelCount: 1,
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true
+                }
+            });
 
         if (!microphoneStream.getAudioTracks().length) {
             throw new Error("No microphone input was detected.");
         }
 
-        log("Microphone ready: " + microphoneStream.getAudioTracks()
-            .map(t => `${t.label || "default microphone"} (${t.readyState})`)
-            .join(" | "));
+        log(
+            "Microphone ready: " +
+            microphoneStream.getAudioTracks()
+                .map(track =>
+                    `${track.label || "default microphone"} (${track.readyState})`
+                )
+                .join(" | ")
+        );
 
-        let remoteAudioAvailable = sharedRemoteAudioAvailable && !!meetTabStream;
-        const remoteTracks = meetTabStream ? meetTabStream.getAudioTracks() : [];
-        let remoteSourceLabel = remoteTracks.map(t => t.label || "shared browser audio").join(", ");
-        let requestedAudioMode = remoteAudioAvailable ? "microphone_and_meet_tab" : "microphone";
-        let requestedAudioSources = remoteAudioAvailable
+        /*
+         * DETERMINE AUDIO SOURCES
+         */
+        const remoteAudioAvailable =
+            sharedRemoteAudioAvailable && Boolean(meetTabStream);
+
+        const remoteTracks = meetTabStream
+            ? meetTabStream.getAudioTracks()
+            : [];
+
+        const remoteSourceLabel = remoteTracks
+            .map(track => track.label || "shared browser audio")
+            .join(", ");
+
+        const requestedAudioMode = remoteAudioAvailable
+            ? "microphone_and_meet_tab"
+            : "microphone";
+
+        const requestedAudioSources = remoteAudioAvailable
             ? ["microphone", "teams_browser_tab"]
             : ["microphone"];
 
         remoteTracks.forEach(track => {
             track.addEventListener("ended", () => {
-                log("Shared Teams audio ended. Two-way capture may no longer be available.");
+                log(
+                    "Shared meeting audio ended. Two-way capture may no longer be available."
+                );
+
                 if (isRecording) {
-                    setStatus("Warning: Teams shared audio ended. Check the sharing permission.");
+                    setStatus(
+                        "Warning: shared meeting audio ended. Check sharing permissions."
+                    );
                 }
             });
         });
@@ -4009,37 +4098,58 @@ async function startRecording() {
         if (remoteAudioAvailable) {
             log("Remote audio source ready: " + remoteSourceLabel);
         } else {
-            log("Remote audio source unavailable; continuing with microphone-only recording as confirmed by the user.");
+            log(
+                "Remote audio unavailable. Recording will use the microphone."
+            );
         }
 
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        if (audioContext.state === "suspended") await audioContext.resume();
+        /*
+         * CREATE AUDIO CONTEXT
+         */
+        audioContext = new (
+            window.AudioContext || window.webkitAudioContext
+        )();
 
-        sourceNode = audioContext.createMediaStreamSource(microphoneStream);
+        if (audioContext.state === "suspended") {
+            await audioContext.resume();
+        }
+
+        sourceNode =
+            audioContext.createMediaStreamSource(microphoneStream);
 
         if (remoteAudioAvailable && meetTabStream) {
-            meetTabSourceNode = audioContext.createMediaStreamSource(meetTabStream);
+            meetTabSourceNode =
+                audioContext.createMediaStreamSource(meetTabStream);
         }
 
-        processorNode = audioContext.createScriptProcessor(4096, 1, 1);
+        processorNode =
+            audioContext.createScriptProcessor(4096, 1, 1);
 
         const mixBus = audioContext.createGain();
         mixBus.gain.value = 0.5;
+
         sourceNode.connect(mixBus);
 
         if (meetTabSourceNode) {
             const remoteGain = audioContext.createGain();
             remoteGain.gain.value = 0.5;
+
             meetTabSourceNode.connect(remoteGain);
             remoteGain.connect(mixBus);
         }
 
         mixBus.connect(processorNode);
 
+        /*
+         * AUDIO PROCESSING
+         * Downsample to 16 kHz, convert to PCM16, and send audio
+         * chunks to the backend WebSocket.
+         */
         processorNode.onaudioprocess = function(event) {
             if (!isRecording || recordingPaused) return;
 
             const input = event.inputBuffer.getChannelData(0);
+
             if (!input || !input.length) return;
 
             const pcm16k = downsampleBuffer(
@@ -4047,9 +4157,11 @@ async function startRecording() {
                 audioContext.sampleRate,
                 16000
             );
+
             if (!pcm16k || !pcm16k.length) return;
 
             const pcmBuffer = floatToPCM16(pcm16k);
+
             if (!pcmBuffer || !pcmBuffer.byteLength) return;
 
             recordingPcmChunks.push(pcmBuffer.slice(0));
@@ -4064,11 +4176,19 @@ async function startRecording() {
             }
         };
 
+        /*
+         * KEEP THE AUDIO PROCESSOR RUNNING WITHOUT PLAYING
+         * THE MIXED AUDIO BACK TO THE USER.
+         */
         silentGainNode = audioContext.createGain();
         silentGainNode.gain.value = 0;
+
         processorNode.connect(silentGainNode);
         silentGainNode.connect(audioContext.destination);
 
+        /*
+         * START BACKEND RECORDING
+         */
         recordingAudioMode = requestedAudioMode;
         recordingPcmChunks = [];
 
@@ -4079,8 +4199,12 @@ async function startRecording() {
             audio_sources: requestedAudioSources
         }));
 
+        /*
+         * UPDATE RECORDING UI
+         */
         isRecording = true;
         recordingPaused = false;
+
         startTimer();
 
         recordBtn.disabled = false;
@@ -4089,20 +4213,36 @@ async function startRecording() {
         cancelRecordingBtn.hidden = false;
 
         if (remoteAudioAvailable) {
-            setStatus("Recording microphone + remote Teams audio. Verify both voices in the transcript.");
-            log("Recording started with two audio sources: microphone + " + remoteSourceLabel);
+            setStatus(
+                "Recording microphone + remote meeting audio. Verify both voices in the transcript."
+            );
+
+            log(
+                "Recording started with microphone and remote audio: " +
+                remoteSourceLabel
+            );
         } else {
-            setStatus("Recording microphone only. Other participant's questions may be missing.");
+            setStatus(
+                "Recording microphone only. Other participants' voices may be missing."
+            );
+
             log("Recording started in microphone-only mode.");
         }
 
     } catch (error) {
         log(`Start error: ${error.message}`);
-        setStatus(error.message || "Could not start recording.");
+
+        setStatus(
+            error.message || "Could not start recording."
+        );
+
         cleanupAudio();
 
         if (websocket) {
-            try { websocket.close(); } catch (e) {}
+            try {
+                websocket.close();
+            } catch (e) {}
+
             websocket = null;
         }
 
@@ -4110,6 +4250,7 @@ async function startRecording() {
         stopRequested = false;
         connectionLost = false;
         recordingPcmChunks = [];
+
         recordBtn.disabled = false;
         recordBtn.textContent = "Start Recording";
         recordBtn.classList.remove("recording");
