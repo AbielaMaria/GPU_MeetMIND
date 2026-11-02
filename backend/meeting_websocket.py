@@ -1,880 +1,880 @@
-# """
-# MeetMind - Record-then-process WebSocket
-
-# Flow:
-
-#     Browser microphone
-#         ↓
-#     PCM16 mono 16 kHz
-#         ↓
-#     FastAPI WebSocket
-#         ↓
-#     Complete WAV recording
-#         ↓
-#     Parrotlet-A 2.5 Pro
-#         ↓
-#     Complete transcript
-#         ↓
-#     Frontend displays transcript
-#         ↓
-#     User clicks "Create Summary"
-#         ↓
-#     POST /api/meeting/summarize
-#         ↓
-#     MIstral 
-#         ↓
-#     Meeting intelligence
-
-# Speaker diarization:
-#     DISABLED
-
-# Maximum recording duration:
-#     10 minutes
-
-# The WebSocket does NOT automatically generate the summary.
-# """
-
-# import asyncio
-# import json
-# import uuid
-# import wave
-
-# from pathlib import Path
-
-# from fastapi import (
-#     WebSocket,
-#     WebSocketDisconnect,
-# )
-
-# from parrotlet_transcriber_gpu import (
-#     MODEL_NAME,
-#     SAMPLE_RATE,
-#     transcribe_audio,
-# )
-
-
-# # ============================================================
-# # PATHS
-# # ============================================================
-
-# BASE_DIR = Path(__file__).resolve().parent
+# # """
+# # MeetMind - Record-then-process WebSocket
+
+# # Flow:
+
+# #     Browser microphone
+# #         ↓
+# #     PCM16 mono 16 kHz
+# #         ↓
+# #     FastAPI WebSocket
+# #         ↓
+# #     Complete WAV recording
+# #         ↓
+# #     Parrotlet-A 2.5 Pro
+# #         ↓
+# #     Complete transcript
+# #         ↓
+# #     Frontend displays transcript
+# #         ↓
+# #     User clicks "Create Summary"
+# #         ↓
+# #     POST /api/meeting/summarize
+# #         ↓
+# #     MIstral 
+# #         ↓
+# #     Meeting intelligence
+
+# # Speaker diarization:
+# #     DISABLED
+
+# # Maximum recording duration:
+# #     10 minutes
+
+# # The WebSocket does NOT automatically generate the summary.
+# # """
+
+# # import asyncio
+# # import json
+# # import uuid
+# # import wave
+
+# # from pathlib import Path
+
+# # from fastapi import (
+# #     WebSocket,
+# #     WebSocketDisconnect,
+# # )
+
+# # from parrotlet_transcriber_gpu import (
+# #     MODEL_NAME,
+# #     SAMPLE_RATE,
+# #     transcribe_audio,
+# # )
+
+
+# # # ============================================================
+# # # PATHS
+# # # ============================================================
+
+# # BASE_DIR = Path(__file__).resolve().parent
 
-# RECORDINGS_DIR = BASE_DIR / "recordings"
+# # RECORDINGS_DIR = BASE_DIR / "recordings"
 
-# RECORDINGS_DIR.mkdir(
-#     parents=True,
-#     exist_ok=True,
-# )
+# # RECORDINGS_DIR.mkdir(
+# #     parents=True,
+# #     exist_ok=True,
+# # )
 
 
-# # ============================================================
-# # AUDIO CONFIGURATION
-# # ============================================================
+# # # ============================================================
+# # # AUDIO CONFIGURATION
+# # # ============================================================
 
-# CHANNELS = 1
+# # CHANNELS = 1
 
-# # PCM16 = 2 bytes/sample
-# SAMPLE_WIDTH = 2
+# # # PCM16 = 2 bytes/sample
+# # SAMPLE_WIDTH = 2
 
-# # Maximum recording duration = 10 minutes
-# MAX_RECORDING_SECONDS = 600
+# # # Maximum recording duration = 10 minutes
+# # MAX_RECORDING_SECONDS = 600
 
-# MAX_AUDIO_BYTES = (
-#     SAMPLE_RATE
-#     * CHANNELS
-#     * SAMPLE_WIDTH
-#     * MAX_RECORDING_SECONDS
-# )
+# # MAX_AUDIO_BYTES = (
+# #     SAMPLE_RATE
+# #     * CHANNELS
+# #     * SAMPLE_WIDTH
+# #     * MAX_RECORDING_SECONDS
+# # )
 
 
-# # ============================================================
-# # SEND JSON
-# # ============================================================
+# # # ============================================================
+# # # SEND JSON
+# # # ============================================================
 
-# async def send_message(
-#     websocket: WebSocket,
-#     payload: dict,
-# ):
-#     await websocket.send_text(
-#         json.dumps(
-#             payload,
-#             ensure_ascii=False,
-#         )
-#     )
+# # async def send_message(
+# #     websocket: WebSocket,
+# #     payload: dict,
+# # ):
+# #     await websocket.send_text(
+# #         json.dumps(
+# #             payload,
+# #             ensure_ascii=False,
+# #         )
+# #     )
 
 
-# # ============================================================
-# # SAVE WAV
-# # ============================================================
+# # # ============================================================
+# # # SAVE WAV
+# # # ============================================================
 
-# def save_wav(
-#     audio_data: bytes,
-#     output_path: Path,
-# ):
-#     with wave.open(
-#         str(output_path),
-#         "wb",
-#     ) as wav:
+# # def save_wav(
+# #     audio_data: bytes,
+# #     output_path: Path,
+# # ):
+# #     with wave.open(
+# #         str(output_path),
+# #         "wb",
+# #     ) as wav:
 
-#         wav.setnchannels(
-#             CHANNELS
-#         )
+# #         wav.setnchannels(
+# #             CHANNELS
+# #         )
 
-#         wav.setsampwidth(
-#             SAMPLE_WIDTH
-#         )
+# #         wav.setsampwidth(
+# #             SAMPLE_WIDTH
+# #         )
 
-#         wav.setframerate(
-#             SAMPLE_RATE
-#         )
+# #         wav.setframerate(
+# #             SAMPLE_RATE
+# #         )
 
-#         wav.writeframes(
-#             audio_data
-#         )
+# #         wav.writeframes(
+# #             audio_data
+# #         )
 
 
-# # ============================================================
-# # WEBSOCKET
-# # ============================================================
+# # # ============================================================
+# # # WEBSOCKET
+# # # ============================================================
 
-# async def meeting_websocket(
-#     websocket: WebSocket,
-# ):
+# # async def meeting_websocket(
+# #     websocket: WebSocket,
+# # ):
 
-#     await websocket.accept()
+# #     await websocket.accept()
 
-#     # --------------------------------------------------------
-#     # SESSION STATE
-#     # --------------------------------------------------------
+# #     # --------------------------------------------------------
+# #     # SESSION STATE
+# #     # --------------------------------------------------------
 
-#     meeting_id = str(
-#         uuid.uuid4()
-#     )
+# #     meeting_id = str(
+# #         uuid.uuid4()
+# #     )
 
-#     audio_buffer = bytearray()
+# #     audio_buffer = bytearray()
 
-#     recording = False
+# #     recording = False
 
-#     processing = False
+# #     processing = False
 
-#     transcript_available = False
+# #     transcript_available = False
 
-#     current_transcript = ""
+# #     current_transcript = ""
 
-#     current_audio_path = None
+# #     current_audio_path = None
 
-#     current_duration = 0.0
+# #     current_duration = 0.0
 
-#     print()
-#     print("=" * 70)
-#     print("MEETMIND - MEETING WEBSOCKET")
-#     print("=" * 70)
+# #     print()
+# #     print("=" * 70)
+# #     print("MEETMIND - MEETING WEBSOCKET")
+# #     print("=" * 70)
 
-#     print(
-#         "Meeting ID:",
-#         meeting_id,
-#     )
+# #     print(
+# #         "Meeting ID:",
+# #         meeting_id,
+# #     )
 
-#     print(
-#         "ASR:",
-#         MODEL_NAME,
-#     )
+# #     print(
+# #         "ASR:",
+# #         MODEL_NAME,
+# #     )
 
-#     print(
-#         "Audio:",
-#         f"PCM16 mono {SAMPLE_RATE} Hz",
-#     )
+# #     print(
+# #         "Audio:",
+# #         f"PCM16 mono {SAMPLE_RATE} Hz",
+# #     )
 
-#     print(
-#         "Maximum recording:",
-#         f"{MAX_RECORDING_SECONDS} seconds",
-#     )
+# #     print(
+# #         "Maximum recording:",
+# #         f"{MAX_RECORDING_SECONDS} seconds",
+# #     )
 
-#     print(
-#         "Speaker diarization: DISABLED"
-#     )
+# #     print(
+# #         "Speaker diarization: DISABLED"
+# #     )
 
-#     print("=" * 70)
+# #     print("=" * 70)
 
-#     try:
+# #     try:
 
-#         # ====================================================
-#         # CONNECTION CONFIRMATION
-#         # ====================================================
+# #         # ====================================================
+# #         # CONNECTION CONFIRMATION
+# #         # ====================================================
 
-#         await send_message(
-#             websocket,
-#             {
-#                 "type": "connected",
+# #         await send_message(
+# #             websocket,
+# #             {
+# #                 "type": "connected",
 
-#                 "meeting_id":
-#                     meeting_id,
+# #                 "meeting_id":
+# #                     meeting_id,
 
-#                 "speech_model":
-#                     MODEL_NAME,
+# #                 "speech_model":
+# #                     MODEL_NAME,
 
-#                 "sample_rate":
-#                     SAMPLE_RATE,
+# #                 "sample_rate":
+# #                     SAMPLE_RATE,
 
-#                 "speaker_diarization":
-#                     False,
+# #                 "speaker_diarization":
+# #                     False,
 
-#                 "max_recording_seconds":
-#                     MAX_RECORDING_SECONDS,
-#             },
-#         )
+# #                 "max_recording_seconds":
+# #                     MAX_RECORDING_SECONDS,
+# #             },
+# #         )
 
-#         # ====================================================
-#         # MAIN LOOP
-#         # ====================================================
+# #         # ====================================================
+# #         # MAIN LOOP
+# #         # ====================================================
 
-#         while True:
+# #         while True:
 
-#             message = await websocket.receive()
+# #             message = await websocket.receive()
 
-#             # =================================================
-#             # BROWSER DISCONNECTED
-#             # =================================================
+# #             # =================================================
+# #             # BROWSER DISCONNECTED
+# #             # =================================================
 
-#             if (
-#                 message.get("type")
-#                 == "websocket.disconnect"
-#             ):
+# #             if (
+# #                 message.get("type")
+# #                 == "websocket.disconnect"
+# #             ):
 
-#                 break
+# #                 break
 
-#             # =================================================
-#             # BINARY AUDIO
-#             # =================================================
+# #             # =================================================
+# #             # BINARY AUDIO
+# #             # =================================================
 
-#             audio_bytes = message.get("bytes")
+# #             audio_bytes = message.get("bytes")
 
-#             if audio_bytes is not None:
+# #             if audio_bytes is not None:
 
-#                 if recording and not processing:
+# #                 if recording and not processing:
 
-#                     # -----------------------------------------
-#                     # Prevent recording beyond 10 minutes
-#                     # -----------------------------------------
+# #                     # -----------------------------------------
+# #                     # Prevent recording beyond 10 minutes
+# #                     # -----------------------------------------
 
-#                     if (
-#                         len(audio_buffer)
-#                         + len(audio_bytes)
-#                         > MAX_AUDIO_BYTES
-#                     ):
+# #                     if (
+# #                         len(audio_buffer)
+# #                         + len(audio_bytes)
+# #                         > MAX_AUDIO_BYTES
+# #                     ):
 
-#                         recording = False
+# #                         recording = False
 
-#                         print()
-#                         print("=" * 70)
-#                         print("MAXIMUM RECORDING DURATION REACHED")
-#                         print("=" * 70)
+# #                         print()
+# #                         print("=" * 70)
+# #                         print("MAXIMUM RECORDING DURATION REACHED")
+# #                         print("=" * 70)
 
-#                         await send_message(
-#                             websocket,
-#                             {
-#                                 "type":
-#                                     "recording_limit_reached",
+# #                         await send_message(
+# #                             websocket,
+# #                             {
+# #                                 "type":
+# #                                     "recording_limit_reached",
 
-#                                 "message":
-#                                     "Maximum recording duration of 10 minutes reached. Processing recording.",
+# #                                 "message":
+# #                                     "Maximum recording duration of 10 minutes reached. Processing recording.",
 
-#                                 "max_recording_seconds":
-#                                     MAX_RECORDING_SECONDS,
-#                             },
-#                         )
+# #                                 "max_recording_seconds":
+# #                                     MAX_RECORDING_SECONDS,
+# #                             },
+# #                         )
 
-#                         # Process the audio exactly like stop.
-#                         if audio_buffer:
-#                             processing = True
+# #                         # Process the audio exactly like stop.
+# #                         if audio_buffer:
+# #                             processing = True
 
-#                             audio_path = (
-#                                 RECORDINGS_DIR
-#                                 / f"{meeting_id}.wav"
-#                             )
+# #                             audio_path = (
+# #                                 RECORDINGS_DIR
+# #                                 / f"{meeting_id}.wav"
+# #                             )
 
-#                             save_wav(
-#                                 bytes(audio_buffer),
-#                                 audio_path,
-#                             )
+# #                             save_wav(
+# #                                 bytes(audio_buffer),
+# #                                 audio_path,
+# #                             )
 
-#                             current_audio_path = audio_path
+# #                             current_audio_path = audio_path
 
-#                             current_duration = (
-#                                 len(audio_buffer)
-#                                 /
-#                                 (
-#                                     SAMPLE_RATE
-#                                     * SAMPLE_WIDTH
-#                                 )
-#                             )
+# #                             current_duration = (
+# #                                 len(audio_buffer)
+# #                                 /
+# #                                 (
+# #                                     SAMPLE_RATE
+# #                                     * SAMPLE_WIDTH
+# #                                 )
+# #                             )
 
-#                             await process_recording(
-#                                 websocket=websocket,
-#                                 meeting_id=meeting_id,
-#                                 audio_path=audio_path,
-#                                 current_duration=current_duration,
-#                             )
+# #                             await process_recording(
+# #                                 websocket=websocket,
+# #                                 meeting_id=meeting_id,
+# #                                 audio_path=audio_path,
+# #                                 current_duration=current_duration,
+# #                             )
 
-#                             processing = False
-#                             audio_buffer.clear()
+# #                             processing = False
+# #                             audio_buffer.clear()
 
-#                         continue
+# #                         continue
 
-#                     audio_buffer.extend(
-#                         audio_bytes
-#                     )
+# #                     audio_buffer.extend(
+# #                         audio_bytes
+# #                     )
 
-#                 continue
+# #                 continue
 
-#             # =================================================
-#             # TEXT COMMAND
-#             # =================================================
+# #             # =================================================
+# #             # TEXT COMMAND
+# #             # =================================================
 
-#             text_message = message.get("text")
+# #             text_message = message.get("text")
 
-#             if text_message is None:
-#                 continue
+# #             if text_message is None:
+# #                 continue
 
-#             try:
+# #             try:
 
-#                 command = json.loads(
-#                     text_message
-#                 )
+# #                 command = json.loads(
+# #                     text_message
+# #                 )
 
-#             except json.JSONDecodeError:
+# #             except json.JSONDecodeError:
 
-#                 await send_message(
-#                     websocket,
-#                     {
-#                         "type":
-#                             "error",
+# #                 await send_message(
+# #                     websocket,
+# #                     {
+# #                         "type":
+# #                             "error",
 
-#                         "stage":
-#                             "control",
+# #                         "stage":
+# #                             "control",
 
-#                         "message":
-#                             "Invalid JSON control message.",
-#                     },
-#                 )
+# #                         "message":
+# #                             "Invalid JSON control message.",
+# #                     },
+# #                 )
 
-#                 continue
+# #                 continue
 
-#             command_type = command.get(
-#                 "command"
-#             )
+# #             command_type = command.get(
+# #                 "command"
+# #             )
 
-#             # =================================================
-#             # START RECORDING
-#             # =================================================
+# #             # =================================================
+# #             # START RECORDING
+# #             # =================================================
 
-#             if command_type == "start":
+# #             if command_type == "start":
 
-#                 if recording:
+# #                 if recording:
 
-#                     await send_message(
-#                         websocket,
-#                         {
-#                             "type":
-#                                 "error",
+# #                     await send_message(
+# #                         websocket,
+# #                         {
+# #                             "type":
+# #                                 "error",
 
-#                             "stage":
-#                                 "recording",
+# #                             "stage":
+# #                                 "recording",
 
-#                             "message":
-#                                 "Recording is already active.",
-#                         },
-#                     )
+# #                             "message":
+# #                                 "Recording is already active.",
+# #                         },
+# #                     )
 
-#                     continue
+# #                     continue
 
-#                 if processing:
+# #                 if processing:
 
-#                     await send_message(
-#                         websocket,
-#                         {
-#                             "type":
-#                                 "error",
+# #                     await send_message(
+# #                         websocket,
+# #                         {
+# #                             "type":
+# #                                 "error",
 
-#                             "stage":
-#                                 "processing",
+# #                             "stage":
+# #                                 "processing",
 
-#                             "message":
-#                                 "Previous recording is still being processed.",
-#                         },
-#                     )
+# #                             "message":
+# #                                 "Previous recording is still being processed.",
+# #                         },
+# #                     )
 
-#                     continue
+# #                     continue
 
-#                 # ------------------------------------------------
-#                 # NEW RECORDING
-#                 # ------------------------------------------------
+# #                 # ------------------------------------------------
+# #                 # NEW RECORDING
+# #                 # ------------------------------------------------
 
-#                 meeting_id = str(
-#                     uuid.uuid4()
-#                 )
+# #                 meeting_id = str(
+# #                     uuid.uuid4()
+# #                 )
 
-#                 audio_buffer.clear()
+# #                 audio_buffer.clear()
 
-#                 current_transcript = ""
+# #                 current_transcript = ""
 
-#                 current_audio_path = None
+# #                 current_audio_path = None
 
-#                 current_duration = 0.0
+# #                 current_duration = 0.0
 
-#                 transcript_available = False
+# #                 transcript_available = False
 
-#                 recording = True
+# #                 recording = True
 
-#                 processing = False
+# #                 processing = False
 
-#                 print()
-#                 print("=" * 70)
-#                 print("RECORDING STARTED")
-#                 print("=" * 70)
+# #                 print()
+# #                 print("=" * 70)
+# #                 print("RECORDING STARTED")
+# #                 print("=" * 70)
 
-#                 print(
-#                     "Meeting ID:",
-#                     meeting_id,
-#                 )
+# #                 print(
+# #                     "Meeting ID:",
+# #                     meeting_id,
+# #                 )
 
-#                 await send_message(
-#                     websocket,
-#                     {
-#                         "type":
-#                             "recording_started",
+# #                 await send_message(
+# #                     websocket,
+# #                     {
+# #                         "type":
+# #                             "recording_started",
 
-#                         "meeting_id":
-#                             meeting_id,
+# #                         "meeting_id":
+# #                             meeting_id,
 
-#                         "max_recording_seconds":
-#                             MAX_RECORDING_SECONDS,
+# #                         "max_recording_seconds":
+# #                             MAX_RECORDING_SECONDS,
 
-#                         "speaker_diarization":
-#                             False,
-#                     },
-#                 )
+# #                         "speaker_diarization":
+# #                             False,
+# #                     },
+# #                 )
 
-#                 continue
+# #                 continue
 
-#             # =================================================
-#             # STOP RECORDING
-#             # =================================================
+# #             # =================================================
+# #             # STOP RECORDING
+# #             # =================================================
 
-#             if command_type == "stop":
+# #             if command_type == "stop":
 
-#                 if not recording:
+# #                 if not recording:
 
-#                     await send_message(
-#                         websocket,
-#                         {
-#                             "type":
-#                                 "error",
+# #                     await send_message(
+# #                         websocket,
+# #                         {
+# #                             "type":
+# #                                 "error",
 
-#                             "stage":
-#                                 "recording",
+# #                             "stage":
+# #                                 "recording",
 
-#                             "message":
-#                                 "No active recording.",
-#                         },
-#                     )
+# #                             "message":
+# #                                 "No active recording.",
+# #                         },
+# #                     )
 
-#                     continue
+# #                     continue
 
-#                 # ------------------------------------------------
-#                 # IMPORTANT:
-#                 #
-#                 # Stop accepting new audio immediately.
-#                 # The existing audio_buffer remains intact.
-#                 # ------------------------------------------------
+# #                 # ------------------------------------------------
+# #                 # IMPORTANT:
+# #                 #
+# #                 # Stop accepting new audio immediately.
+# #                 # The existing audio_buffer remains intact.
+# #                 # ------------------------------------------------
 
-#                 recording = False
+# #                 recording = False
 
-#                 processing = True
+# #                 processing = True
 
-#                 print()
-#                 print("=" * 70)
-#                 print("RECORDING STOPPED")
-#                 print("=" * 70)
+# #                 print()
+# #                 print("=" * 70)
+# #                 print("RECORDING STOPPED")
+# #                 print("=" * 70)
 
-#                 print(
-#                     "Received audio bytes:",
-#                     len(audio_buffer),
-#                 )
+# #                 print(
+# #                     "Received audio bytes:",
+# #                     len(audio_buffer),
+# #                 )
 
-#                 # ------------------------------------------------
-#                 # Tell frontend that STOP was received
-#                 # ------------------------------------------------
+# #                 # ------------------------------------------------
+# #                 # Tell frontend that STOP was received
+# #                 # ------------------------------------------------
 
-#                 await send_message(
-#                     websocket,
-#                     {
-#                         "type":
-#                             "recording_stopped",
+# #                 await send_message(
+# #                     websocket,
+# #                     {
+# #                         "type":
+# #                             "recording_stopped",
 
-#                         "meeting_id":
-#                             meeting_id,
+# #                         "meeting_id":
+# #                             meeting_id,
 
-#                         "message":
-#                             "Recording stopped. Finalizing audio...",
-#                     },
-#                 )
+# #                         "message":
+# #                             "Recording stopped. Finalizing audio...",
+# #                     },
+# #                 )
 
-#                 # ------------------------------------------------
-#                 # NO AUDIO
-#                 # ------------------------------------------------
+# #                 # ------------------------------------------------
+# #                 # NO AUDIO
+# #                 # ------------------------------------------------
 
-#                 if not audio_buffer:
+# #                 if not audio_buffer:
 
-#                     processing = False
+# #                     processing = False
 
-#                     await send_message(
-#                         websocket,
-#                         {
-#                             "type":
-#                                 "error",
+# #                     await send_message(
+# #                         websocket,
+# #                         {
+# #                             "type":
+# #                                 "error",
 
-#                             "stage":
-#                                 "recording",
+# #                             "stage":
+# #                                 "recording",
 
-#                             "message":
-#                                 "No audio was recorded.",
-#                         },
-#                     )
+# #                             "message":
+# #                                 "No audio was recorded.",
+# #                         },
+# #                     )
 
-#                     continue
+# #                     continue
 
-#                 # ------------------------------------------------
-#                 # SAVE WAV
-#                 # ------------------------------------------------
+# #                 # ------------------------------------------------
+# #                 # SAVE WAV
+# #                 # ------------------------------------------------
 
-#                 audio_path = (
-#                     RECORDINGS_DIR
-#                     / f"{meeting_id}.wav"
-#                 )
+# #                 audio_path = (
+# #                     RECORDINGS_DIR
+# #                     / f"{meeting_id}.wav"
+# #                 )
 
-#                 save_wav(
-#                     bytes(audio_buffer),
-#                     audio_path,
-#                 )
+# #                 save_wav(
+# #                     bytes(audio_buffer),
+# #                     audio_path,
+# #                 )
 
-#                 current_audio_path = (
-#                     audio_path
-#                 )
+# #                 current_audio_path = (
+# #                     audio_path
+# #                 )
 
-#                 current_duration = (
-#                     len(audio_buffer)
-#                     /
-#                     (
-#                         SAMPLE_RATE
-#                         * SAMPLE_WIDTH
-#                     )
-#                 )
+# #                 current_duration = (
+# #                     len(audio_buffer)
+# #                     /
+# #                     (
+# #                         SAMPLE_RATE
+# #                         * SAMPLE_WIDTH
+# #                     )
+# #                 )
 
-#                 print(
-#                     "Saved recording:",
-#                     audio_path,
-#                 )
+# #                 print(
+# #                     "Saved recording:",
+# #                     audio_path,
+# #                 )
 
-#                 print(
-#                     "Duration:",
-#                     round(
-#                         current_duration,
-#                         2,
-#                     ),
-#                     "seconds",
-#                 )
+# #                 print(
+# #                     "Duration:",
+# #                     round(
+# #                         current_duration,
+# #                         2,
+# #                     ),
+# #                     "seconds",
+# #                 )
 
-#                 # ------------------------------------------------
-#                 # PROCESS WITH PARROTLET
-#                 # ------------------------------------------------
+# #                 # ------------------------------------------------
+# #                 # PROCESS WITH PARROTLET
+# #                 # ------------------------------------------------
 
-#                 await process_recording(
-#                     websocket=websocket,
-#                     meeting_id=meeting_id,
-#                     audio_path=audio_path,
-#                     current_duration=current_duration,
-#                 )
+# #                 await process_recording(
+# #                     websocket=websocket,
+# #                     meeting_id=meeting_id,
+# #                     audio_path=audio_path,
+# #                     current_duration=current_duration,
+# #                 )
 
-#                 processing = False
+# #                 processing = False
 
-#                 # ------------------------------------------------
-#                 # CLEAR BUFFER AFTER PROCESSING
-#                 # ------------------------------------------------
+# #                 # ------------------------------------------------
+# #                 # CLEAR BUFFER AFTER PROCESSING
+# #                 # ------------------------------------------------
 
-#                 audio_buffer.clear()
+# #                 audio_buffer.clear()
 
-#                 continue
+# #                 continue
 
-#             # =================================================
-#             # PING
-#             # =================================================
+# #             # =================================================
+# #             # PING
+# #             # =================================================
 
-#             if command_type == "ping":
+# #             if command_type == "ping":
 
-#                 await send_message(
-#                     websocket,
-#                     {
-#                         "type":
-#                             "pong",
-#                     },
-#                 )
+# #                 await send_message(
+# #                     websocket,
+# #                     {
+# #                         "type":
+# #                             "pong",
+# #                     },
+# #                 )
 
-#                 continue
+# #                 continue
 
-#             # =================================================
-#             # UNKNOWN COMMAND
-#             # =================================================
+# #             # =================================================
+# #             # UNKNOWN COMMAND
+# #             # =================================================
 
-#             await send_message(
-#                 websocket,
-#                 {
-#                     "type":
-#                         "error",
+# #             await send_message(
+# #                 websocket,
+# #                 {
+# #                     "type":
+# #                         "error",
 
-#                     "stage":
-#                         "control",
+# #                     "stage":
+# #                         "control",
 
-#                     "message":
-#                         f"Unknown command: {command_type}",
-#                 },
-#             )
+# #                     "message":
+# #                         f"Unknown command: {command_type}",
+# #                 },
+# #             )
 
-#     except WebSocketDisconnect:
+# #     except WebSocketDisconnect:
 
-#         print(
-#             "MeetMind browser disconnected."
-#         )
+# #         print(
+# #             "MeetMind browser disconnected."
+# #         )
 
-#     except Exception as exc:
+# #     except Exception as exc:
 
-#         print()
-#         print("=" * 70)
-#         print("MEETMIND WEBSOCKET ERROR")
-#         print("=" * 70)
+# #         print()
+# #         print("=" * 70)
+# #         print("MEETMIND WEBSOCKET ERROR")
+# #         print("=" * 70)
 
-#         print(
-#             repr(exc)
-#         )
+# #         print(
+# #             repr(exc)
+# #         )
 
-#         print("=" * 70)
+# #         print("=" * 70)
 
-#         try:
+# #         try:
 
-#             await send_message(
-#                 websocket,
-#                 {
-#                     "type":
-#                         "error",
+# #             await send_message(
+# #                 websocket,
+# #                 {
+# #                     "type":
+# #                         "error",
 
-#                     "stage":
-#                         "websocket",
+# #                     "stage":
+# #                         "websocket",
 
-#                     "message":
-#                         str(exc),
-#                 },
-#             )
+# #                     "message":
+# #                         str(exc),
+# #                 },
+# #             )
 
-#         except Exception:
-#             pass
+# #         except Exception:
+# #             pass
 
 
-# # ============================================================
-# # PROCESS RECORDING
-# # ============================================================
+# # # ============================================================
+# # # PROCESS RECORDING
+# # # ============================================================
 
-# async def process_recording(
-#     websocket: WebSocket,
-#     meeting_id: str,
-#     audio_path: Path,
-#     current_duration: float,
-# ):
+# # async def process_recording(
+# #     websocket: WebSocket,
+# #     meeting_id: str,
+# #     audio_path: Path,
+# #     current_duration: float,
+# # ):
 
-#     print()
-#     print("=" * 70)
-#     print("PROCESSING RECORDING")
-#     print("=" * 70)
+# #     print()
+# #     print("=" * 70)
+# #     print("PROCESSING RECORDING")
+# #     print("=" * 70)
 
-#     print(
-#         "Audio:",
-#         audio_path,
-#     )
+# #     print(
+# #         "Audio:",
+# #         audio_path,
+# #     )
 
-#     print(
-#         "Duration:",
-#         round(
-#             current_duration,
-#             2,
-#         ),
-#         "seconds",
-#     )
+# #     print(
+# #         "Duration:",
+# #         round(
+# #             current_duration,
+# #             2,
+# #         ),
+# #         "seconds",
+# #     )
 
-#     # --------------------------------------------------------
-#     # TELL FRONTEND TRANSCRIPTION STARTED
-#     # --------------------------------------------------------
+# #     # --------------------------------------------------------
+# #     # TELL FRONTEND TRANSCRIPTION STARTED
+# #     # --------------------------------------------------------
 
-#     await send_message(
-#         websocket,
-#         {
-#             "type":
-#                 "processing_started",
+# #     await send_message(
+# #         websocket,
+# #         {
+# #             "type":
+# #                 "processing_started",
 
-#             "stage":
-#                 "transcription",
+# #             "stage":
+# #                 "transcription",
 
-#             "meeting_id":
-#                 meeting_id,
+# #             "meeting_id":
+# #                 meeting_id,
 
-#             "message":
-#                 "Recording complete. Transcribing with Parrotlet...",
-#         },
-#     )
+# #             "message":
+# #                 "Recording complete. Transcribing with Parrotlet...",
+# #         },
+# #     )
 
-#     # --------------------------------------------------------
-#     # PARROTLET
-#     # --------------------------------------------------------
+# #     # --------------------------------------------------------
+# #     # PARROTLET
+# #     # --------------------------------------------------------
 
-#     try:
+# #     try:
 
-#         transcription = (
-#             await asyncio.to_thread(
-#                 transcribe_audio,
-#                 str(audio_path),
-#             )
-#         )
+# #         transcription = (
+# #             await asyncio.to_thread(
+# #                 transcribe_audio,
+# #                 str(audio_path),
+# #             )
+# #         )
 
-#     except Exception as exc:
+# #     except Exception as exc:
 
-#         print()
-#         print("=" * 70)
-#         print("PARROTLET TRANSCRIPTION ERROR")
-#         print("=" * 70)
+# #         print()
+# #         print("=" * 70)
+# #         print("PARROTLET TRANSCRIPTION ERROR")
+# #         print("=" * 70)
 
-#         print(
-#             repr(exc)
-#         )
+# #         print(
+# #             repr(exc)
+# #         )
 
-#         print("=" * 70)
+# #         print("=" * 70)
 
-#         await send_message(
-#             websocket,
-#             {
-#                 "type":
-#                     "error",
+# #         await send_message(
+# #             websocket,
+# #             {
+# #                 "type":
+# #                     "error",
 
-#                 "stage":
-#                     "transcription",
+# #                 "stage":
+# #                     "transcription",
 
-#                 "meeting_id":
-#                     meeting_id,
+# #                 "meeting_id":
+# #                     meeting_id,
 
-#                 "message":
-#                     str(exc),
-#             },
-#         )
+# #                 "message":
+# #                     str(exc),
+# #             },
+# #         )
 
-#         return
+# #         return
 
-#     # --------------------------------------------------------
-#     # GET TRANSCRIPT
-#     # --------------------------------------------------------
+# #     # --------------------------------------------------------
+# #     # GET TRANSCRIPT
+# #     # --------------------------------------------------------
 
-#     transcript_text = (
-#         transcription.get(
-#             "text",
-#             "",
-#         )
-#         or ""
-#     ).strip()
+# #     transcript_text = (
+# #         transcription.get(
+# #             "text",
+# #             "",
+# #         )
+# #         or ""
+# #     ).strip()
 
-#     print()
-#     print("=" * 70)
-#     print("PARROTLET TRANSCRIPTION COMPLETE")
-#     print("=" * 70)
+# #     print()
+# #     print("=" * 70)
+# #     print("PARROTLET TRANSCRIPTION COMPLETE")
+# #     print("=" * 70)
 
-#     print(
-#         transcript_text
-#     )
+# #     print(
+# #         transcript_text
+# #     )
 
-#     print("=" * 70)
+# #     print("=" * 70)
 
-#     # --------------------------------------------------------
-#     # SEND FINAL TRANSCRIPT
-#     # --------------------------------------------------------
+# #     # --------------------------------------------------------
+# #     # SEND FINAL TRANSCRIPT
+# #     # --------------------------------------------------------
 
-#     await send_message(
-#         websocket,
-#         {
-#             "type":
-#                 "final_transcript",
+# #     await send_message(
+# #         websocket,
+# #         {
+# #             "type":
+# #                 "final_transcript",
 
-#             "meeting_id":
-#                 meeting_id,
+# #             "meeting_id":
+# #                 meeting_id,
 
-#             "transcript":
-#                 transcript_text,
+# #             "transcript":
+# #                 transcript_text,
 
-#             "segments":
-#                 transcription.get(
-#                     "segments",
-#                     [],
-#                 ),
+# #             "segments":
+# #                 transcription.get(
+# #                     "segments",
+# #                     [],
+# #                 ),
 
-#             "duration":
-#                 transcription.get(
-#                     "duration",
-#                     current_duration,
-#                 ),
+# #             "duration":
+# #                 transcription.get(
+# #                     "duration",
+# #                     current_duration,
+# #                 ),
 
-#             "speech_model":
-#                 MODEL_NAME,
+# #             "speech_model":
+# #                 MODEL_NAME,
 
-#             "speaker_diarization":
-#                 False,
+# #             "speaker_diarization":
+# #                 False,
 
-#             "final":
-#                 True,
-#         },
-#     )
+# #             "final":
+# #                 True,
+# #         },
+# #     )
 
-#     # --------------------------------------------------------
-#     # TRANSCRIPT READY
-#     # --------------------------------------------------------
+# #     # --------------------------------------------------------
+# #     # TRANSCRIPT READY
+# #     # --------------------------------------------------------
 
-#     await send_message(
-#         websocket,
-#         {
-#             "type":
-#                 "transcript_ready",
+# #     await send_message(
+# #         websocket,
+# #         {
+# #             "type":
+# #                 "transcript_ready",
 
-#             "meeting_id":
-#                 meeting_id,
+# #             "meeting_id":
+# #                 meeting_id,
 
-#             "message":
-#                 (
-#                     "Transcript complete. "
-#                     "You can now create the meeting summary."
-#                     if transcript_text
-#                     else
-#                     "Transcription completed, but no text was detected."
-#                 ),
+# #             "message":
+# #                 (
+# #                     "Transcript complete. "
+# #                     "You can now create the meeting summary."
+# #                     if transcript_text
+# #                     else
+# #                     "Transcription completed, but no text was detected."
+# #                 ),
 
-#             "can_create_summary":
-#                 bool(transcript_text),
-#         },
-#     )
+# #             "can_create_summary":
+# #                 bool(transcript_text),
+# #         },
+# #     )
 
-#     print()
-#     print("=" * 70)
-#     print("TRANSCRIPT READY")
-#     print("=" * 70)
+# #     print()
+# #     print("=" * 70)
+# #     print("TRANSCRIPT READY")
+# #     print("=" * 70)
 
-#     print(
-#         transcript_text
-#     )
+# #     print(
+# #         transcript_text
+# #     )
 
-#     print("=" * 70)
-# old code
+# #     print("=" * 70)
+# # old code
 
 
 """
@@ -1810,3 +1810,1009 @@ async def process_recording(
     )
 
     print("=" * 70)
+
+
+# """
+# MeetMind - Record-then-process WebSocket
+
+# Flow:
+
+# Browser microphone
+#     |
+#     v
+# PCM16 mono 16 kHz
+#     |
+#     v
+# FastAPI WebSocket
+#     |
+#     v
+# Complete WAV recording
+#     |
+#     v
+# Parrotlet-A 2.5 Pro
+#     |
+#     v
+# Complete transcript
+#     |
+#     v
+# Frontend displays transcript
+
+# Recording continues until the user clicks "Stop Recording".
+
+# Speaker diarization: DISABLED
+# Recording duration: NO AUTOMATIC LIMIT
+# """
+
+# import asyncio
+# import json
+# import uuid
+# import wave
+# from pathlib import Path
+# import logging
+# import sys
+
+# logger = logging.getLogger("meetmind.websocket")
+
+
+# # Windows services may use a legacy console encoding (for example cp1252),
+# # which cannot encode Tamil transcript characters. Configure console streams
+# # to escape unsupported characters instead of raising UnicodeEncodeError.
+# for _stream in (sys.stdout, sys.stderr):
+#     try:
+#         _stream.reconfigure(errors="backslashreplace")
+#     except (AttributeError, OSError, ValueError):
+#         pass
+
+
+# def safe_print(*args, **kwargs):
+#     """Print diagnostics without allowing console encoding to break processing."""
+#     try:
+#         print(*args, **kwargs)
+#     except (UnicodeEncodeError, OSError):
+#         safe_args = []
+#         for value in args:
+#             text_value = str(value)
+#             safe_args.append(
+#                 text_value.encode("ascii", errors="backslashreplace").decode("ascii")
+#             )
+#         try:
+#             print(*safe_args, **kwargs)
+#         except (UnicodeEncodeError, OSError):
+#             # Logging must never interrupt recording or transcript delivery.
+#             pass
+
+
+# from fastapi import WebSocket, WebSocketDisconnect
+
+# from parrotlet_transcriber_gpu import (
+#     MODEL_NAME,
+#     SAMPLE_RATE,
+#     transcribe_audio,
+# )
+
+
+# # ============================================================
+# # PATHS
+# # ============================================================
+
+# BASE_DIR = Path(__file__).resolve().parent
+
+# RECORDINGS_DIR = BASE_DIR / "recordings"
+
+# RECORDINGS_DIR.mkdir(
+#     parents=True,
+#     exist_ok=True,
+# )
+
+
+# # ============================================================
+# # AUDIO CONFIGURATION
+# # ============================================================
+
+# CHANNELS = 1
+
+# # PCM16 = 2 bytes/sample
+# SAMPLE_WIDTH = 2
+
+
+# # ============================================================
+# # SEND JSON MESSAGE
+# # ============================================================
+
+# async def send_message(
+#     websocket: WebSocket,
+#     payload: dict,
+# ):
+#     await websocket.send_text(
+#         json.dumps(
+#             payload,
+#             ensure_ascii=False,
+#         )
+#     )
+
+
+# # ============================================================
+# # SAVE WAV
+# # ============================================================
+
+# def save_wav(
+#     audio_data: bytes,
+#     output_path: Path,
+# ):
+#     with wave.open(
+#         str(output_path),
+#         "wb",
+#     ) as wav:
+
+#         wav.setnchannels(
+#             CHANNELS
+#         )
+
+#         wav.setsampwidth(
+#             SAMPLE_WIDTH
+#         )
+
+#         wav.setframerate(
+#             SAMPLE_RATE
+#         )
+
+#         wav.writeframes(
+#             audio_data
+#         )
+
+
+# # ============================================================
+# # WEBSOCKET
+# # ============================================================
+
+# async def meeting_websocket(
+#     websocket: WebSocket,
+#     persist=None,
+# ):
+#     """
+#     `persist`, when given, is awaited once a recording is transcribed:
+#     persist(template=..., audio_path=..., transcript=..., duration=...).
+#     It saves the recording to the user's history (app.py's
+#     _store_recording) and returns the ids it was saved under, which are
+#     sent along with the final transcript.
+#     """
+
+#     await websocket.accept()
+
+#     # --------------------------------------------------------
+#     # SESSION STATE
+#     # --------------------------------------------------------
+
+#     meeting_id = str(
+#         uuid.uuid4()
+#     )
+
+#     # Which template the recording was started in ("meeting", "doctor"
+#     # or "interview"); decides where persist() saves it.
+#     current_template = "meeting"
+
+#     audio_buffer = bytearray()
+
+#     recording = False
+
+#     processing = False
+
+#     transcript_available = False
+
+#     current_transcript = ""
+
+#     current_audio_path = None
+
+#     current_duration = 0.0
+
+#     async def process_recording_in_background(
+#         *,
+#         job_meeting_id: str,
+#         job_audio_path: Path,
+#         job_duration: float,
+#         job_template: str,
+#     ):
+#         """Transcribe without blocking the WebSocket receive loop.
+
+#         Keeping the receive loop alive lets browser ping/pong and control
+#         messages continue while Parrotlet is running, which is important
+#         for mobile browsers and slower network connections.
+#         """
+#         nonlocal processing
+
+#         try:
+#             await process_recording(
+#                 websocket=websocket,
+#                 meeting_id=job_meeting_id,
+#                 audio_path=job_audio_path,
+#                 current_duration=job_duration,
+#                 template=job_template,
+#                 persist=persist,
+#             )
+#         except Exception:
+#             logger.exception(
+#                 "Background transcription failed for meeting %s",
+#                 job_meeting_id,
+#             )
+#             try:
+#                 await send_message(
+#                     websocket,
+#                     {
+#                         "type": "error",
+#                         "stage": "transcription",
+#                         "meeting_id": job_meeting_id,
+#                         "message": (
+#                             "Transcription could not be completed. "
+#                             "Please try again; your saved audio file is retained."
+#                         ),
+#                     },
+#                 )
+#             except Exception:
+#                 logger.warning(
+#                     "Could not notify browser about transcription failure."
+#                 )
+#         finally:
+#             processing = False
+#             audio_buffer.clear()
+
+#     print()
+#     print("=" * 70)
+#     print("VIDATHA - MEETING WEBSOCKET")
+#     print("=" * 70)
+
+#     print(
+#         "Meeting ID:",
+#         meeting_id,
+#     )
+
+#     print(
+#         "ASR:",
+#         MODEL_NAME,
+#     )
+
+#     print(
+#         "Audio:",
+#         f"PCM16 mono {SAMPLE_RATE} Hz",
+#     )
+
+#     print(
+#         "Recording limit: NONE"
+#     )
+
+#     print(
+#         "Recording stops only when the user sends STOP."
+#     )
+
+#     print(
+#         "Speaker diarization: DISABLED"
+#     )
+
+#     print("=" * 70)
+
+#     try:
+
+#         # ====================================================
+#         # CONNECTION CONFIRMATION
+#         # ====================================================
+
+#         await send_message(
+#             websocket,
+#             {
+#                 "type": "connected",
+
+#                 "meeting_id":
+#                     meeting_id,
+
+#                 "speech_model":
+#                     MODEL_NAME,
+
+#                 "sample_rate":
+#                     SAMPLE_RATE,
+
+#                 "speaker_diarization":
+#                     False,
+
+#                 "recording_limit":
+#                     None,
+
+#                 "message":
+#                     "WebSocket connected. Recording has no automatic time limit.",
+#             },
+#         )
+
+#         # ====================================================
+#         # MAIN LOOP
+#         # ====================================================
+
+#         while True:
+
+#             message = await websocket.receive()
+
+#             # =================================================
+#             # BROWSER DISCONNECTED
+#             # =================================================
+
+#             if (
+#                 message.get("type")
+#                 == "websocket.disconnect"
+#             ):
+
+#                 print(
+#                     "Browser disconnected."
+#                 )
+
+#                 break
+
+#             # =================================================
+#             # BINARY AUDIO
+#             # =================================================
+
+#             audio_bytes = message.get("bytes")
+
+#             if audio_bytes is not None:
+
+#                 if recording and not processing:
+
+#                     # Every audio packet is accepted
+#                     # while recording.
+#                     #
+#                     # Recording ends only when
+#                     # the STOP command arrives.
+
+#                     audio_buffer.extend(
+#                         audio_bytes
+#                     )
+
+#                 continue
+
+#             # =================================================
+#             # TEXT COMMAND
+#             # =================================================
+
+#             text_message = message.get("text")
+
+#             if text_message is None:
+#                 continue
+
+#             try:
+
+#                 command = json.loads(
+#                     text_message
+#                 )
+
+#             except json.JSONDecodeError:
+
+#                 await send_message(
+#                     websocket,
+#                     {
+#                         "type":
+#                             "error",
+
+#                         "stage":
+#                             "control",
+
+#                         "message":
+#                             "Invalid JSON control message.",
+#                     },
+#                 )
+
+#                 continue
+
+#             command_type = command.get(
+#                 "command"
+#             )
+
+#             # =================================================
+#             # START RECORDING
+#             # =================================================
+
+#             if command_type == "start":
+
+#                 if recording:
+
+#                     await send_message(
+#                         websocket,
+#                         {
+#                             "type":
+#                                 "error",
+
+#                             "stage":
+#                                 "recording",
+
+#                             "message":
+#                                 "Recording is already active.",
+#                         },
+#                     )
+
+#                     continue
+
+#                 if processing:
+
+#                     await send_message(
+#                         websocket,
+#                         {
+#                             "type":
+#                                 "error",
+
+#                             "stage":
+#                                 "processing",
+
+#                             "message":
+#                                 "Previous recording is still being processed.",
+#                         },
+#                     )
+
+#                     continue
+
+#                 # ------------------------------------------------
+#                 # NEW RECORDING
+#                 # ------------------------------------------------
+
+#                 meeting_id = str(
+#                     uuid.uuid4()
+#                 )
+
+#                 current_template = (
+#                     command.get("template")
+#                     if command.get("template") in ("doctor", "interview")
+#                     else "meeting"
+#                 )
+
+#                 audio_buffer.clear()
+
+#                 current_transcript = ""
+
+#                 current_audio_path = None
+
+#                 current_duration = 0.0
+
+#                 transcript_available = False
+
+#                 recording = True
+
+#                 processing = False
+
+#                 print()
+#                 print("=" * 70)
+#                 print("RECORDING STARTED")
+#                 print("=" * 70)
+
+#                 print(
+#                     "Meeting ID:",
+#                     meeting_id,
+#                 )
+
+#                 print(
+#                     "Recording limit: NONE"
+#                 )
+
+#                 print(
+#                     "Waiting for STOP command..."
+#                 )
+
+#                 print("=" * 70)
+
+#                 await send_message(
+#                     websocket,
+#                     {
+#                         "type":
+#                             "recording_started",
+
+#                         "meeting_id":
+#                             meeting_id,
+
+#                         "recording_limit":
+#                             None,
+
+#                         "speaker_diarization":
+#                             False,
+
+#                         "message":
+#                             "Recording started. It will continue until you click Stop.",
+#                     },
+#                 )
+
+#                 continue
+
+#             # =================================================
+#             # STOP RECORDING
+#             # =================================================
+
+#             if command_type == "stop":
+
+#                 if not recording:
+
+#                     await send_message(
+#                         websocket,
+#                         {
+#                             "type":
+#                                 "error",
+
+#                             "stage":
+#                                 "recording",
+
+#                             "message":
+#                                 "No active recording.",
+#                         },
+#                     )
+
+#                     continue
+
+#                 # ------------------------------------------------
+#                 # Stop accepting new audio immediately.
+#                 #
+#                 # The complete audio_buffer accumulated since
+#                 # START is preserved and processed by Parrotlet.
+#                 # ------------------------------------------------
+
+#                 recording = False
+
+#                 processing = True
+
+#                 print()
+#                 print("=" * 70)
+#                 print("RECORDING STOPPED BY USER")
+#                 print("=" * 70)
+
+#                 print(
+#                     "Received audio bytes:",
+#                     len(audio_buffer),
+#                 )
+
+#                 # ------------------------------------------------
+#                 # Tell frontend that STOP was received
+#                 # ------------------------------------------------
+
+#                 await send_message(
+#                     websocket,
+#                     {
+#                         "type":
+#                             "recording_stopped",
+
+#                         "meeting_id":
+#                             meeting_id,
+
+#                         "message":
+#                             "Recording stopped. Finalizing audio and starting Parrotlet transcription...",
+#                     },
+#                 )
+
+#                 # ------------------------------------------------
+#                 # NO AUDIO
+#                 # ------------------------------------------------
+
+#                 if not audio_buffer:
+
+#                     processing = False
+
+#                     await send_message(
+#                         websocket,
+#                         {
+#                             "type":
+#                                 "error",
+
+#                             "stage":
+#                                 "recording",
+
+#                             "message":
+#                                 "No audio was recorded.",
+#                         },
+#                     )
+
+#                     continue
+
+#                 # ------------------------------------------------
+#                 # SAVE WAV
+#                 # ------------------------------------------------
+
+#                 audio_path = (
+#                     RECORDINGS_DIR
+#                     / f"{meeting_id}.wav"
+#                 )
+
+#                 save_wav(
+#                     bytes(audio_buffer),
+#                     audio_path,
+#                 )
+
+#                 current_audio_path = (
+#                     audio_path
+#                 )
+
+#                 current_duration = (
+#                     len(audio_buffer)
+#                     /
+#                     (
+#                         SAMPLE_RATE
+#                         *
+#                         SAMPLE_WIDTH
+#                     )
+#                 )
+
+#                 print(
+#                     "Saved recording:",
+#                     audio_path,
+#                 )
+
+#                 print(
+#                     "Duration:",
+#                     round(
+#                         current_duration,
+#                         2,
+#                     ),
+#                     "seconds",
+#                 )
+
+#                 # ------------------------------------------------
+#                 # PROCESS WITH PARROTLET
+#                 # ------------------------------------------------
+
+#                 # Run transcription in the background so this handler
+#                 # continues receiving ping messages while Parrotlet works.
+#                 # Keep processing=True until the background task finishes.
+#                 asyncio.create_task(
+#                     process_recording_in_background(
+#                         job_meeting_id=meeting_id,
+#                         job_audio_path=audio_path,
+#                         job_duration=current_duration,
+#                         job_template=current_template,
+#                     )
+#                 )
+
+#                 continue
+
+#             # =================================================
+#             # CANCEL RECORDING
+#             # =================================================
+
+#             if command_type == "cancel":
+
+#                 # The user discarded the recording: drop the audio
+#                 # without transcribing or saving it. No reply — the
+#                 # browser closes this socket right after sending it.
+#                 # A cancel can't arrive mid-processing (the recording
+#                 # is processed inline above), so only an active
+#                 # recording is affected.
+
+#                 if recording:
+
+#                     recording = False
+
+#                     audio_buffer.clear()
+
+#                     print()
+#                     print("=" * 70)
+#                     print("RECORDING CANCELLED BY USER")
+#                     print("=" * 70)
+
+#                     print(
+#                         "Meeting ID:",
+#                         meeting_id,
+#                     )
+
+#                     print(
+#                         "Audio discarded. Nothing transcribed or saved."
+#                     )
+
+#                     print("=" * 70)
+
+#                 continue
+
+#             # =================================================
+#             # PING
+#             # =================================================
+
+#             if command_type == "ping":
+
+#                 await send_message(
+#                     websocket,
+#                     {
+#                         "type":
+#                             "pong",
+#                     },
+#                 )
+
+#                 continue
+
+#             # =================================================
+#             # UNKNOWN COMMAND
+#             # =================================================
+
+#             await send_message(
+#                 websocket,
+#                 {
+#                     "type":
+#                         "error",
+
+#                     "stage":
+#                         "control",
+
+#                     "message":
+#                         f"Unknown command: {command_type}",
+#                 },
+#             )
+
+#     except WebSocketDisconnect:
+
+#         print(
+#             "Vidatha browser disconnected."
+#         )
+
+#     except Exception as exc:
+
+#         print()
+#         print("=" * 70)
+#         print("VIDATHA WEBSOCKET ERROR")
+#         print("=" * 70)
+
+#         print(
+#             repr(exc)
+#         )
+
+#         print("=" * 70)
+
+#         try:
+
+#             await send_message(
+#                 websocket,
+#                 {
+#                     "type":
+#                         "error",
+
+#                     "stage":
+#                         "websocket",
+
+#                     "message":
+#                         str(exc),
+#                 },
+#             )
+
+#         except Exception:
+#             pass
+
+
+# # ============================================================
+# # PROCESS RECORDING
+# # ============================================================
+
+# async def process_recording(
+#     websocket: WebSocket,
+#     meeting_id: str,
+#     audio_path: Path,
+#     current_duration: float,
+#     template: str = "meeting",
+#     persist=None,
+# ):
+
+#     print()
+#     print("=" * 70)
+#     print("PROCESSING RECORDING")
+#     print("=" * 70)
+
+#     print(
+#         "Audio:",
+#         audio_path,
+#     )
+
+#     print(
+#         "Duration:",
+#         round(
+#             current_duration,
+#             2,
+#         ),
+#         "seconds",
+#     )
+
+#     # --------------------------------------------------------
+#     # TELL FRONTEND TRANSCRIPTION STARTED
+#     # --------------------------------------------------------
+
+#     await send_message(
+#         websocket,
+#         {
+#             "type":
+#                 "processing_started",
+
+#             "stage":
+#                 "transcription",
+
+#             "meeting_id":
+#                 meeting_id,
+
+#             "message":
+#                 "Recording complete. Transcribing with Parrotlet...",
+#         },
+#     )
+
+#     # --------------------------------------------------------
+#     # PARROTLET
+#     # --------------------------------------------------------
+
+#     try:
+
+#         transcription = (
+#             await asyncio.to_thread(
+#                 transcribe_audio,
+#                 str(audio_path),
+#             )
+#         )
+
+#     except Exception as exc:
+
+#         print()
+#         print("=" * 70)
+#         print("PARROTLET TRANSCRIPTION ERROR")
+#         print("=" * 70)
+
+#         print(
+#             repr(exc)
+#         )
+
+#         print("=" * 70)
+
+#         await send_message(
+#             websocket,
+#             {
+#                 "type":
+#                     "error",
+
+#                 "stage":
+#                     "transcription",
+
+#                 "meeting_id":
+#                     meeting_id,
+
+#                 "message":
+#                     str(exc),
+#             },
+#         )
+
+#         return
+
+#     # --------------------------------------------------------
+#     # GET TRANSCRIPT
+#     # --------------------------------------------------------
+
+#     transcript_text = (
+#         transcription.get(
+#             "text",
+#             "",
+#         )
+#         or ""
+#     ).strip()
+
+#     print()
+#     print("=" * 70)
+#     print("PARROTLET TRANSCRIPTION COMPLETE")
+#     print("=" * 70)
+
+#     safe_print(transcript_text)
+
+#     print("=" * 70)
+
+#     duration = transcription.get(
+#         "duration",
+#         current_duration,
+#     )
+
+#     # --------------------------------------------------------
+#     # SAVE TO HISTORY (transcript + recording, see app.py)
+#     # --------------------------------------------------------
+
+#     saved = {}
+
+#     if persist is not None:
+
+#         try:
+
+#             saved = await persist(
+#                 template=template,
+#                 audio_path=audio_path,
+#                 transcript=transcript_text,
+#                 duration=duration,
+#             ) or {}
+
+#         except Exception:
+
+#             logger.exception(
+#                 "Could not save the live recording to history."
+#             )
+
+#     # --------------------------------------------------------
+#     # SEND FINAL TRANSCRIPT
+#     # --------------------------------------------------------
+
+#     await send_message(
+#         websocket,
+#         {
+#             "type":
+#                 "final_transcript",
+
+#             "meeting_id":
+#                 meeting_id,
+
+#             "transcript":
+#                 transcript_text,
+
+#             "segments":
+#                 transcription.get(
+#                     "segments",
+#                     [],
+#                 ),
+
+#             "duration":
+#                 duration,
+
+#             "speech_model":
+#                 MODEL_NAME,
+
+#             "speaker_diarization":
+#                 False,
+
+#             "final":
+#                 True,
+
+#             # Where the recording was saved. `meeting_id` above is this
+#             # socket's own recording id, not a database id.
+#             "template":
+#                 template,
+
+#             "saved_meeting_id":
+#                 saved.get("meeting_id"),
+
+#             "consultation_id":
+#                 saved.get("consultation_id"),
+
+#             "interview_id":
+#                 saved.get("interview_id"),
+
+#             "has_audio":
+#                 bool(saved.get("has_audio")),
+#         },
+#     )
+
+#     # --------------------------------------------------------
+#     # TRANSCRIPT READY
+#     # --------------------------------------------------------
+
+#     await send_message(
+#         websocket,
+#         {
+#             "type":
+#                 "transcript_ready",
+
+#             "meeting_id":
+#                 meeting_id,
+
+#             "message":
+#                 (
+#                     (
+#                         "Transcript complete. "
+#                         "You can now generate the prescription."
+#                         if template == "doctor"
+#                         else
+#                         "Transcript complete. "
+#                         "You can now evaluate the interview."
+#                         if template == "interview"
+#                         else
+#                         "Transcript complete. "
+#                         "You can now create the meeting summary."
+#                     )
+#                     if transcript_text
+#                     else
+#                     "Transcription completed, but no text was detected."
+#                 ),
+
+#             "can_create_summary":
+#                 bool(transcript_text),
+#         },
+#     )
+
+#     print()
+#     print("=" * 70)
+#     print("TRANSCRIPT READY")
+#     print("=" * 70)
+
+#     safe_print(transcript_text)
+
+#     print("=" * 70)
