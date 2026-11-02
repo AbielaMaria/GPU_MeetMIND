@@ -65,3 +65,5 @@ probe_endpoints.py
 probe_output.txt
 probe_real_meeting.py
 probe_real_output.txt
+
+/VidathaService.exe
