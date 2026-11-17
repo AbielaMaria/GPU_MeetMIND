@@ -878,7 +878,7 @@
 
 
 """
-MeetMind - Record-then-process WebSocket
+Vidatha - Record-then-process WebSocket
 
 Flow:
 
@@ -908,6 +908,7 @@ Speaker diarization: DISABLED
 Recording duration: NO AUTOMATIC LIMIT
 """
 
+import sys
 import asyncio
 import json
 import uuid
@@ -916,6 +917,13 @@ from pathlib import Path
 import logging
 
 logger = logging.getLogger("meetmind.websocket")
+
+# Prevent Windows console encoding errors from interrupting processing.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(errors="backslashreplace")
+
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(errors="backslashreplace")
 
 from fastapi import WebSocket, WebSocketDisconnect
 
@@ -1007,9 +1015,10 @@ async def meeting_websocket(
     """
     `persist`, when given, is awaited once a recording is transcribed:
     persist(template=..., audio_path=..., transcript=..., duration=...).
+
     It saves the recording to the user's history (app.py's
-    _store_recording) and returns the ids it was saved under, which are
-    sent along with the final transcript.
+    _store_recording) and returns the ids it was saved under,
+    which are sent along with the final transcript.
     """
 
     await websocket.accept()
@@ -1022,8 +1031,8 @@ async def meeting_websocket(
         uuid.uuid4()
     )
 
-    # Which template the recording was started in ("meeting", "doctor"
-    # or "interview"); decides where persist() saves it.
+    # Which template the recording was started in.
+    # Supported templates: meeting, doctor, interview.
     current_template = "meeting"
 
     audio_buffer = bytearray()
@@ -1085,20 +1094,15 @@ async def meeting_websocket(
             {
                 "type": "connected",
 
-                "meeting_id":
-                    meeting_id,
+                "meeting_id": meeting_id,
 
-                "speech_model":
-                    MODEL_NAME,
+                "speech_model": MODEL_NAME,
 
-                "sample_rate":
-                    SAMPLE_RATE,
+                "sample_rate": SAMPLE_RATE,
 
-                "speaker_diarization":
-                    False,
+                "speaker_diarization": False,
 
-                "recording_limit":
-                    None,
+                "recording_limit": None,
 
                 "message":
                     "WebSocket connected. Recording has no automatic time limit.",
@@ -1170,11 +1174,9 @@ async def meeting_websocket(
                 await send_message(
                     websocket,
                     {
-                        "type":
-                            "error",
+                        "type": "error",
 
-                        "stage":
-                            "control",
+                        "stage": "control",
 
                         "message":
                             "Invalid JSON control message.",
@@ -1198,11 +1200,9 @@ async def meeting_websocket(
                     await send_message(
                         websocket,
                         {
-                            "type":
-                                "error",
+                            "type": "error",
 
-                            "stage":
-                                "recording",
+                            "stage": "recording",
 
                             "message":
                                 "Recording is already active.",
@@ -1216,11 +1216,9 @@ async def meeting_websocket(
                     await send_message(
                         websocket,
                         {
-                            "type":
-                                "error",
+                            "type": "error",
 
-                            "stage":
-                                "processing",
+                            "stage": "processing",
 
                             "message":
                                 "Previous recording is still being processed.",
@@ -1239,7 +1237,10 @@ async def meeting_websocket(
 
                 current_template = (
                     command.get("template")
-                    if command.get("template") in ("doctor", "interview")
+                    if command.get("template") in (
+                        "doctor",
+                        "interview",
+                    )
                     else "meeting"
                 )
 
@@ -1280,17 +1281,13 @@ async def meeting_websocket(
                 await send_message(
                     websocket,
                     {
-                        "type":
-                            "recording_started",
+                        "type": "recording_started",
 
-                        "meeting_id":
-                            meeting_id,
+                        "meeting_id": meeting_id,
 
-                        "recording_limit":
-                            None,
+                        "recording_limit": None,
 
-                        "speaker_diarization":
-                            False,
+                        "speaker_diarization": False,
 
                         "message":
                             "Recording started. It will continue until you click Stop.",
@@ -1310,11 +1307,9 @@ async def meeting_websocket(
                     await send_message(
                         websocket,
                         {
-                            "type":
-                                "error",
+                            "type": "error",
 
-                            "stage":
-                                "recording",
+                            "stage": "recording",
 
                             "message":
                                 "No active recording.",
@@ -1351,11 +1346,9 @@ async def meeting_websocket(
                 await send_message(
                     websocket,
                     {
-                        "type":
-                            "recording_stopped",
+                        "type": "recording_stopped",
 
-                        "meeting_id":
-                            meeting_id,
+                        "meeting_id": meeting_id,
 
                         "message":
                             "Recording stopped. Finalizing audio and starting Parrotlet transcription...",
@@ -1373,11 +1366,9 @@ async def meeting_websocket(
                     await send_message(
                         websocket,
                         {
-                            "type":
-                                "error",
+                            "type": "error",
 
-                            "stage":
-                                "recording",
+                            "stage": "recording",
 
                             "message":
                                 "No audio was recorded.",
@@ -1457,12 +1448,8 @@ async def meeting_websocket(
 
             if command_type == "cancel":
 
-                # The user discarded the recording: drop the audio
-                # without transcribing or saving it. No reply — the
-                # browser closes this socket right after sending it.
-                # A cancel can't arrive mid-processing (the recording
-                # is processed inline above), so only an active
-                # recording is affected.
+                # The user discarded the recording.
+                # Drop the audio without transcribing or saving it.
 
                 if recording:
 
@@ -1497,8 +1484,7 @@ async def meeting_websocket(
                 await send_message(
                     websocket,
                     {
-                        "type":
-                            "pong",
+                        "type": "pong",
                     },
                 )
 
@@ -1511,54 +1497,52 @@ async def meeting_websocket(
             await send_message(
                 websocket,
                 {
-                    "type":
-                        "error",
+                    "type": "error",
 
-                    "stage":
-                        "control",
+                    "stage": "control",
 
                     "message":
                         f"Unknown command: {command_type}",
                 },
             )
 
+    # ========================================================
+    # WEBSOCKET EXCEPTION HANDLING
+    # These handlers must be outside the while loop.
+    # ========================================================
+
     except WebSocketDisconnect:
 
-        print(
-            "Vidatha browser disconnected."
+        logger.info(
+            "Vidatha browser disconnected. Meeting ID: %s",
+            meeting_id,
         )
 
     except Exception as exc:
 
-        print()
-        print("=" * 70)
-        print("VIDATHA WEBSOCKET ERROR")
-        print("=" * 70)
-
-        print(
-            repr(exc)
+        logger.exception(
+            "VIDATHA WEBSOCKET ERROR | Meeting ID: %s",
+            meeting_id,
         )
-
-        print("=" * 70)
 
         try:
 
             await send_message(
                 websocket,
                 {
-                    "type":
-                        "error",
+                    "type": "error",
 
-                    "stage":
-                        "websocket",
+                    "stage": "websocket",
 
-                    "message":
-                        str(exc),
+                    "message": str(exc),
                 },
             )
 
         except Exception:
-            pass
+
+            logger.exception(
+                "Could not send WebSocket error to frontend."
+            )
 
 
 # ============================================================
@@ -1600,14 +1584,11 @@ async def process_recording(
     await send_message(
         websocket,
         {
-            "type":
-                "processing_started",
+            "type": "processing_started",
 
-            "stage":
-                "transcription",
+            "stage": "transcription",
 
-            "meeting_id":
-                meeting_id,
+            "meeting_id": meeting_id,
 
             "message":
                 "Recording complete. Transcribing with Parrotlet...",
@@ -1629,31 +1610,21 @@ async def process_recording(
 
     except Exception as exc:
 
-        print()
-        print("=" * 70)
-        print("PARROTLET TRANSCRIPTION ERROR")
-        print("=" * 70)
-
-        print(
-            repr(exc)
+        logger.exception(
+            "PARROTLET TRANSCRIPTION ERROR | Meeting ID: %s",
+            meeting_id,
         )
-
-        print("=" * 70)
 
         await send_message(
             websocket,
             {
-                "type":
-                    "error",
+                "type": "error",
 
-                "stage":
-                    "transcription",
+                "stage": "transcription",
 
-                "meeting_id":
-                    meeting_id,
+                "meeting_id": meeting_id,
 
-                "message":
-                    str(exc),
+                "message": str(exc),
             },
         )
 
@@ -1688,7 +1659,7 @@ async def process_recording(
     )
 
     # --------------------------------------------------------
-    # SAVE TO HISTORY (transcript + recording, see app.py)
+    # SAVE TO HISTORY
     # --------------------------------------------------------
 
     saved = {}
@@ -1717,49 +1688,42 @@ async def process_recording(
     await send_message(
         websocket,
         {
-            "type":
-                "final_transcript",
+            "type": "final_transcript",
 
-            "meeting_id":
-                meeting_id,
+            "meeting_id": meeting_id,
 
-            "transcript":
-                transcript_text,
+            "transcript": transcript_text,
 
-            "segments":
-                transcription.get(
-                    "segments",
-                    [],
-                ),
+            "segments": transcription.get(
+                "segments",
+                [],
+            ),
 
-            "duration":
-                duration,
+            "duration": duration,
 
-            "speech_model":
-                MODEL_NAME,
+            "speech_model": MODEL_NAME,
 
-            "speaker_diarization":
-                False,
+            "speaker_diarization": False,
 
-            "final":
-                True,
+            "final": True,
 
-            # Where the recording was saved. `meeting_id` above is this
-            # socket's own recording id, not a database id.
-            "template":
-                template,
+            "template": template,
 
-            "saved_meeting_id":
-                saved.get("meeting_id"),
+            "saved_meeting_id": saved.get(
+                "meeting_id"
+            ),
 
-            "consultation_id":
-                saved.get("consultation_id"),
+            "consultation_id": saved.get(
+                "consultation_id"
+            ),
 
-            "interview_id":
-                saved.get("interview_id"),
+            "interview_id": saved.get(
+                "interview_id"
+            ),
 
-            "has_audio":
-                bool(saved.get("has_audio")),
+            "has_audio": bool(
+                saved.get("has_audio")
+            ),
         },
     )
 
@@ -1770,33 +1734,31 @@ async def process_recording(
     await send_message(
         websocket,
         {
-            "type":
-                "transcript_ready",
+            "type": "transcript_ready",
 
-            "meeting_id":
-                meeting_id,
+            "meeting_id": meeting_id,
 
-            "message":
+            "message": (
                 (
-                    (
-                        "Transcript complete. "
-                        "You can now generate the prescription."
-                        if template == "doctor"
-                        else
-                        "Transcript complete. "
-                        "You can now evaluate the interview."
-                        if template == "interview"
-                        else
-                        "Transcript complete. "
-                        "You can now create the meeting summary."
-                    )
-                    if transcript_text
+                    "Transcript complete. "
+                    "You can now generate the prescription."
+                    if template == "doctor"
                     else
-                    "Transcription completed, but no text was detected."
-                ),
+                    "Transcript complete. "
+                    "You can now evaluate the interview."
+                    if template == "interview"
+                    else
+                    "Transcript complete. "
+                    "You can now create the meeting summary."
+                )
+                if transcript_text
+                else
+                "Transcription completed, but no text was detected."
+            ),
 
-            "can_create_summary":
-                bool(transcript_text),
+            "can_create_summary": bool(
+                transcript_text
+            ),
         },
     )
 

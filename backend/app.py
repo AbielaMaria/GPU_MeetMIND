@@ -32,6 +32,8 @@ Speaker diarization: Disabled
 
 """
 
+
+import uvicorn
 import json
 
 import io
@@ -3200,4 +3202,36 @@ async def shutdown_event():
 
         "Vidatha backend shutting down."
 
+    )
+# ============================================================
+# DIRECT APPLICATION STARTUP
+# ============================================================
+
+if __name__ == "__main__":
+
+    CERT_DIR = Path(r"C:\Users\Cdac\GPU_MeetMIND_certs")
+    SSL_CERT = CERT_DIR / "meetmind-cert.pem"
+    SSL_KEY = CERT_DIR / "meetmind-key.pem"
+
+    if not SSL_CERT.is_file() or not SSL_KEY.is_file():
+        raise FileNotFoundError(
+            f"Vidatha SSL certificates not found: {SSL_CERT} or {SSL_KEY}"
+        )
+
+    logger.info("=" * 70)
+    logger.info("STARTING VIDATHA DIRECTLY THROUGH APP.PY")
+    logger.info("Host: 0.0.0.0")
+    logger.info("Port: 8100")
+    logger.info("HTTPS: Enabled")
+    logger.info("Uvicorn reload: Disabled")
+    logger.info("=" * 70)
+
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=8100,
+        ssl_certfile=str(SSL_CERT),
+        ssl_keyfile=str(SSL_KEY),
+        reload=False,
+        log_level="info",
     )
